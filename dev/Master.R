@@ -1,8 +1,5 @@
 ## Master
 
-# Download large files if not already present
-download_large_file(url = "https://www.dropbox.com/scl/fi/rnrkjot1ymtwgx71ey3if/CHELSA_kg1_1981-2010_V.2.1.tif?rlkey=744il1b6gb5hxvzzkuz2ft95q&st=bsw3fzas&dl=1", destfile = system.file("extdata", package = "xyloR"), filename = "CHELSA_kg1_1981-2010_V.2.1.tif")
-download_large_file(url = "https://www.dropbox.com/scl/fi/mk8ljmydllr0pdeq0jkiz/chelsa_clim.tif?rlkey=daczhluce541uepb7199zy3ng&st=yforpnms&dl=1", destfile = system.file("extdata", package = "xyloR"), filename = "chelsa_clim.tif")
 
 
 # Change the example_Xylo_file.xlsx with your_Xylo_file.xlsx to run this script with your data

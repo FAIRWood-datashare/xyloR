@@ -7,7 +7,7 @@
 create_xylo_metadata(
   xylo_file,
   template_meta,
-  path_out = tempdir(),
+  destdir = tempdir(),
   output_name = NULL
 )
 }
@@ -16,7 +16,7 @@ create_xylo_metadata(
 
 \item{template_meta}{Path to the template for metadata (XLSM).}
 
-\item{path_out}{Path to the output directory.}
+\item{destdir}{Path to the output directory.}
 
 \item{output_name}{(Optional) Output filename. Defaults to a name generated from metadata.}
 }
@@ -27,11 +27,10 @@ Saves the updated workbook to the specified output path.
 This function prepares metadata from standardized xylo files.
 }
 \examples{
-\dontshow{if (file.exists(system.file("extdata", "example_Xylo_file.xlsx", package = "xyloR"))) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
 xylo_file <- system.file("extdata", "example_Xylo_file.xlsx", package = "xyloR")
 template_meta <- system.file("extdata", "XX_XX_XXX_meta.xltm", package = "xyloR")
-path_out <- tempdir()  # Use a temporary directory for output
-create_xylo_metadata(xylo_file, template_meta, path_out = path_out)
+destdir <- tempdir()  # Use a temporary directory for output
+create_xylo_metadata(xylo_file, template_meta, destdir = destdir)
 
-\dontshow{\}) # examplesIf}
+
 }
