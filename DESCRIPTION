@@ -1,0 +1,23 @@
+Package: xyloR
+Title: This package prepare the files for GloboXylo
+Version: 0.0.0.9000
+Authors@R: 
+    person("Patrick", "Fonti", , "patrick.fonti@wsl.ch", role = c("aut", "cre"),
+           comment = c(ORCID = "https://orcid.org/0000-0002-7070-3292"))
+Description: This workflow involves two main functions, create_xylo_metadata.R and process_xylo_data.R, designed to help you prepare and format Xylo observation data and associated metadata for upload into the GloboXylo database. These functions ensure data standardization, adherence to metadata requirements, and compatibility with the system.
+License: GPL-3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Imports:
+  dplyr,
+  magrittr,
+  rnaturalearth,
+  openxlsx,
+  purrr,
+  raster,
+  sf,
+  stringr,
+  tibble,
+  tidyr,
+  utils
