@@ -16,28 +16,24 @@ knitr::opts_chunk$set(
 )
 ```
 
-# Introduction to xyloR
+## Package descrption
 
 The `xyloR` package helps researchers prepare and format observation data and metadata for upload to the GloboXylo database. This vignette introduces its key functionalities and provides a step-by-step guide to using the package effectively.
 
 ## Installation
 
-You can install the package from GitHub using:
-
-```r
-# Install devtools if not already installed
-install.packages("devtools")
-
-# Install xyloR from GitHub
-devtools::install_github("FAIRWood-datashare/xyloR")
-```
-
-Alternatively, install the package locally if you have the source files:
+You can install the package locally if you have the source files:
 
 ```r
 # Install xyloR from a local source
-install.packages("xyloR")
+install.packages("path/to/xyloR_0.0.0.9000.tar.gz", repos = NULL, type = "source")
+
 library(xyloR)
+```
+
+## Show vignette
+```r
+vignette("introduction", package = "xyloR")
 ```
 
 ## Key Functions
@@ -103,4 +99,4 @@ process_xylo_data(
 
 ---
 
-This vignette provides a clear guide to using `xyloR`, ensuring users can efficiently manage and format their data.
+This vignette provides a guide to using `xyloR`, ensuring users can efficiently manage and format their data.
