@@ -1,22 +1,4 @@
----
-title: "Introduction to xyloR"
-author: "Patrick Fonti"
-date: "`r Sys.Date()`"
-output: rmarkdown::html_vignette
-vignette: >
-  %\VignetteIndexEntry{Introduction to xyloR}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
----
-
-```{r, include = FALSE}
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
-)
-```
-
-## Package descrption
+## Package description
 
 The `xyloR` package helps researchers prepare and format observation data and metadata for upload to the GloboXylo database. This vignette introduces its key functionalities and provides a step-by-step guide to using the package effectively.
 
