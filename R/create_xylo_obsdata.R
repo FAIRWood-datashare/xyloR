@@ -9,10 +9,11 @@
 #' @export
 #'
 #' @examples
+#' \dontrun{
 #' # Create an empty Xylo file in the working directory
 #' create_xylo_obsdata("my_Xylo_file.xlsx", destdir = getwd())
-#'
-#'
+#' }
+
 create_xylo_obsdata <- function(filename = "my_Xylo_file.xlsx", destdir = tempdir()) {
   # Check if the destination directory exists
   if (!dir.exists(destdir)) {

@@ -19,8 +19,8 @@ This function creates an empty Xylo observation data file using a predefined tem
 and saves it as an \code{.xlsx} file in the specified directory.
 }
 \examples{
+\dontrun{
 # Create an empty Xylo file in the working directory
 create_xylo_obsdata("my_Xylo_file.xlsx", destdir = getwd())
-
-
+}
 }

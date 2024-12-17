@@ -20,10 +20,9 @@ This function processes an observation file from standardized xylo files,
 reshaping it into a long format, extracting metadata, and saving the result.
 }
 \examples{
+\dontrun{
 xylo_file <- system.file("extdata", "example_Xylo_file.xlsx", package = "xyloR")
 path_out <- tempdir()
 process_xylo_data(xylo_file, path_out)
-
-
-
+}
 }

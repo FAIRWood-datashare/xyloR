@@ -21,11 +21,11 @@ This function extracts the average annual temperature and precipitation
 from WorldClim for a given latitude and longitude using the geodata package.
 }
 \examples{
+\dontrun{
 lat <- 45.1   # Latitude of the location
 lon <- -93.6  # Longitude of the location
 data_dir <- tempdir() # Directory where tiles will be stored
 climate_data <- get_climate_data(lat, lon, data_dir)
 print(climate_data)
-
-
+}
 }

@@ -28,12 +28,13 @@
 #' @export
 #'
 #' @examples
+#' \dontrun{
 #' xylo_file <- system.file("extdata", "example_Xylo_file.xlsx", package = "xyloR")
 #' template_meta <- system.file("extdata", "XX_XX_XXX_meta.xltm", package = "xyloR")
 #' destdir <- tempdir()  # Use a temporary directory for output
 #' create_xylo_metadata(xylo_file, template_meta, destdir = destdir)
-#'
-#'
+#' }
+
 create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), output_name = NULL) {
   if (missing(xylo_file) || !file.exists(xylo_file)) {
     stop("The argument 'xylo_file' is missing or the file does not exist.")

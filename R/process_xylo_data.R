@@ -26,12 +26,12 @@
 #' @export
 #'
 #' @examples
+#' \dontrun{
 #' xylo_file <- system.file("extdata", "example_Xylo_file.xlsx", package = "xyloR")
 #' path_out <- tempdir()
 #' process_xylo_data(xylo_file, path_out)
-#'
-#'
-#'
+#' }
+
 process_xylo_data <- function(xylo_file, path_out = tempdir()) {
   # Validate inputs
   if (!file.exists(xylo_file)) {
