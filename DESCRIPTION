@@ -14,6 +14,8 @@ Imports:
   geodata,
   magrittr,
   rnaturalearth,
+  rnaturalearthdata,
+  rnaturalearthhires,
   openxlsx,
   purrr,
   raster,
@@ -27,4 +29,6 @@ Suggests:
   knitr,
   rmarkdown,
   testthat (>= 3.0.0)
+Remotes:
+  ropensci/rnaturalearthhires
 VignetteBuilder: knitr
