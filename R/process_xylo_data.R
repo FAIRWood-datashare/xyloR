@@ -12,7 +12,7 @@
 #' reshaping it into a long format, extracting metadata, and saving the result.
 #'
 #' @param xylo_file A string. Path to the xylo Excel file.
-#' @param path_out A string. Path to the output directory. Defaults to the temporary directory.
+#' @param dest_dir A string. Path to the output directory. Defaults to the temporary directory.
 #'
 #' @return A data frame containing the processed observation data in a long format.
 #' Additionally, saves the processed data as a CSV file in the specified directory.
@@ -29,19 +29,19 @@
 #' \dontrun{
 #' xylo_file <- system.file("extdata", "example_Xylo_file.xlsx", package = "xyloR")
 #' path_out <- tempdir()
-#' process_xylo_data(xylo_file, path_out)
+#' process_xylo_data(xylo_file, dest_dir = path_out)
 #' }
 
-process_xylo_data <- function(xylo_file, path_out = tempdir()) {
+process_xylo_data <- function(xylo_file, dest_dir = tempdir()) {
   # Validate inputs
   if (!file.exists(xylo_file)) {
     stop("The specified xylo file does not exist.")
   }
-  if (!dir.exists(path_out)) {
+  if (!dir.exists(dest_dir)) {
     dir.create(path_out, recursive = TRUE)
-    cat("Output directory created:", path_out, "\n")
+    cat("Output directory created:", dest_dir, "\n")
   } else {
-    cat("Using existing output directory:", path_out, "\n")
+    cat("Using existing output directory:", dest_dir, "\n")
   }
 
   # Load country polygons for ISO code determination
@@ -95,7 +95,7 @@ process_xylo_data <- function(xylo_file, path_out = tempdir()) {
 
   # Construct output filename
   output_filename <- paste0(
-    path_out, "/GX_", Country_code, "_", Site_label, "_data.csv"
+    dest_dir, "/GX_", Country_code, "_", Site_label, "_data.csv"
   )
 
   # Save the processed data to a CSV file
