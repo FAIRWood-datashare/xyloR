@@ -95,7 +95,7 @@ process_xylo_data <- function(xylo_file, dest_dir = tempdir()) {
 
   # Construct output filename
   output_filename <- paste0(
-    dest_dir, "/GX_", Country_code, "_", Site_label, "_data.csv"
+    dest_dir, "/GX_", Country_code, "_", Site_label, "_data_f.csv"
   )
 
   # Save the processed data to a CSV file
