@@ -20,8 +20,10 @@
 #' @import purrr
 #' @import sf
 #' @import tibble
+#' @import rnaturalearthdata
+#' @import rnaturalearthhires
 #' @importFrom raster extract brick
-#' @importFrom rnaturalearth ne_countries
+#' @importFrom rnaturalearth ne_countries  rnaturalearthhires
 #' @importFrom openxlsx loadWorkbook readWorkbook writeData saveWorkbook
 #' @importFrom utils download.file
 #' @importFrom magrittr %>%
@@ -101,12 +103,12 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
 
   # Prepare Site Tab
   metadata_site <- xylo_obs %>%
-    dplyr::group_by(Site) %>%
+    dplyr::group_by(Site_code) %>%
     dplyr::summarize(
       Network_name = unique(Network),
       Country_code = get_iso_country(xylo_header[1, 6], xylo_header[2, 6]),
-      Site_code = paste(unique(Network), unique(Site), sep = "."),
-      Site_label = unique(Site),
+      Site_code = paste(unique(Network), unique(Site_code), sep = "."),
+      Site_label = unique(Site_code),
       Latitude = xylo_header[1, 6],
       Longitude = xylo_header[2, 6],
       Elevation = xylo_header[3, 6],
@@ -131,15 +133,15 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
       In_stand_weather_data = NA,
       In_stand_soil_data = NA,
       In_stand_other_data = NA,
-      Number.of.sampled.trees = dplyr::n_distinct(Tree),
+      Number.of.sampled.trees = dplyr::n_distinct(Tree_label),
       Comment = NA
-    ) %>% dplyr::select(-Site)
+    ) %>% dplyr::select(-Site_code)
 
   # Prepare Tree Tab
   metadata_tree <- xylo_obs %>%
-    dplyr::count(Site, Tree, name = "Number.of.samples") %>%
+    dplyr::count(Site_code, Tree_label, name = "Number.of.samples") %>%
     dplyr::transmute(
-      Tree_label = paste(Site, Tree, sep = "_"),
+      Tree_label = paste(Site_code, Tree_label, sep = "_"),
       Tree_species = NA,
       ITRDB_Species_code = NA,
       Wood_type = NA,
@@ -171,10 +173,10 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
 
   # Prepare Sample Tab
   metadata_sample <- xylo_obs %>%
-    dplyr::group_by(Network, Site,  Tree,  Sample_id, Date) %>%
+    dplyr::group_by(Network, Site_code,  Tree_label,  Sample_id, Date) %>%
     dplyr::summarise(Number.of.samples = dplyr::n(), .groups = "drop") %>%
-    dplyr::transmute(Tree_label = Tree,
-                     Sample_label = paste(paste(Network, Site, sep ="."), Tree, Sample_id, Date, sep='_'),
+    dplyr::transmute(Tree_label = Tree_label,
+                     Sample_label = paste(paste(Network, Site_code, sep ="."), Tree_label, Sample_id, Date, sep='_'),
                      Sample_original_name = NA,
                      Sampled_organ = NA,
                      Sample_preparation_method = NA,

@@ -23,6 +23,7 @@
 #' @importFrom stringr str_split str_detect
 #' @importFrom utils write.csv
 #' @importFrom magrittr %>%
+#' @importFrom rnaturalearth ne_countries
 #' @export
 #'
 #' @examples
@@ -90,7 +91,7 @@ process_xylo_data <- function(xylo_file, dest_dir = tempdir()) {
 
   # Extract metadata for the output file name
   Country_code = get_iso_country(xylo_header[1, 6], xylo_header[2, 6])
-  Site_label = paste(unique(unique(xylo_obs$Network)), unique(xylo_obs$Site), sep = ".")
+  Site_label = paste(unique(unique(xylo_obs$Network)), unique(xylo_obs$Site_code), sep = ".")
 
 
   # Construct output filename

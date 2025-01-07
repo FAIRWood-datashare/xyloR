@@ -28,7 +28,10 @@ create_xylo_metadata(xylo_file, template_meta, destdir = path_out) # create the 
 # and YYY is the site code
 
 # 5. Format adjustments and quality check (to be further developped) (for DB curaator and contributors)
+
 # 5.1 Reformat Xylo Observation File and save it with the GloboXylo file naming structure, i.e. "GX_XX_YYY_data_f.xlsx"
 xylo_file <- system.file("extdata", "example_Xylo_file.xlsx", package = "xyloR")
 path_out <- "~/Desktop"
 process_xylo_data(xylo_file, dest_dir = path_out)
+
+# 5.2 ... (to be further developped) (for DB curaator and contributors)

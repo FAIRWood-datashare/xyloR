@@ -4,12 +4,12 @@
 \alias{process_xylo_data}
 \title{Process Xylo Observation File}
 \usage{
-process_xylo_data(xylo_file, path_out = tempdir())
+process_xylo_data(xylo_file, dest_dir = tempdir())
 }
 \arguments{
 \item{xylo_file}{A string. Path to the xylo Excel file.}
 
-\item{path_out}{A string. Path to the output directory. Defaults to the temporary directory.}
+\item{dest_dir}{A string. Path to the output directory. Defaults to the temporary directory.}
 }
 \value{
 A data frame containing the processed observation data in a long format.
@@ -23,6 +23,6 @@ reshaping it into a long format, extracting metadata, and saving the result.
 \dontrun{
 xylo_file <- system.file("extdata", "example_Xylo_file.xlsx", package = "xyloR")
 path_out <- tempdir()
-process_xylo_data(xylo_file, path_out)
+process_xylo_data(xylo_file, dest_dir = path_out)
 }
 }
