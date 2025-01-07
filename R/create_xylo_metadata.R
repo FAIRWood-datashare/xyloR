@@ -115,6 +115,7 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
     Research_organization_registry = c(NA,NA),
     Organization_name_helper = c(NA,NA),
   )
+  }
 
   # Prepare Site Tab
   metadata_site <- xylo_obs %>%
