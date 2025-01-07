@@ -18,7 +18,7 @@ openxlsx::saveWorkbook(template_your_Xylo_file.xlsx, "~/Desktop/xyloR_demo/My_Xy
 # Example run on the example Xylo_file.xlsx
 xylo_file <- system.file("extdata", "example_Xylo_file.xlsx", package = "xyloR") # get the path of a filled example Xylo_file.xlsx
 template_meta <- system.file("extdata", "XX_XX_XXX_meta.xltm", package = "xyloR") # get the path of the metadata template
-path_out <- "~/Desktop/xyloR_demo"  # Use a temporary directory for saving the prefilled Metadata
+path_out <- "~/Desktop"  # Directory for saving the prefilled Metadata
 create_xylo_metadata(xylo_file, template_meta, destdir = path_out) # create the prefilled metadata and save it with the GloboXylo file naming structure, i.e. "GX_XX_YYY_meta.xlsx". It takes long because it downloads large files climate files
 
 # 4. User fills the Xylo_metadata corresponding to his observation data and save it
@@ -31,7 +31,7 @@ create_xylo_metadata(xylo_file, template_meta, destdir = path_out) # create the 
 
 # 5.1 Reformat Xylo Observation File and save it with the GloboXylo file naming structure, i.e. "GX_XX_YYY_data_f.xlsx"
 xylo_file <- system.file("extdata", "example_Xylo_file.xlsx", package = "xyloR")
-path_out <- "~/Desktop/xyloR_demo"
+path_out <- "~/Desktop"
 process_xylo_data(xylo_file, dest_dir = path_out)
 
 # 5.2 ... (to be further developped) (for DB curaator and contributors)

@@ -93,7 +93,9 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
 
   # Prepare Person Tab
   person_role <- if_else(xylo_header[3, 2] == xylo_header[3, 4], "Contact and Data owner", "Data owner")
-  metadata_person <- tibble::tibble(
+  
+  if(person_role == "Contact and Data owner") {
+    metadata_person <- tibble::tibble(
     Person_role = person_role,
     Last_name = xylo_header[2, 2],
     First_name = xylo_header[1, 2],
@@ -102,6 +104,16 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
     Organization_name = NA,
     Research_organization_registry = NA,
     Organization_name_helper = NA,
+    ) }
+  else {metadata_person <- tibble::tibble(
+    Person_role = c("Contact",person_role),
+    Last_name = c(xylo_header[2, 4],xylo_header[2, 2]),
+    First_name = c(xylo_header[1, 4],xylo_header[1, 2]),
+    Email = c(xylo_header[3, 4],xylo_header[3, 2]),
+    Orcid = c(NA,NA),
+    Organization_name = c(NA,NA),
+    Research_organization_registry = c(NA,NA),
+    Organization_name_helper = c(NA,NA),
   )
 
   # Prepare Site Tab
