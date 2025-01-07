@@ -72,7 +72,10 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
     openxlsx::writeData(wb, sheet = sheet, x = data, startCol = 1, startRow = 8, colNames = FALSE, rowNames = FALSE)
   }
 
-
+  write_to_sheet_person <- function(wb, sheet, data) {
+    openxlsx::writeData(wb, sheet = sheet, x = data, startCol = 1, startRow = 9, colNames = FALSE, rowNames = FALSE)
+  }
+  
   # Load Template and Observation Files
   template_workbook <- openxlsx::loadWorkbook(template_meta)
   xylo_workbook <- openxlsx::loadWorkbook(xylo_file)
@@ -97,7 +100,7 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
     Email = xylo_header[3, 2],
     Orcid = NA,
     Organization_name = NA,
-    Research_organization_registry = tbl_droplist$Research_organization_registry[which(tbl_droplist$Research_organization_registry == Organization_name)],
+    Research_organization_registry = NA,
     Organization_name_helper = NA,
   )
 
@@ -107,17 +110,17 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
     dplyr::summarize(
       Network_name = unique(Network),
       Country_code = get_iso_country(xylo_header[1, 6], xylo_header[2, 6]),
-      Site_code = paste(unique(Network), unique(Site_code), sep = "."),
-      Site_label = unique(Site_code),
+      Site = unique(Site_code), 
+      Site_label = paste(Network_name, Site, sep = "."),
       Latitude = xylo_header[1, 6],
       Longitude = xylo_header[2, 6],
       Elevation = xylo_header[3, 6],
       Koppen_climate_class = extract_Koppen(xylo_header[2, 6], xylo_header[1, 6])[1, 1],
       Koppen_climate_code = tbl_droplist$Koppen.Climate.Code[which(tbl_droplist$Koppen.Climate.Class == Koppen_climate_class)],
       Koppen_climate_classification = tbl_droplist$Koppen.Climate.Classifications[which(tbl_droplist$Koppen.Climate.Class == Koppen_climate_class)],
-      Aspect = NA,
-      Slope = NA,
-      Site_microtopography = NA,
+      Site_aspect = NA,
+      Site_slope = NA,
+      Site_topography = NA,
       Temp = get_climate_data(xylo_header[1, 6], xylo_header[2, 6], tempdir())[[1]],
       Precip = get_climate_data(xylo_header[1, 6], xylo_header[2, 6], tempdir())[[2]],
       Soil_depth = NA,
@@ -197,14 +200,14 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
 
 
   # Write Metadata to Template Workbook
-  write_to_sheet(template_workbook, "person", metadata_person)
+  write_to_sheet_person(template_workbook, "person", metadata_person)
   write_to_sheet(template_workbook, "site", metadata_site)
   write_to_sheet(template_workbook, "tree", metadata_tree)
   write_to_sheet(template_workbook, "sample", metadata_sample)
 
   # Save the Updated Workbook
   if (is.null(output_name)) {
-    output_name <- paste0("GX_", metadata_site$Country_code, "_", metadata_site$Network_name, ".", metadata_site$Site_label, "_meta.xlsx")
+    output_name <- paste0("GX_", metadata_site$Country_code, "_", metadata_site$Network_name, ".", metadata_site$Site, "_meta.xlsx")
   }
   output_filepath <- file.path(destdir, output_name)
   openxlsx::saveWorkbook(template_workbook, file = output_filepath, overwrite = TRUE)
