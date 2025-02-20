@@ -37,25 +37,25 @@
 #' create_xylo_metadata(xylo_file, template_meta, destdir = destdir)
 #' }
 
-create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), output_name = NULL) {
-  if (missing(xylo_file) || !file.exists(xylo_file)) {
-    stop("The argument 'xylo_file' is missing or the file does not exist.")
-  }
-  if (missing(template_meta) || !file.exists(template_meta)) {
-    stop("The argument 'template_meta' is missing or the file does not exist.")
-  }
+create_xylo_metadata <- function(xylo_workbook, template_workbook, destdir = NULL, output_name = NULL) {
+  # if (missing(xylo_file) || !file.exists(xylo_file)) {
+  #   stop("The argument 'xylo_file' is missing or the file does not exist.")
+  # }
+  # if (missing(template_meta) || !file.exists(template_meta)) {
+  #   stop("The argument 'template_meta' is missing or the file does not exist.")
+  # }
 
   # Ensure the destdir directory is valid
-  if (!dir.exists(destdir)) {
-    dir.create(destdir, recursive = TRUE)
-    cat("Directory created:", destdir, "\n")
-  }
+  # if (!dir.exists(destdir)) {
+  #   dir.create(destdir, recursive = TRUE)
+  #   cat("Directory created:", destdir, "\n")
+  # }
 
   # Load country polygons for ISO code determination
   countries <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
 
   # Preload Köppen datasets
-  koppen_data <- raster::brick(system.file("extdata", "CHELSA_kg1_1981-2010_V.2.1.tif", package = "xyloR"))
+  #koppen_data <- raster::brick(system.file("extdata", "CHELSA_kg1_1981-2010_V.2.1.tif", package = "xyloR"))
 
   # Helper Functions
   get_iso_country <- function(lat, lon) {
@@ -77,8 +77,8 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
   }
   
   # Load Template and Observation Files
-  template_workbook <- openxlsx::loadWorkbook(template_meta)
-  xylo_workbook <- openxlsx::loadWorkbook(xylo_file)
+  # template_workbook <- openxlsx::loadWorkbook(template_meta)
+  # xylo_workbook <- openxlsx::loadWorkbook(xylo_file)
 
   # Read Droplist and Variables
   tbl_droplist <- openxlsx::readWorkbook(template_workbook, sheet = "DropList") %>% dplyr::tibble()
@@ -128,14 +128,14 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
       Latitude = xylo_header[1, 6],
       Longitude = xylo_header[2, 6],
       Elevation = xylo_header[3, 6],
-      Koppen_climate_class = extract_Koppen(xylo_header[2, 6], xylo_header[1, 6])[1, 1],
-      Koppen_climate_code = tbl_droplist$Koppen.Climate.Code[which(tbl_droplist$Koppen.Climate.Class == Koppen_climate_class)],
-      Koppen_climate_classification = tbl_droplist$Koppen.Climate.Classifications[which(tbl_droplist$Koppen.Climate.Class == Koppen_climate_class)],
+      Koppen_climate_class = NA, #extract_Koppen(xylo_header[2, 6], xylo_header[1, 6])[1, 1],
+      Koppen_climate_code = NA, #tbl_droplist$Koppen.Climate.Code[which(tbl_droplist$Koppen.Climate.Class == Koppen_climate_class)],
+      Koppen_climate_classification = NA, #tbl_droplist$Koppen.Climate.Classifications[which(tbl_droplist$Koppen.Climate.Class == Koppen_climate_class)],
       Site_aspect = NA,
       Site_slope = NA,
       Site_topography = NA,
-      Temp = get_climate_data(xylo_header[1, 6], xylo_header[2, 6], tempdir())[[1]],
-      Precip = get_climate_data(xylo_header[1, 6], xylo_header[2, 6], tempdir())[[2]],
+      Temp = NA, #get_climate_data(xylo_header[1, 6], xylo_header[2, 6], tempdir())[[1]],
+      Precip = NA, #get_climate_data(xylo_header[1, 6], xylo_header[2, 6], tempdir())[[2]],
       Soil_depth = NA,
       Soil_water_holding_capacity = NA,
       Forest_stand_origin = NA,
@@ -219,11 +219,12 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
   write_to_sheet(template_workbook, "sample", metadata_sample)
 
   # Save the Updated Workbook
-  if (is.null(output_name)) {
-    output_name <- paste0("GX_", metadata_site$Country_code, "_", metadata_site$Network_name, ".", metadata_site$Site, "_meta.xlsx")
-  }
-  output_filepath <- file.path(destdir, output_name)
-  openxlsx::saveWorkbook(template_workbook, file = output_filepath, overwrite = TRUE)
+  # if (is.null(output_name)) {
+  #   output_name <- paste0("GX_", metadata_site$Country_code, "_", metadata_site$Network_name, ".", metadata_site$Site, "_meta.xlsx")
+  # }
+  # output_filepath <- file.path(destdir, output_name)
+  # openxlsx::saveWorkbook(template_workbook, file = output_filepath, overwrite = TRUE)
 
-  return(output_filepath)
+  # return(output_filepath)
+  return(template_workbook)
 }
