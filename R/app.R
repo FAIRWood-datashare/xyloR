@@ -14,7 +14,7 @@ ui <- fluidPage(
   
   theme = bs_theme(primary = "#006268", font_scale = 0.8, bootswatch = "yeti"),
   useShinyjs(),  
-  titlePanel("XyloGlobo: Contributing Data"),
+  titlePanel("GloboXylo: Contributing Data"),
   
   navset_card_tab(id = 'tabs',
                   
@@ -36,8 +36,8 @@ ui <- fluidPage(
                                      
                                      card(
                                        card_header('Load the file you just saved!'),
-                                       fileInput("obs_file", "", accept = c(".xlsx"))
-                                     ),
+                                       fileInput("obs_file", "", accept = c(".xlsx")),
+                                      ),
                                      # Add a ReactTable of key info below the cards
                                      card(
                                        card_header("Key Information Table"),
@@ -182,12 +182,15 @@ server <- function(input, output, session) {
     contact_lastname <- as.character(openxlsx::readWorkbook(wb, sheet = "Xylo_obs_data", rows = 2, cols = 4, colNames = FALSE))
     contact_fistname <- as.character(openxlsx::readWorkbook(wb, sheet = "Xylo_obs_data", rows = 1, cols = 4, colNames = FALSE))
     contact_email <- as.character(openxlsx::readWorkbook(wb, sheet = "Xylo_obs_data", rows = 3, cols = 4, colNames = FALSE))
-    network <- unique(df$Network)
-    site <- unique(df$Site_code)
-    from <- as.Date(range(df$Date)[1], origin = "1899-12-30")
-    to <- as.Date(range(df$Date)[2], origin = "1899-12-30")
-    n_trees <- length(unique(df$Tree_label))
-    n_dates <- length(unique(df$Date))
+    latitude <- as.character(openxlsx::readWorkbook(wb, sheet = "Xylo_obs_data", rows = 1, cols = 6, colNames = FALSE))
+    longitude <- as.character(openxlsx::readWorkbook(wb, sheet = "Xylo_obs_data", rows = 2, cols = 6, colNames = FALSE))
+    elevation <- as.character(openxlsx::readWorkbook(wb, sheet = "Xylo_obs_data", rows = 3, cols = 6, colNames = FALSE))
+    network <- unique(df$network_code)
+    site <- unique(df$site_code)
+    from <- as.Date(range(df$sample_date)[1], origin = "1899-12-30")
+    to <- as.Date(range(df$sample_date)[2], origin = "1899-12-30")
+    n_trees <- length(unique(df$tree_code))
+    n_dates <- length(unique(df$sample_date))
     n_samples <- nrow(df)
     
     # Prepare the key information table
@@ -198,6 +201,8 @@ server <- function(input, output, session) {
       "Contact Email" = contact_email,
       "Network" = paste(network, collapse = ", "),
       "Site" = paste(site, collapse = ", "),
+      "Coordinates" = paste(paste0("Lat = ", latitude), paste0("Long = ", longitude), sep = ", "),
+      "Elevation" = elevation,
       "Date From" = format(from, "%Y-%m-%d"),
       "Date To" = format(to, "%Y-%m-%d"),
       "n_Trees" = n_trees,
@@ -207,7 +212,7 @@ server <- function(input, output, session) {
     colnames(key_info) <- c("Key Info")
     
     # Render the table with reactable
-    reactable(key_info, pagination = TRUE, defaultPageSize = 11)
+    reactable(key_info, pagination = TRUE, defaultPageSize = 13)
   })
  
   # Render ReacTable with key info when file is uploaded
@@ -220,22 +225,21 @@ server <- function(input, output, session) {
       
       # Extract obs information
       obs_list <- colnames(df[, -c(1:5, ncol(df))])
-      print(obs_list)
       
       # Extract count/width categories
       count_vars <- grep("count", obs_list, value = TRUE)
       width_vars <- grep("width", obs_list, value = TRUE)
       
       # Extract X/P categories
-      X_vars <- grep("^X", obs_list, value = TRUE)
-      P_vars <- grep("^P", obs_list, value = TRUE)
+      X_vars <- grep("^x", obs_list, value = TRUE)
+      P_vars <- grep("^p", obs_list, value = TRUE)
       
       # Extract C/E/W/M/Py categories
-      C_vars <- grep("^C", obs_list, value = TRUE)
-      E_vars <- grep("E", obs_list, value = TRUE)
-      W_vars <- grep("W", obs_list, value = TRUE)
-      M_vars <- grep("M", obs_list, value = TRUE)
-      Py_vars <- grep("pY", obs_list, value = TRUE)
+      C_vars <- grep("^c", obs_list, value = TRUE)
+      E_vars <- grep("e", obs_list, value = TRUE)
+      W_vars <- grep("w", obs_list, value = TRUE)
+      M_vars <- grep("m", obs_list, value = TRUE)
+      Py_vars <- grep("py", obs_list, value = TRUE)
       
       # Group the results based on occurrences in the subset
       grouped <- data.frame(
@@ -272,13 +276,13 @@ server <- function(input, output, session) {
     req(input$obs_file)
     df <- openxlsx::readWorkbook(input$obs_file$datapath, sheet = "Xylo_obs_data", startRow = 5)
     # Convert Date column to Date type if needed
-    df$Date <- as.Date(df$Date, origin = "1899-12-30")
+    df$date <- as.Date(df$sample_date, origin = "1899-12-30")
     
     # Create dynamic size and color mappings based on Sample_id
-    df$ColorFactor <- as.factor(df$Sample_id)  # Color factor for distinct colors
+    df$ColorFactor <- as.factor(df$sample_code)  # Color factor for distinct colors
     
     # Plot the data
-    plot_ly(df, x = ~Date, y = ~Tree_label, type = 'scatter', mode = 'markers',
+    plot_ly(df, x = ~date, y = ~tree_code, type = 'scatter', mode = 'markers',
             color = ~ColorFactor,  # Color by Sample_id
             marker = list(size = 10, opacity = 0.7)) %>%
       layout(title = "Tree Sample Collection Dates",
@@ -320,7 +324,7 @@ server <- function(input, output, session) {
     withProgress(message = 'Processing metadata...', value = 0, {
       
       # Loading the template
-      template_path <- system.file("extdata", "XX_XX_XXX_meta.xltm", package = "xyloR")
+      template_path <- system.file("extdata", "Datasetname_xylo_meta_yyyy-mm-dd.xlsx", package = "xyloR")
       meta_path_temporary <- file.path(tempdir_path, "Xylo_metadata_copy.xlsx")
       
       # Update progress

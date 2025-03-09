@@ -31,21 +31,23 @@
 #'
 #' @examples
 #' \dontrun{
-#' xylo_file <- system.file("extdata", "example_Xylo_file.xlsx", package = "xyloR")
-#' template_meta <- system.file("extdata", "XX_XX_XXX_meta.xltm", package = "xyloR")
-#' destdir <- tempdir()  # Use a temporary directory for output
-#' create_xylo_metadata(xylo_file, template_meta, destdir = destdir)
+#' xylo_file <- system.file("extdata", "Ltal.2007_xylo_data_2025-03-06.xlsx", package = "xyloR")
+#' template_meta <- system.file("extdata", "Datasetname_xylo_meta_yyyy-mm-dd.xlsx", package = "xyloR")
+#' destdir <- "~/Desktop/"  # tempdir()  # Use a temporary directory for output
+#' create_xylo_metadata(xylo_file, template_meta, destdir = destdir, output_name = "test.xlsx")
 #' }
 
-create_xylo_metadata <- function(xylo_workbook, template_workbook, destdir = NULL, output_name = NULL) {
+
+
+create_xylo_metadata <- function(xylo_file, template_meta, destdir = NULL, output_name = NULL) {
   # if (missing(xylo_file) || !file.exists(xylo_file)) {
   #   stop("The argument 'xylo_file' is missing or the file does not exist.")
   # }
   # if (missing(template_meta) || !file.exists(template_meta)) {
-  #   stop("The argument 'template_meta' is missing or the file does not exist.")
+  #  stop("The argument 'template_meta' is missing or the file does not exist.")
   # }
-
-  # Ensure the destdir directory is valid
+  # 
+  # # Ensure the destdir directory is valid
   # if (!dir.exists(destdir)) {
   #   dir.create(destdir, recursive = TRUE)
   #   cat("Directory created:", destdir, "\n")
@@ -55,7 +57,7 @@ create_xylo_metadata <- function(xylo_workbook, template_workbook, destdir = NUL
   countries <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
 
   # Preload Köppen datasets
-  #koppen_data <- raster::brick(system.file("extdata", "CHELSA_kg1_1981-2010_V.2.1.tif", package = "xyloR"))
+  koppen_data <- raster::brick(system.file("extdata", "CHELSA_kg1_1981-2010_V.2.1.tif", package = "xyloR"))
 
   # Helper Functions
   get_iso_country <- function(lat, lon) {
@@ -73,143 +75,152 @@ create_xylo_metadata <- function(xylo_workbook, template_workbook, destdir = NUL
   }
 
   write_to_sheet_person <- function(wb, sheet, data) {
-    openxlsx::writeData(wb, sheet = sheet, x = data, startCol = 1, startRow = 9, colNames = FALSE, rowNames = FALSE)
+    openxlsx::writeData(wb, sheet = sheet, x = data, startCol = 1, startRow = 8, colNames = FALSE, rowNames = FALSE)
   }
   
   # Load Template and Observation Files
-  # template_workbook <- openxlsx::loadWorkbook(template_meta)
-  # xylo_workbook <- openxlsx::loadWorkbook(xylo_file)
+  template_workbook <- openxlsx::loadWorkbook(template_meta)
+  xylo_workbook <- openxlsx::loadWorkbook(xylo_file)
 
   # Read Droplist and Variables
   tbl_droplist <- openxlsx::readWorkbook(template_workbook, sheet = "DropList") %>% dplyr::tibble()
   tbl_variables <- openxlsx::readWorkbook(template_workbook, sheet = "ListOfVariables") %>% dplyr::tibble()
 
   # Read Header and Observation Data
-  xylo_header <- openxlsx::readWorkbook(xylo_workbook, sheet = "Xylo_obs_data", rows = 1:3, colNames = FALSE)
-  xylo_obs <- openxlsx::readWorkbook(xylo_workbook, sheet = "Xylo_obs_data", startRow = 5) %>%
+  xylo_header <- openxlsx::readWorkbook(xylo_workbook, sheet = "obs_data_info", rows = 1:3, colNames = FALSE)
+  xylo_obs <- openxlsx::readWorkbook(xylo_workbook, sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] %>% 
     dplyr::tibble() %>%
-    dplyr::mutate(Date = as.Date(Date, origin = "1899-12-30")) %>%
-    dplyr::filter(!is.na(Date))
+    dplyr::mutate(sample_date = as.Date(as.numeric(sample_date), origin = "1899-12-30")) %>%
+    dplyr::filter(!is.na(sample_date))
+  obs_data_info <- openxlsx::readWorkbook(xylo_workbook, sheet = "obs_data_info", startRow = 6, colNames = FALSE) %>% setNames(c("site_label", "latitude", "longitude", "elevation"))
 
   # Prepare Person Tab
   person_role <- if_else(xylo_header[3, 2] == xylo_header[3, 4], "Contact and Data owner", "Data owner")
   
   if(person_role == "Contact and Data owner") {
     metadata_person <- tibble::tibble(
-    Person_role = person_role,
-    Last_name = xylo_header[2, 2],
-    First_name = xylo_header[1, 2],
-    Email = xylo_header[3, 2],
-    Orcid = NA,
-    Organization_name = NA,
-    Research_organization_registry = NA,
-    Organization_name_helper = NA,
+    person_role = person_role,
+    person_order = NA,
+    last_name = xylo_header[2, 2],
+    first_name = xylo_header[1, 2],
+    email = xylo_header[3, 2],
+    orcid = NA,
+    organization_name = NA,
+    research_organization_registry = NA,
+    organization_name_helper = NA,
     ) }
   else {metadata_person <- tibble::tibble(
-    Person_role = c("Contact",person_role),
-    Last_name = c(xylo_header[2, 4],xylo_header[2, 2]),
-    First_name = c(xylo_header[1, 4],xylo_header[1, 2]),
-    Email = c(xylo_header[3, 4],xylo_header[3, 2]),
-    Orcid = c(NA,NA),
-    Organization_name = c(NA,NA),
-    Research_organization_registry = c(NA,NA),
-    Organization_name_helper = c(NA,NA),
+    person_role = c("Contact",person_role),
+    last_name = c(xylo_header[2, 4],xylo_header[2, 2]),
+    first_name = c(xylo_header[1, 4],xylo_header[1, 2]),
+    email = c(xylo_header[3, 4],xylo_header[3, 2]),
+    orcid = c(NA,NA),
+    organization_name = c(NA,NA),
+    research_organization_registry = c(NA,NA),
+    organization_name_helper = c(NA,NA),
   )
   }
 
   # Prepare Site Tab
   metadata_site <- xylo_obs %>%
-    dplyr::group_by(Site_code) %>%
-    dplyr::summarize(
-      Network_name = unique(Network),
-      Country_code = get_iso_country(xylo_header[1, 6], xylo_header[2, 6]),
-      Site = unique(Site_code), 
-      Site_label = paste(Network_name, Site, sep = "."),
-      Latitude = xylo_header[1, 6],
-      Longitude = xylo_header[2, 6],
-      Elevation = xylo_header[3, 6],
-      Koppen_climate_class = NA, #extract_Koppen(xylo_header[2, 6], xylo_header[1, 6])[1, 1],
-      Koppen_climate_code = NA, #tbl_droplist$Koppen.Climate.Code[which(tbl_droplist$Koppen.Climate.Class == Koppen_climate_class)],
-      Koppen_climate_classification = NA, #tbl_droplist$Koppen.Climate.Classifications[which(tbl_droplist$Koppen.Climate.Class == Koppen_climate_class)],
-      Site_aspect = NA,
-      Site_slope = NA,
-      Site_topography = NA,
-      Temp = NA, #get_climate_data(xylo_header[1, 6], xylo_header[2, 6], tempdir())[[1]],
-      Precip = NA, #get_climate_data(xylo_header[1, 6], xylo_header[2, 6], tempdir())[[2]],
-      Soil_depth = NA,
-      Soil_water_holding_capacity = NA,
-      Forest_stand_origin = NA,
-      Forest_stand_type = NA,
-      Forest_stand_structure = NA,
-      Forest_stand_main_species_composition = NA,
-      Forest_stand_management_intensity = NA,
-      In_stand_dendrometer_data = NA,
-      In_stand_sapflux_data = NA,
-      In_stand_phenological_observation = NA,
-      In_stand_weather_data = NA,
-      In_stand_soil_data = NA,
-      In_stand_other_data = NA,
-      Number.of.sampled.trees = dplyr::n_distinct(Tree_label),
-      Comment = NA
-    ) %>% dplyr::select(-Site_code)
+    dplyr::count(network_label, site_label, name = "number_of_samples") %>% 
+    dplyr::left_join(., obs_data_info, by = c("site_label")) %>% 
+    dplyr::transmute(
+      network_label,
+      network_code = suppressWarnings(abbreviate(network_label, 5)),
+      country_code = get_iso_country(latitude, longitude),
+      site_label,
+      site_code = suppressWarnings(abbreviate(site_label, 5)), 
+      latitude,
+      longitude,
+      elevation,
+      koppen_climate_class = NA, #extract_Koppen(xylo_header[2, 6], xylo_header[1, 6])[1, 1],
+      koppen_climate_code = NA, #tbl_droplist$Koppen.Climate.Code[which(tbl_droplist$Koppen.Climate.Class == Koppen_climate_class)],
+      koppen_climate_classification = NA, #tbl_droplist$Koppen.Climate.Classifications[which(tbl_droplist$Koppen.Climate.Class == Koppen_climate_class)],
+      site_aspect = NA,
+      site_slope = NA,
+      site_topography = NA,
+      temp = NA, #get_climate_data(xylo_header[1, 6], xylo_header[2, 6], tempdir())[[1]],
+      precip = NA, #get_climate_data(xylo_header[1, 6], xylo_header[2, 6], tempdir())[[2]],
+      soil_depth = NA,
+      soil_water_holding_capacity = NA,
+      forest_stand_type = NA,
+      forest_stand_structure = NA,
+      forest_stand_age = NA,
+      forest_stand_main_species_composition = NA,
+      forest_stand_management_intensity = NA,
+      in_stand_dendrometer_data = NA,
+      in_stand_sapflux_data = NA,
+      in_stand_phenological_observation = NA,
+      in_stand_weather_data = NA,
+      in_stand_soil_data = NA,
+      in_stand_other_data = NA,
+      number_of_trees = dplyr::n_distinct(xylo_obs$tree_label),
+      site_comment = NA
+    )
 
   # Prepare Tree Tab
   metadata_tree <- xylo_obs %>%
-    dplyr::count(Site_code, Tree_label, name = "Number.of.samples") %>%
+    dplyr::count(site_label, plot_label, tree_label, tree_species, name = "number_of_samples") %>%
+    dplyr::mutate(itrdb_species_code = tbl_droplist$itrdb_species_code[match(tree_species, tbl_droplist$tree_species)],
+                  wood_type = tbl_droplist$tree_ring_structure[match(tree_species, tbl_droplist$tree_species)],
+                  leaf_habit = tbl_droplist$leaf_habit[match(tree_species, tbl_droplist$tree_species)],
+                  tree_ring_structure = tbl_droplist$tree_ring_structure[match(tree_species, tbl_droplist$tree_species)])  %>% 
     dplyr::transmute(
-      Tree_label = paste(Site_code, Tree_label, sep = "_"),
-      Tree_species = NA,
-      ITRDB_Species_code = NA,
-      Wood_type = NA,
-      Leaf_habit = NA,
-      Wood_plane = NA,
-      Tree_manip = NA,
-      Tree_DBH = NA,
-      Tree_height = NA,
-      Tree_age = NA,
-      Tree_sex = NA,
-      Tree_social_status = NA,
-      Tree_health_status = NA,
-      Tree_origin = NA,
-      Tree_latitude = NA,
-      Tree_longitude = NA,
-      Tree_coordinate_precision = NA,
-      On_tree_dendrometer_data = NA,
-      On_tree_sapflux_data = NA,
-      On_tree_phenological_observation = NA,
-      On_tree_weather_data = NA,
-      On_tree_shoot_growth_data = NA,
-      On_tree_other_data = NA,
-      Tree_ring_width_data = NA,
-      Tree_ring_anatomical_data = NA,
-      Tree_ring_other_data = NA,
-      Number.of.samples,
-      Comment = NA
+      site_label,
+      tree_label,
+      tree_code = suppressWarnings(abbreviate(tree_label, 5)),
+      plot_label,
+      plot_code = suppressWarnings(abbreviate(plot_label, 5)),
+      tree_species,
+      itrdb_species_code,
+      wood_type,
+      leaf_habit,
+      tree_ring_structure,
+      tree_treatment = NA,
+      tree_dbh = NA,
+      tree_height = NA,
+      tree_age = NA,
+      tree_sex = NA,
+      tree_social_status = NA,
+      tree_health_status = NA,
+      tree_origin = NA,
+      tree_latitude = NA,
+      tree_longitude = NA,
+      on_tree_dendrometer_data = NA,
+      on_tree_sapflux_data = NA,
+      on_tree_phenological_observation = NA,
+      on_tree_weather_data = NA,
+      on_tree_shoot_growth_data = NA,
+      tree_ring_width_data = NA,
+      tree_ring_anatomical_data = NA,
+      tree_ring_isotopes_data = NA,
+      number_of_samples,
+      tree_comment = NA
     )
 
   # Prepare Sample Tab
   metadata_sample <- xylo_obs %>%
-    dplyr::group_by(Network, Site_code,  Tree_label,  Sample_id, Date) %>%
-    dplyr::summarise(Number.of.samples = dplyr::n(), .groups = "drop") %>%
-    dplyr::transmute(Tree_label = Tree_label,
-                     Sample_label = paste(paste(Network, Site_code, sep ="."), Tree_label, Sample_id, Date, sep='_'),
-                     Sample_original_name = NA,
-                     Sampled_organ = NA,
-                     Sample_preparation_method = NA,
-                     Sample_staining_method = NA,
-                     Sample_mounting_method = NA,
-                     Sample_observation_method = NA,
-                     Sample_image_file_name = NA,
-                     Sample_section_archived = NA,
-                     Sample__archived = NA,
-                     Sampling_height = NA,
-                     Sampling_apex_distance = NA,
-                     Sample_thickness = NA,
-                     In_sample_IADF = NA,
-                     Near_sample_anatomical_data = NA,
-                     Near_sample_other_data = NA,
-                     Number.of.samples = Number.of.samples,
-                     Comment = NA)
+    dplyr::group_by(network_label, site_label, tree_label, sample_id, sample_label, sample_date) %>%
+    dplyr::summarise(number_of_samples = dplyr::n(), .groups = "drop") %>%
+    dplyr::transmute(tree_label,
+                     sample_id,
+                     sample_date,
+                     sample_label,
+                     sample_code = suppressWarnings(abbreviate(sample_label, 5)),
+                     sample_organ = NA,
+                     sample_preparation_method = NA,
+                     sample_staining_method = NA,
+                     sample_mounting_method = NA,
+                     sample_observation_method = NA,
+                     sample_image_file_name = NA,
+                     sample_section_archived = NA,
+                     sample__archived = NA,
+                     sampling_height = NA,
+                     sampling_apex_distance = NA,
+                     section_thickness = NA,
+                     on_section_anatomical_data = NA,
+                     sample_comment = NA)
 
 
   # Write Metadata to Template Workbook
@@ -228,3 +239,4 @@ create_xylo_metadata <- function(xylo_workbook, template_workbook, destdir = NUL
   # return(output_filepath)
   return(template_workbook)
 }
+
