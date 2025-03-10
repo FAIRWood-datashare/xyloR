@@ -386,7 +386,7 @@ server <- function(input, output, session) {
     openxlsx::loadWorkbook(input$obs_file$datapath)
   })
   
-  # upload OBSERVATION FILE and CREATE METADATAFILE
+  # upload METADATA FILE TEMPLATE and CREATE METADATAFILE
   observeEvent(input$open_meta_temp, {
     # Show the progress bar
     withProgress(message = 'Processing metadata...', value = 0, {
