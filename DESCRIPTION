@@ -10,21 +10,27 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 Imports:
+  bslib,
   dplyr,
   geodata,
   magrittr,
+  leaflet,
   rnaturalearth,
-  rnaturalearthdata,
-  rnaturalearthhires,
   openxlsx,
+  plotly,
   purrr,
   raster,
+  reactable,
+  readxl,
   sf,
+  shiny,
+  shinyjs,
   stringr,
   terra,
   tibble,
   tidyr,
-  utils
+  utils, 
+  writexl
 Suggests:
   knitr,
   rmarkdown,

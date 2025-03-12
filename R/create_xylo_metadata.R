@@ -20,10 +20,8 @@
 #' @import purrr
 #' @import sf
 #' @import tibble
-#' @import rnaturalearthdata
-#' @import rnaturalearthhires
 #' @importFrom raster extract brick
-#' @importFrom rnaturalearth ne_countries  rnaturalearthhires
+#' @importFrom rnaturalearth ne_countries
 #' @importFrom openxlsx loadWorkbook readWorkbook writeData saveWorkbook
 #' @importFrom utils download.file
 #' @importFrom magrittr %>%
@@ -39,7 +37,7 @@
 
 
 
-create_xylo_metadata <- function(xylo_file, template_meta, destdir = NULL, output_name = NULL) {
+create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), output_name = NULL) {
   # if (missing(xylo_file) || !file.exists(xylo_file)) {
   #   stop("The argument 'xylo_file' is missing or the file does not exist.")
   # }

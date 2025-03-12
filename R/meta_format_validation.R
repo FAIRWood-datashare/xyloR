@@ -1,20 +1,30 @@
 #' Metadata Format Validation
 #'
-#' @param meta_file Path to the metadata Excel file
-#' @return A tibble containing validation issues
+#' @param meta_file Path to the metadata Excel file.
+#' @return A tibble containing validation issues for each sheet and column in the metadata.
 #' @export
 #' 
 #' @examples
 #' \dontrun{
 #' meta_file <- system.file("extdata", "Ltal.2007_xylo_meta_2025-03-08.xlsx", package = "xyloR")
 #' report <- meta_format_validation(meta_file)
-
-library(readxl)
-library(dplyr)
-library(purrr)
-library(stringr)
-library(tibble)
-
+#' }
+#' 
+#' @import readxl
+#' @import dplyr
+#' @import purrr
+#' @import stringr
+#' @import tibble
+#' @importFrom utils read.csv
+#' @importFrom magrittr %>%
+#' @importFrom stringr str_detect
+#' @importFrom stringr str_split
+#' @importFrom stringr str_sub
+#' @importFrom dplyr select filter mutate
+#' @importFrom purrr map_dfr
+#' @importFrom readxl excel_sheets read_excel
+#' @importFrom stats na.omit
+#' 
 meta_format_validation <- function(meta_file) {
   
   # Load sheets excluding instructions and lookup tables
@@ -24,17 +34,17 @@ meta_format_validation <- function(meta_file) {
   sheet_droplist <- readxl::read_excel(meta_file, sheet = "DropList")
   
   # Extract column constraints
-  col_constraints <- sheet_listvariables %>% select(Table, Name, `cell constraints`, Mandatory, Domain, `data origin`)
+  col_constraints <- sheet_listvariables %>% dplyr::select(Table, Name, `cell constraints`, Mandatory, Domain, `data origin`)
   
   # Initialize report lists
   report <- list()
   
   for (sheet in sheet_names) {
     data <- sheet_data[[sheet]][-1:-6,]  # Extract data from row 8 onward
-    constraints <- col_constraints %>% filter(Table == sheet)
+    constraints <- col_constraints %>% dplyr::filter(Table == sheet)
     
     for (col in colnames(data)) {
-      constraint_row <- constraints %>% filter(Name == col)
+      constraint_row <- constraints %>% dplyr::filter(Name == col)
       
       if (nrow(constraint_row) == 0) next  # Skip columns without constraints
       
@@ -103,7 +113,7 @@ meta_format_validation <- function(meta_file) {
   
   # Convert report list to tibble
   convert_report_to_tibble <- function(report_list) {
-    map_dfr(names(report_list), function(sheet) {
+    purrr::map_dfr(names(report_list), function(sheet) {
       tibble(Sheet = sheet, Column = names(report_list[[sheet]]), Issue = unlist(report_list[[sheet]]))
     })
   }

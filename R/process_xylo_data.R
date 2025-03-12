@@ -24,6 +24,7 @@
 #' @importFrom utils write.csv
 #' @importFrom magrittr %>%
 #' @importFrom rnaturalearth ne_countries
+#' @importFrom sf st_as_sf st_join
 #' @export
 #'
 #' @examples
