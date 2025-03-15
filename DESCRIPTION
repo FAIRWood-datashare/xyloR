@@ -12,8 +12,10 @@ RoxygenNote: 7.3.2
 Imports:
   bslib,
   dplyr,
+  geodata,
   magrittr,
   leaflet,
+  lubridate,
   rnaturalearth,
   openxlsx,
   plotly,
@@ -25,6 +27,7 @@ Imports:
   shiny,
   shinyjs,
   stringr,
+  terra,
   tibble,
   tidyr,
   utils, 

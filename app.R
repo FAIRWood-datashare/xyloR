@@ -1,4 +1,5 @@
 pkgload::load_all()
-app_multi()
+xyloglobal_upload()
+
 
 

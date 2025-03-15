@@ -14,5 +14,5 @@ utils::globalVariables(c(
   "tree_ring_isotope_data", "tree_ring_structure", "tree_ring_width_data",
   "tree_sex", "tree_social_status", "tree_species", "tree_treatment",
   "updateActionButton", "updateSelectInput", "updateTabsetPanel", "wood_type", "year",
-  "year_label", "zone_code", "zone_hierarchy", "zone_name", "zone_type", ".", "cell constraints", "Mandatory", "Domain"
+  "year_label", "zone_code", "zone_hierarchy", "zone_name", "zone_type", ".", "cell constraints", "Mandatory", "Domain", "toggleState", "parent", "value", "label"
 ))
