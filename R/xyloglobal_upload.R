@@ -356,7 +356,7 @@ xyloglobal_upload <- function() {
       validate_observation <- input$validate_observation  # Correct the reference to the checkbox ID
       
       # Enable the next button only if all checkboxes are TRUE
-      toggleState(id = "next_btn", condition = validate_location && validate_data_coverage && validate_observation)
+      shinyjs::toggleState(id = "next_btn", condition = validate_location && validate_data_coverage && validate_observation)
       
       # Update validation status
       if (validate_location && validate_data_coverage && validate_observation) {
