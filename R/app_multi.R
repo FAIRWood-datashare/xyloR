@@ -18,7 +18,7 @@ app_multi <- function() {
     shinyjs::useShinyjs(),
     shiny::titlePanel("GloboXylo: Contributing Data"),
     
-    bslib::navsetCardTab(id = 'tabs',
+    navsetCardTab(id = 'tabs',
                          
                          # 📌 TAB 1: Upload Observation Data -----------------------------------------
                          navPanel(title = "Upload observation data",
