@@ -18,10 +18,10 @@ app_multi <- function() {
     shinyjs::useShinyjs(),
     shiny::titlePanel("GloboXylo: Contributing Data"),
     
-    navsetCardTab(id = 'tabs',
+    navset_card_tab(id = 'tabs',
                          
                          # 📌 TAB 1: Upload Observation Data -----------------------------------------
-                         navPanel(title = "Upload observation data",
+                         nav_panel(title = "Upload observation data",
                                          
                                          shiny::fluidRow(
                                            # Left Side: Upload Section (With Background Color)
@@ -96,7 +96,7 @@ app_multi <- function() {
                          ),
                          
                          # 📌 TAB 2: Upload Metadata -----------------------------------------------
-                         navPanel("Upload metadata",
+                         nav_panel("Upload metadata",
                                          
                                          shiny::fluidRow(
                                            # Left side
