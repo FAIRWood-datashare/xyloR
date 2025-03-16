@@ -31,7 +31,8 @@ Imports:
   tibble,
   tidyr,
   utils, 
-  writexl
+  writexl,
+  zip
 Suggests:
   knitr,
   rmarkdown,

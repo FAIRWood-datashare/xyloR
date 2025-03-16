@@ -3,7 +3,7 @@
 #' This Shiny application facilitates the upload of observation and metadata files,
 #' visualizes the data using maps and plots, and includes validation checks for data consistency.
 #'
-#' @import shiny bslib readxl writexl openxlsx leaflet plotly dplyr reactable
+#' @import shiny bslib readxl writexl openxlsx leaflet plotly dplyr reactable, zip
 #' @importFrom shinyjs useShinyjs
 #' @export
 #'
@@ -27,26 +27,43 @@ xyloglobal_upload <- function() {
                                            # Left Side: Upload Section (With Background Color)
                                            shiny::column(3, class = "bg-light p-3 border-end",  
                                                          bslib::card(
-                                                           bslib::card_header('Open observation data template'),
+                                                           bslib::card_header('Name you dataset'),
                                                            bslib::card_body(
                                                              fillable = FALSE,
-                                                             shiny::p("Click the button to open the template. Fill it in, save it, then browse and load the file."),
-                                                             shiny::actionButton("open_obs_temp", "Click to open data template!", class = "btn btn-primary"),
-                                                             shiny::textOutput("obs_file_copied")
+                                                             shiny::p("Enter the name of your dataset. This should not be more than 10 characters"),
+                                                             textInput("dataset_name", "Enter the name of your dataset", value = ""),
+                                                             actionButton("submit", "Validate name", class = "btn btn-primary")
                                                            )
                                                          ),
                                                          
                                                          bslib::card(
-                                                           bslib::card_header('Load the file you just saved!'),
-                                                           shiny::fileInput("obs_file", "", accept = c(".xlsx"), multiple = FALSE),
-                                                           shiny::selectInput("site_filter", "Select Site", choices = NULL, selected = NULL, selectize = TRUE),                                                            style = "height: 300px"
+                                                           bslib::card_header('Download observation data template'),
+                                                           bslib::card_body(
+                                                             fillable = FALSE,
+                                                             shiny::p("Click the button to download the template. Fill it in, save it, then browse and load the file."),
+                                                             # shiny::actionButton("open_obs_temp", "Click to open data template!", class = "btn btn-primary"),
+                                                             downloadButton("download_template", "Download Template", class = "btn btn-primary"),
+                                                             # shiny::textOutput("obs_file_copied")
+                                                           ),
+                                                           style = "display: none;",
+                                                           id = "card_1"
                                                          ),
+                                                         
+                                                         bslib::card(
+                                                           bslib::card_header('Upload the filled observation data file!'),
+                                                           shiny::fileInput("obs_file", "", accept = c(".xlsx"), multiple = FALSE),
+                                                           shiny::selectInput("site_filter", "Select Site", choices = NULL, selected = NULL, selectize = TRUE),                                                            style = "height: 300px; display: none;",
+                                                           id = "card_2"
+                                                         ),
+                                                         
                                                          # Add a ReactTable of key info below the cards
                                                          bslib::card(
                                                            bslib::card_header("Key Information Table"),
                                                            bslib::card_body(
                                                              reactable::reactableOutput("key_info_table")
-                                                           )
+                                                           ),
+                                                           style = "display: none;",  # Hidden by default
+                                                           id = "card_3"  # Add an ID to reference it later
                                                          )
                                            ),
                                            
@@ -56,14 +73,18 @@ xyloglobal_upload <- function() {
                                                            bslib::card_header("Geolocation Map"),
                                                            bslib::card_body(
                                                              leaflet::leafletOutput("mymap", height = "400px")
-                                                           )
+                                                           ),
+                                                           style = "display: none;",  # Hidden by default
+                                                           id = "card_4"  # Add an ID to reference it later
                                                          ),
                                                          
                                                          bslib::card(
                                                            bslib::card_header("Data Coverage Overview"),
                                                            bslib::card_body(
                                                              plotly::plotlyOutput("data_coverage_plot", height = "300px")
-                                                           )
+                                                           ),
+                                                           style = "display: none;",  # Hidden by default
+                                                           id = "card_5"  # Add an ID to reference it later
                                                          ),
                                                          
                                                          # Move Observations performed section here
@@ -71,7 +92,9 @@ xyloglobal_upload <- function() {
                                                            bslib::card_header("Observations performed [number of radial files]"),
                                                            bslib::card_body(
                                                              reactable::reactableOutput("obs_table")
-                                                           )
+                                                           ),
+                                                           style = "display: none;",  # Hidden by default
+                                                           id = "card_6"  # Add an ID to reference it later
                                                          )
                                            )
                                          ),
@@ -89,7 +112,9 @@ xyloglobal_upload <- function() {
                                                              shiny::checkboxInput("validate_observation", "Validate observation list", value = FALSE),
                                                              shiny::textOutput("validation_status"),
                                                              shiny::actionButton('next_btn', 'Next', icon = shiny::icon('angle-double-right'), class = "btn btn-primary", disabled = TRUE)
-                                                           )
+                                                           ),
+                                                           style = "display: none;",  # Hidden by default
+                                                           id = "card_7"  # Add an ID to reference it later
                                                          )
                                            )
                                          )
@@ -102,19 +127,21 @@ xyloglobal_upload <- function() {
                                            # Left side
                                            shiny::column(3, class = "bg-light p-3 border-end",  
                                                          bslib::card(
-                                                           bslib::card_header('Open metadata template'),
+                                                           bslib::card_header('Download prefilled metadata template'),
                                                            bslib::card_body(
                                                              fillable = FALSE,
-                                                             shiny::p("Click to open the template, prefilled with data from the observations file."),
-                                                             shiny::p("Complete it, save it, then browse and load the file."),
-                                                             shiny::p("Note: It may take a few seconds for the template to open.", style = "color: red;"),
-                                                             shiny::actionButton("open_meta_temp", "Click to open meta template!", class = "btn btn-primary"),
-                                                             shiny::textOutput("meta_file_copied")
+                                                             shiny::p("Click to open, prefill, and download the metadata template, prefilled with data from the observations file"),
+                                                             shiny::p("Complete the prefilled metadata, save it again, and then browse to load the filled file for format check."),
+                                                             shiny::p("Note: It may take a few seconds for the prefilled template to open.", style = "color: red;"),
+                                                             #shiny::actionButton("open_meta_temp", "Click to open meta template!", class = "btn btn-primary"),
+                                                             #shiny::textOutput("meta_file_copied"),
+                                                             downloadButton("download_meta_template", "Download Metadata Template", class = "btn btn-primary")
+                                                             
                                                            )
                                                          ),
                                                          
                                                          bslib::card(
-                                                           bslib::card_header('Load the file you just saved!'),
+                                                           bslib::card_header('Load the completed metadata file (you just saved!) to perform validation'),
                                                            bslib::card_body(
                                                              shiny::fileInput("meta_file", "", accept = c(".xlsx")),
                                                              # actionButton("validate_meta", "Validate Metadata", class = "btn btn-success"),
@@ -128,7 +155,7 @@ xyloglobal_upload <- function() {
                                            # Right side (New ReactTable)
                                            shiny::column(9,  
                                                          bslib::card(
-                                                           bslib::card_header("Metadata Overview"),
+                                                           bslib::card_header("Overview of data structure"),
                                                            bslib::card_body(
                                                              plotly::plotlyOutput("hierarchical_structure", height = "400px")
                                                            ),
@@ -137,11 +164,13 @@ xyloglobal_upload <- function() {
                                                            )
                                                          ),
                                                          bslib::card(
-                                                           bslib::card_header("Format_validation report"),
+                                                           bslib::card_header("Report of validation check!"),
                                                            bslib::card_body(
                                                              reactable::reactableOutput("validation_table"),  
                                                              shiny::uiOutput("validation_message") 
-                                                           )
+                                                           ),                                                          
+                                                           style = "display: none;",  # Hidden by default
+                                                           id = "card_8"  # Add an ID to reference it later
                                                          )
                                            ),
                                          ),
@@ -152,7 +181,11 @@ xyloglobal_upload <- function() {
                                            shiny::column(12,
                                                          bslib::card(
                                                            class = "border border-0 text-center",
-                                                           shiny::actionButton('submit_btn', 'Submit', disabled = TRUE, icon = shiny::icon('angle-double-right'), class = "btn btn-primary")
+                                                           # shiny::actionButton('submit_btn', 'Create exchange files', disabled = TRUE, icon = shiny::icon('angle-double-right'), class = "btn btn-primary"),
+                                                           downloadButton("download_zip", "Download Exchange Files as ZIP", class = "btn btn-primary"),
+                                                           # Modal for submission feedback
+                                                           shiny::uiOutput("modal_ui")
+                                                           
                                                          )
                                            )
                                          )
@@ -165,37 +198,85 @@ xyloglobal_upload <- function() {
     
     # TAB 1: ---------------------------------------------------------------------
     
-    # Create and open copy of the obs template file
-    tempdir_path <- tempdir()
-    
-    # upload TEMPLATE for OBSERVATION FILE 
-    observeEvent(input$open_obs_temp, {
-      template_path <- system.file("extdata", "Datasetname_xylo_data_yyyy-mm-dd.xlsx", package = "xyloR")
-      obs_path_temporary <- file.path(tempdir_path, paste0("Datasetname_xylo_data_", Sys.Date(), ".xlsx"))
-      obs_template <- openxlsx::loadWorkbook(template_path) # load the template
-      openxlsx::saveWorkbook(obs_template, obs_path_temporary, overwrite = TRUE) # save in tempdir
+    # Observe event for the Validate name button
+    observeEvent(input$submit, {
+      dataset_name <- input$dataset_name
       
-      # Open xlsx based on OS
-      tryCatch({
-        if (.Platform$OS.type == "windows") {
-          system2("cmd", c("/c", "start", shQuote(obs_path_temporary)), wait = FALSE)
-        } else if (Sys.info()["sysname"] == "Darwin") {
-          system(paste("open", shQuote(obs_path_temporary)))
-        } else {
-          system(paste("xdg-open", shQuote(obs_path_temporary)))
-        }
-      },
-      error = function(e) {
-        shiny::showNotification("File could not be opened!", type = "error")
-      })
+      # Validate the name (check if the name is between 1 and 10 characters)
+      if (nchar(dataset_name) > 0 && nchar(dataset_name) <= 10) {
+        
+        # Show the cards after validation
+        shinyjs::show("card_1")  # Show the card for downloading the template
+        shinyjs::show("card_2")  # Show the card for uploading the observation data
+        
+        # Optionally, you can also update the UI with a confirmation or success message
+        showModal(modalDialog(
+          title = "Validation Successful",
+          "Dataset name is valid! You can now proceed with the next steps.",
+          easyClose = TRUE,
+          footer = NULL
+        ))
+        
+      } else {
+        # If the name is invalid, show an error message
+        showModal(modalDialog(
+          title = "Invalid Name",
+          "Please enter a valid dataset name (1 to 10 characters).",
+          easyClose = TRUE,
+          footer = NULL
+        ))
+        
+        # Optionally, hide the cards again
+        shinyjs::hide("card_1")
+        shinyjs::hide("card_2")
+        shinyjs::hide("card_3")
+      }
+    })   
+    
+    # Reactive expression for dataset name
+    dataset_name_reactive <- reactive({
+      input$dataset_name
     })
     
-    # print the tempdir() path just in case
-    output$obs_file_copied <- renderText({
-      req(input$open_obs_temp)
-      paste0("File opened in temporary dir ", tempdir_path,
-             " . Clicking the button again will overwrite the file, so be sure to save it to a different location!")
+  
+    # Initialize reactive variable for temp folder
+    reactive_temp_folder <- reactiveVal()
+    
+    # Set temp folder on startup
+    observe({
+      dataset_name <- dataset_name_reactive()  # Access the reactive value within observe
+      temp_folder <- file.path(tempdir(), paste0("GloboXylo_", dataset_name, "_", Sys.Date()))
+      
+      # Set the temp folder in reactive value
+      reactive_temp_folder(temp_folder)
+      
+      dir.create(temp_folder, showWarnings = FALSE, recursive = TRUE)
     })
+    
+    # Download TEMPLATE for OBSERVATION FILE
+    output$download_template <- downloadHandler(
+      filename = function() {
+        paste0(input$dataset_name, "_xylo_data_", Sys.Date(), ".xlsx")
+      },
+      content = function(file) {
+        # Ensure input is provided
+        if (is.null(input$dataset_name) || input$dataset_name == "") {
+          stop("Please enter a dataset name before downloading.")
+        }
+        
+        # Define the paths for the template and temporary file
+        template_path <- system.file("extdata", "Datasetname_xylo_data_yyyy-mm-dd.xlsx", package = "xyloR")
+        obs_path_temporary <- file.path(tempdir(), paste0(input$dataset_name, "_xylo_data_", Sys.Date(), ".xlsx"))
+        
+        # Load the template
+        obs_template <- openxlsx::loadWorkbook(template_path)
+        openxlsx::saveWorkbook(obs_template, obs_path_temporary, overwrite = TRUE)
+        
+        # Copy the file to the location for downloading
+        file.copy(obs_path_temporary, file)
+      }
+    )
+
     
     # upload FILLED OBSERVATION FILE and RENDER INFORMATION
     
@@ -205,14 +286,26 @@ xyloglobal_upload <- function() {
       
       wb <- openxlsx::loadWorkbook(input$obs_file$datapath)  # Load the workbook
       
+      # Save a copy in temp folder
+      obs_file_saved <- file.path(reactive_temp_folder(), basename(obs_file))
+      openxlsx::saveWorkbook(wb, obs_file_saved, overwrite = TRUE)
+      
       # Read site information from the "obs_data_info" sheet
       site_info <- openxlsx::readWorkbook(wb, sheet = "obs_data_info", startRow = 6, colNames = FALSE) %>% 
         setNames(c("site_label", "latitude", "longitude", "elevation"))
       
       # Extract unique site labels and update the dropdown
       updateSelectInput(session, "site_filter", choices = unique(site_info$site_label))
+      
+      # After the file is uploaded, show the subsequent cards
+      shinyjs::show("card_3")
+      shinyjs::show("card_4")
+      shinyjs::show("card_5")
+      shinyjs::show("card_6")
+      shinyjs::show("card_7")
     })
     
+
     # Reactive xylo_obs data
     xylo_obs <- reactive({
       req(input$obs_file)
@@ -226,6 +319,10 @@ xyloglobal_upload <- function() {
       # Filter by site_code if selected
       df <- df %>% dplyr::filter(site_label == input$site_filter)
       return(df)
+      
+      shinyjs::show("card_7")
+      
+      
     })
     
     # Render ReacTable with key info when file is uploaded
@@ -367,7 +464,9 @@ xyloglobal_upload <- function() {
     })
     
     observeEvent(input$next_btn, {
-      updateTabsetPanel(session, "inTabset", selected = "metadata")
+      # bslib::update_navs(session, "inTabset", selected = "Upload metadata")
+      bslib::nav_select(id = "tabs", selected = "Upload metadata", session = session)
+
     })
     
     # TAB 2: ---------------------------------------------------------------------
@@ -376,63 +475,106 @@ xyloglobal_upload <- function() {
       openxlsx::loadWorkbook(shiny::req(input$obs_file$datapath))
     })
     
-    # upload METADATA FILE TEMPLATE and CREATE METADATAFILE
-    shiny::observeEvent(input$open_meta_temp, {
-      # Show the progress bar
-      shiny::withProgress(message = 'Processing metadata...', value = 0, {
-        
-        # Loading the template
-        template_path <- system.file("extdata", "Datasetname_xylo_meta_yyyy-mm-dd.xlsx", package = "xyloR")
-        meta_path_temporary <- file.path(tempdir_path, paste0("Datasetname_xylo_meta_", Sys.Date(), ".xlsx"))
-        
-        # Update progress
-        shiny::setProgress(value = 0.2, detail = "Loading the template...")
-        meta_template <- openxlsx::loadWorkbook(template_path)  # load the template
-        
-        # Perform additional processing
-        shiny::req(input$obs_file)  # Ensure file is uploaded
-        shiny::setProgress(value = 0.5, detail = "Processing the template...")
-        meta_template <- xyloR::create_xylo_metadata(input$obs_file$datapath, template_path)
-        
-        # Save the filled-in template
-        shiny::setProgress(value = 0.8, detail = "Saving the file...")
-        openxlsx::saveWorkbook(meta_template, meta_path_temporary, overwrite = TRUE)  # save in tempdir
-        
-        # Open the file based on OS
-        shiny::setProgress(value = 1, detail = "Opening the file...")
-        tryCatch({
-          if (.Platform$OS.type == "windows") {
-            system2("cmd", c("/c", "start", shQuote(meta_path_temporary)), wait = FALSE)
-          } else if (Sys.info()["sysname"] == "Darwin") {
-            system(paste("open", shQuote(meta_path_temporary)))
-          } else {
-            system(paste("xdg-open", shQuote(meta_path_temporary)))
-          }
-        },
-        error = function(e) {
-          shiny::showNotification("File could not be opened!", type = "error")
-        })
-      })
-    })
+    # # upload METADATA FILE TEMPLATE and CREATE METADATAFILE
+    # shiny::observeEvent(input$open_meta_temp, {
+    #   # Show the progress bar
+    #   shiny::withProgress(message = 'Processing metadata...', value = 0, {
+    #     
+    #     # Loading the template
+    #     template_path <- system.file("extdata", "Datasetname_xylo_meta_yyyy-mm-dd.xlsx", package = "xyloR")
+    #     meta_path_temporary <- file.path(tempdir_path, paste0("Datasetname_xylo_meta_", Sys.Date(), ".xlsx"))
+    #     
+    #     # Update progress
+    #     shiny::setProgress(value = 0.2, detail = "Loading the template...")
+    #     meta_template <- openxlsx::loadWorkbook(template_path)  # load the template
+    #     
+    #     # Perform additional processing
+    #     shiny::req(input$obs_file)  # Ensure file is uploaded
+    #     shiny::setProgress(value = 0.5, detail = "Processing the template...")
+    #     meta_template <- xyloR::create_xylo_metadata(input$obs_file$datapath, template_path)
+    #     
+    #     # Save the filled-in template
+    #     shiny::setProgress(value = 0.8, detail = "Saving the file...")
+    #     openxlsx::saveWorkbook(meta_template, meta_path_temporary, overwrite = TRUE)  # save in tempdir
+    #     
+    #     # Open the file based on OS
+    #     shiny::setProgress(value = 1, detail = "Opening the file...")
+    #     tryCatch({
+    #       if (.Platform$OS.type == "windows") {
+    #         system2("cmd", c("/c", "start", shQuote(meta_path_temporary)), wait = FALSE)
+    #       } else if (Sys.info()["sysname"] == "Darwin") {
+    #         system(paste("open", shQuote(meta_path_temporary)))
+    #       } else {
+    #         system(paste("xdg-open", shQuote(meta_path_temporary)))
+    #       }
+    #     },
+    #     error = function(e) {
+    #       shiny::showNotification("File could not be opened!", type = "error")
+    #     })
+    #   })
+    # })
     
     # print the tempdir() path just in case
     output$meta_file_copied <- shiny::renderText({
       shiny::req(input$open_meta_temp)
-      paste0("File opened in temporary dir ", tempdir_path,
+      paste0("File opened in temporary dir ", tempdir(),
              " . Clicking the button again will overwrite the file, so be sure to save it to a different location!")
     })
     
-    # upload FILLED METADATA FILE and check format validation
+    # Download Handler for Metadata Template
+    output$download_meta_template <- shiny::downloadHandler(
+      filename = function() {
+        paste0(input$dataset_name, "_xylo_meta_", Sys.Date(), ".xlsx")  # Dynamic filename with the current date
+      },
+      content = function(file) {
+        shiny::req(input$obs_file)  # Ensure the observation file is uploaded before processing
+        
+        shiny::withProgress(message = 'Processing metadata...', value = 0, {
+          # Loading the template from the package's extdata folder
+          shiny::setProgress(value = 0.2, detail = "Loading the template...")
+          template_path <- system.file("extdata", "Datasetname_xylo_meta_yyyy-mm-dd.xlsx", package = "xyloR")
+          
+          # Perform additional processing on the template using the observation data
+          shiny::setProgress(value = 0.5, detail = "Prefilling the template...")
+          meta_template <- xyloR::create_xylo_metadata(input$obs_file$datapath, template_path)
+          
+          # Save the filled-in template directly to the file path provided by the downloadHandler
+          shiny::setProgress(value = 0.8, detail = "Saving the file...")
+          openxlsx::saveWorkbook(meta_template, file, overwrite = TRUE)  # Save to download location provided by Shiny
+          
+          # Indicate that the file has been downloaded
+          shiny::setProgress(value = 1, detail = "File downloaded")  # Completion message
+          
+        })
+      }
+    )
+    
+    # Check format validation
     validation_results <- shiny::reactiveVal(NULL)  # Store validation results
     
     shiny::observeEvent(input$meta_file, {
-      shiny::req(input$meta_file)
+      shiny::req(input$meta_file)  # Ensure the metadata file is uploaded before proceeding
       
-      # Run the metadata validation
-      tbl_validation <- xyloR::meta_format_validation(input$meta_file$datapath)
+      # Define the save path for the metadata file
+      meta_file_saved <- file.path(reactive_temp_folder(), basename(meta_file))
       
-      # Store the results
-      validation_results(tbl_validation)
+      # save a copy in temp folder
+      file.copy(input$meta_file$datapath, meta_file_saved, overwrite = TRUE)
+      
+      # Show progress bar for validation
+      shiny::withProgress(message = 'Validating metadata...', value = 0, {
+        shiny::setProgress(value = 0.2, detail = "Loading file...")
+        
+        # Run the metadata validation
+        tbl_validation <- xyloR::meta_format_validation(input$meta_file$datapath)
+        
+        # Store the results
+        validation_results(tbl_validation)
+        
+        # Update progress to indicate completion of validation
+        shiny::setProgress(value = 1, detail = "Validation complete!")
+        shinyjs::show("card_8")
+      })
     })
     
     # Render validation table or success message
@@ -441,11 +583,25 @@ xyloglobal_upload <- function() {
       
       if (is.null(tbl) || nrow(tbl) == 0) {
         shiny::tagList(
-          shiny::tags$b("Congratulations! Your files are ready to be submitted."),
-          shiny::tags$p("You can now click on the Submit button.")
+          shiny::tags$b("Congratulations! Your files are ready to be submitted!", 
+          style = "color: green;"  # Make the bold text red
+        ),
+          shiny::tags$p("You can now click on the 'Create exchange files' button!",
+                        style = "color: green;"  # Make the paragraph text red
+          )
         )
       } else {
-        NULL  # Show nothing if there are validation issues
+        shiny::tagList(
+          shiny::tags$b(
+            "Validation Issues Found!", 
+            style = "color: red;"  # Make the bold text red
+          ),
+          shiny::tags$p(
+            "Please review the validation issues below before proceeding.",
+            style = "color: red;"  # Make the paragraph text red
+          ),
+          reactable::reactable(tbl, defaultPageSize = 10)
+        )
       }
     })
     
@@ -561,18 +717,101 @@ xyloglobal_upload <- function() {
     # Enable submit button only if validation is successful
     shiny::observe({
       tbl <- validation_results()
-      shinyjs::toggleState(id = "submit_btn", condition = !is.null(tbl) && nrow(tbl) == 0)
+      shinyjs::toggleState(id = "download_zip", condition = !is.null(tbl) && nrow(tbl) == 0)
     })
     
-    # Show success message when the submit button is clicked
-    shiny::observeEvent(input$submit_btn, {
-      shiny::showModal(shiny::modalDialog(
-        title = "Submission Successful",
-        "Your metadata file has been successfully submitted!",
-        easyClose = TRUE
-      ))
-    })
+    # # Show success message when the submit button is clicked
+    # shiny::observeEvent(input$submit_btn, {
+    #   shiny::showModal(shiny::modalDialog(
+    #     title = "Submission Successful",
+    #     "Your metadata file has been successfully submitted!",
+    #     easyClose = TRUE
+    #   ))
+    # })
     
+      # # Observe the submit button click event
+      # shiny::observeEvent(input$submit_btn, {
+      #   
+      #   # Ensure the user has uploaded both the final observation and metadata files
+      #   if (is.null(input$obs_file_final) || is.null(input$meta_file_final)) {
+      #     shiny::showModal(shiny::modalDialog(
+      #       title = "Missing Files",
+      #       "Please upload both the final observation and metadata files.",
+      #       easyClose = TRUE
+      #     ))
+      #     return(NULL)
+      #   }
+      #   
+      #   # Get the paths to the uploaded final files
+      #   obs_file_path <- obs_file_saved
+      #   meta_file_path <- meta_file_saved
+      #   
+      #   # Call the function to process and save the exchange files
+      #   result <- tryCatch({
+      #     to_exchange_files(obs_file_path, meta_file_path)  # Pass the file paths directly
+      #   }, error = function(e) {
+      #     # In case of an error, return a message
+      #     return(paste("Error: ", e$message))
+      #   })
+      #   
+      #   # Show success or error modal based on the result
+      #   if (grepl("files saved", result)) {
+      #     shiny::showModal(shiny::modalDialog(
+      #       title = "Submission Successful",
+      #       "Your exchange files have been successfully created!",
+      #       easyClose = TRUE
+      #     ))
+      #   } else {
+      #     shiny::showModal(shiny::modalDialog(
+      #       title = "Submission Failed",
+      #       paste("An error occurred: ", result),
+      #       easyClose = TRUE
+      #     ))
+      #   }
+      # })
+      # 
+    
+    # Folder path where the files will be saved
+    output$download_zip <- downloadHandler(
+      filename = function() {
+        req(input$dataset_name)
+        paste(input$dataset_name, "_Exchange_Files_", Sys.Date(), ".zip", sep = "")
+      },
+      
+      content = function(file) {
+        
+        # Ensure the user has uploaded both files
+        # if (is.null(file.path(temp_folder, basename(obs_file))) || is.null(file.path(temp_folder, basename(meta_file)))) {
+        #   stop("Please upload both the final observation and metadata files")
+        # }
+
+        # Get the paths to the uploaded final files
+        req(input$obs_file, input$meta_file)
+        obs_file_path <- input$obs_file$datapath
+        meta_file_path <- input$meta_file$datapath
+        
+        # Call the function to process and save the exchange files
+        result <- tryCatch({
+          to_exchange_files(obs_file_path, meta_file_path, dir = reactive_temp_folder(), dataset_name = dataset_name_reactive())  # Process the files
+        }, error = function(e) {
+          stop(paste("Error: ", e$message))
+        })
+        
+        # List all files inside the folder without the parent directory
+        files_to_zip <- list.files(reactive_temp_folder(), full.names = TRUE, recursive = TRUE)
+        
+        # Clean the file paths, removing any redundant slashes
+        files_to_zip <- gsub("//", "/", files_to_zip)
+        
+        # Compress the files into a ZIP file, avoiding the parent folder structure
+        zip::zipr(zipfile = file, files = files_to_zip)      }
+    )
+    
+      # Placeholder for modal UI output (if needed)
+      output$modal_ui <- renderUI({
+        NULL
+      })
+
     
   }
   

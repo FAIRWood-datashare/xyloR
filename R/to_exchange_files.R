@@ -1,0 +1,194 @@
+#' @title Transfer Observations and Metadata to GloboXylo DB
+#'
+#' @description
+#' This function processes the observations and metadata data from Excel files and prepares them for insertion into the GloboXylo database. 
+#' It loads observation and metadata data, processes the data frames, and generates various exchange files for different categories (e.g., sample, tree, zone).
+#'
+#' @param obs_file_path Character. The file path to the observations Excel file.
+#' @param meta_file_path Character. The file path to the metadata Excel file.
+#' @param dir Character. Directory where files should be saved. Defaults to tempdir().
+#' @param dataset_name Character. Name of the dataset. Defaults to NULL.
+#'
+#' @return
+#' Saves processed data frames as Excel files in the specified directory.
+#' 
+#' @examples
+#' \dontrun{
+#' obs_file_path <- system.file("extdata", "Ltal.2007_xylo_data_2025-03-06.xlsx", package = "xyloR")
+#' meta_file_path <- system.file("extdata", "Ltal.2007_xylo_meta_2025-03-08.xlsx", package = "xyloR")
+#' dir <- tempdir()
+#' dataset_name <- "test"
+#' to_exchange_files(obs_file_path, meta_file_path)
+#' }
+#'
+#' @import dplyr
+#' @import readxl
+#' @import writexl
+#' @export
+to_exchange_files <- function(obs_file_path, meta_file_path, dir = tempdir(), dataset_name = "name_your_dataset") {
+
+  # Ensure directory exists
+  if (!dir.exists(dir)) {
+    dir.create(dir, recursive = TRUE)
+  }
+  
+  # Ensure dataset_name is not NULL
+  if (is.null(dataset_name)) {
+    dataset_name <- "name_your_dataset"
+  }
+  
+
+# OBSERVATIONS DATA
+# obs_file <- openxlsx::loadWorkbook(input$obs_file$datapath)  # Load the workbook
+# obs_file <- system.file("extdata", "Ltal.2007_xylo_data_2025-03-06.xlsx", package = "xyloR")
+obs_sheet_names <- setdiff(readxl::excel_sheets(obs_file_path), c("Instructions", "DropList", "ListOfVariables"))
+obs_sheet_data <- setNames(lapply(obs_sheet_names, function(sheet) readxl::read_excel(obs_file_path, sheet = sheet)), obs_sheet_names)
+obs_sheet_data[[1]] <- obs_sheet_data[[1]][-1:-6, ]  # Remove first 6 rows for the first sheet
+colnames(obs_sheet_data[[2]]) <- as.character(obs_sheet_data[[2]][3, ])
+obs_sheet_data[[2]] <- obs_sheet_data[[2]][-1:-4, ]  # Remove first 3 rows for the second sheet
+head(obs_sheet_data)
+
+
+# METADATA DATA
+# meta_file <- system.file("extdata", "Ltal.2007_xylo_meta_2025-03-08.xlsx", package = "xyloR")
+meta_sheet_names <- setdiff(readxl::excel_sheets(meta_file_path), c("instructions", "DropList", "ListOfVariables"))
+meta_sheet_data <- setNames(lapply(meta_sheet_names, function(sheet) readxl::read_excel(meta_file_path, sheet = sheet)[-1:-6,]), meta_sheet_names)
+# ensure there is no row with just NA
+meta_sheet_data <- lapply(meta_sheet_data, function(df) df[apply(df, 1, function(x) !all(is.na(x))), ])
+
+
+# Group all samples per year, tree, plot, site, and network from sheet_data into a single data frame and count the number of samples per group
+dfmeta_joined <- left_join(meta_sheet_data[["sample"]], meta_sheet_data[["tree"]], by = "tree_label", relationship = "many-to-many") %>%
+  left_join(meta_sheet_data[["site"]], by = "site_label", relationship = "many-to-many") %>% 
+  group_by(network_label, network_code, site_label, site_code, plot_label, plot_code, tree_label, tree_code, year = as.numeric(format(sample_date, "%Y")), sample_label, sample_code, sample_id, sample_date) %>%
+  summarise(n = n()) %>%
+  ungroup() %>%
+  mutate(site_label = paste0(network_label, "__", site_label),
+         plot_label = paste0(site_label, "__", plot_label),
+         tree_label = paste0(plot_label, "__", tree_label),
+         year_label = paste0(tree_label, "__", year),
+         sample_label = paste0(year_label, "__", sample_id)) # Ensures uniqueness
+ 
+### SAMPLE_TABLE exchange files
+ # create data for excel 
+sample_data <- left_join(meta_sheet_data[["sample"]], meta_sheet_data[["tree"]], by = "tree_label", relationship = "many-to-many") %>%
+  left_join(meta_sheet_data[["site"]], by = "site_label", relationship = "many-to-many") %>% 
+  group_by(zone_hierarchy = paste(network_code, site_code, plot_code, sep = "."), tree_code, sample_code, sampling_date = as.Date(sample_date)) %>%
+  summarise(n = n(), .groups = "drop") %>% 
+  select(-n) 
+ # save file on desktop
+sample_data %>% 
+  writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_sample_table_", Sys.Date(), ".xlsx")), col_names = TRUE)
+
+# create data for measure_sample
+measure_sample <- sample_data %>%
+  left_join(., meta_sheet_data[["sample"]], by = "sample_code", relationship = "many-to-many") %>%
+  left_join(., obs_sheet_data[[1]] %>% select(-tree_label, -sample_id, -sample_date, -sample_comment), by = "sample_label", relationship = "many-to-many")   
+
+# save file on desktop
+measure_sample %>% 
+  writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_measure_sample_", Sys.Date(), ".xlsx")), col_names = TRUE)  
+
+
+
+### TREE_TABLE exchange files
+# create data for excel 
+tree_data <- left_join(meta_sheet_data[["sample"]], meta_sheet_data[["tree"]], by = "tree_label", relationship = "many-to-many") %>%
+  left_join(meta_sheet_data[["site"]], by = "site_label", relationship = "many-to-many") %>% 
+  group_by(zone_hierarchy = paste(network_code, site_code, plot_code, sep = "."), species_code = itrdb_species_code, tree_code) %>%
+  summarise(n = n(), .groups = "drop") %>% 
+  select(-n) 
+# save file on desktop
+tree_data %>% 
+  writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_tree_table_", Sys.Date(), ".xlsx")), col_names = TRUE)
+
+# create data for measure_tree
+measure_tree <- tree_data %>%
+  left_join(., meta_sheet_data[["tree"]], by = "tree_code", relationship = "many-to-many") %>%
+  select(zone_hierarchy, tree_code, plot_code, tree_species, itrdb_species_code, wood_type, leaf_habit, tree_ring_structure, tree_treatment, tree_dbh, tree_height, tree_age, tree_sex, tree_social_status, tree_health_status, tree_origin, tree_latitude, tree_longitude, on_tree_dendrometer_data, on_tree_sapflux_data, on_tree_phenological_observation, on_tree_weather_data, on_tree_shoot_growth_data, tree_ring_width_data, tree_ring_anatomical_data, tree_ring_isotope_data, number_of_samples, tree_comment)   
+ 
+# save file on desktop
+measure_tree %>% 
+  writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_measure_tree_", Sys.Date(), ".xlsx")), col_names = TRUE)  
+
+
+
+### STUDY_ZONE exchange files
+# create data for excel 
+study_zone <- left_join(meta_sheet_data[["sample"]], meta_sheet_data[["tree"]], by = "tree_label", relationship = "many-to-many") %>%
+  left_join(meta_sheet_data[["site"]], by = "site_label", relationship = "many-to-many") %>% 
+  group_by(zone_hierarchy = paste(network_code, site_code, plot_code, sep = "."), network_label, network_code, site_label, site_code, plot_code) %>%
+  summarise(n = n(), .groups = "drop") %>% 
+  select(-n) 
+
+table_zone <- tibble(
+  zone_code = c(unique(study_zone$network_code), unique(study_zone$site_code), unique(study_zone$plot_code)),
+  zone_type = case_when(
+    zone_code %in% study_zone$network_code ~ "network",
+    zone_code %in% study_zone$site_code ~ "site",
+    zone_code %in% unique(study_zone$plot_code) ~ "plot"
+  )
+) %>%
+  mutate(
+    zone_hierarchy = case_when(
+      zone_type == "network" ~ zone_code,  # network_code directly
+      zone_type == "site" ~ paste(study_zone$network_code[match(zone_code, study_zone$site_code)], zone_code, sep = "."),  # network_code + site_code
+      zone_type == "plot" ~ paste(
+        study_zone$network_code[match(zone_code, study_zone$plot_code)],
+        study_zone$site_code[match(zone_code, study_zone$plot_code)],
+        zone_code,
+        sep = "."
+      )  # network_code + site_code + plot_code
+    )
+  ) %>%
+  mutate(
+    zone_name = case_when(
+      zone_type == "network" ~ unique(study_zone$network_label),  # network_code directly
+      zone_type == "site" ~ paste(study_zone$network_label[match(zone_code, study_zone$site_code)], zone_code, sep = "."),  # network_code + site_code
+      zone_type == "plot" ~ paste(
+        study_zone$network_label[match(zone_code, study_zone$plot_code)],
+        study_zone$site_label[match(zone_code, study_zone$plot_code)],
+        zone_code,
+        sep = "."
+      )  # network_code + site_code + plot_code
+    )
+  ) %>% 
+  select(zone_hierarchy, zone_code, zone_name, zone_type)
+
+# save file on desktop
+table_zone %>% 
+  writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_study_zone_", Sys.Date(), ".xlsx")), col_names = TRUE)
+
+# create data for measure_zone
+measure_zone_sitelevel <- table_zone %>%
+  filter(zone_type == "site") %>% left_join(., meta_sheet_data[["site"]], by = c("zone_code" = "site_code"))
+
+
+measure_zone_networklevel <- table_zone %>%
+  filter(zone_type == "network") %>%
+  mutate(`principal investigator (pi)` = meta_sheet_data[["person"]]$last_name[grepl("Data owner", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
+    `email (email)` = meta_sheet_data[["person"]]$email[grepl("Data owner", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
+    `organization_name` = meta_sheet_data[["person"]]$organization_name[grepl("Data owner", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
+    `country name person (country_name)` = meta_sheet_data[["person"]]$country[grepl("Data owner", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
+    `country code person (country_code)` = meta_sheet_data[["person"]]$person_country_code[grepl("Data owner", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
+    `comment (zone_com)` = meta_sheet_data[["site"]]$site_comment[match(zone_code, meta_sheet_data[["site"]]$site_code)]
+  )
+measure_zone_networklevel
+
+
+measure_zone <- full_join(measure_zone_networklevel, measure_zone_sitelevel, 
+                                      by = c("zone_hierarchy", "zone_code", "zone_name", "zone_type"))
+
+# save file on desktop
+measure_zone %>% 
+  writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_measure_zone_", Sys.Date(), ".xlsx")), col_names = TRUE)
+
+# # Print list of saved files
+# saved_files <- list.files(dir, full.names = TRUE)
+# print(saved_files)
+
+return(paste("Files saved in", dir))
+
+}
+
+                      

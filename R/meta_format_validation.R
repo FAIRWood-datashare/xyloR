@@ -10,11 +10,7 @@
 #' report <- meta_format_validation(meta_file)
 #' }
 #' 
-#' @import readxl
-#' @import dplyr
-#' @import purrr
-#' @import stringr
-#' @import tibble
+#' @import readxl dplyr purrr stringr tibble utils magrittr
 #' @importFrom utils read.csv
 #' @importFrom magrittr %>%
 #' @importFrom stringr str_detect
