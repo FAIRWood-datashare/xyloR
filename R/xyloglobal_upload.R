@@ -287,8 +287,10 @@ xyloglobal_upload <- function() {
       wb <- openxlsx::loadWorkbook(input$obs_file$datapath)  # Load the workbook
       
       # Save a copy in temp folder
-      obs_file_saved <- file.path(reactive_temp_folder(), basename(input$obs_file$datapath))
+      obs_file_saved <- file.path(reactive_temp_folder(), basename(input$obs_file$name))
       openxlsx::saveWorkbook(wb, obs_file_saved, overwrite = TRUE)
+      
+      # print(list.files(reactive_temp_folder()))
       
       # Read site information from the "obs_data_info" sheet
       site_info <- openxlsx::readWorkbook(wb, sheet = "obs_data_info", startRow = 6, colNames = FALSE) %>% 
@@ -556,11 +558,13 @@ xyloglobal_upload <- function() {
       shiny::req(input$meta_file)  # Ensure the metadata file is uploaded before proceeding
       
       # Define the save path for the metadata file
-      meta_file_saved <- file.path(reactive_temp_folder(), basename(input$meta_file$datapath))
+      meta_file_saved <- file.path(reactive_temp_folder(), basename(input$meta_file$name))
       
-      # save a copy in temp folder
+      # print(list.files(reactive_temp_folder()))
+      
+  # Save a copy in temp folder
       file.copy(input$meta_file$datapath, meta_file_saved, overwrite = TRUE)
-      
+       
       # Show progress bar for validation
       shiny::withProgress(message = 'Validating metadata...', value = 0, {
         shiny::setProgress(value = 0.2, detail = "Loading file...")
@@ -787,15 +791,21 @@ xyloglobal_upload <- function() {
 
         # Get the paths to the uploaded final files
         req(input$obs_file, input$meta_file)
-        obs_file_path <- input$obs_file$datapath
-        meta_file_path <- input$meta_file$datapath
+        # obs_file_path <- input$obs_file$name
+        # meta_file_path <- input$meta_file$name
+        # Define paths to the saved files in the reactive temp folder
+        obs_file_saved <- file.path(reactive_temp_folder(), basename(input$obs_file$name))
+        meta_file_saved <- file.path(reactive_temp_folder(), basename(input$meta_file$name))
+        
         
         # Call the function to process and save the exchange files
         result <- tryCatch({
-          to_exchange_files(obs_file_path, meta_file_path, dir = reactive_temp_folder(), dataset_name = dataset_name_reactive())  # Process the files
+          to_exchange_files(obs_file_saved, meta_file_saved, dir = reactive_temp_folder(), dataset_name = dataset_name_reactive())  # Process the files
         }, error = function(e) {
           stop(paste("Error: ", e$message))
         })
+        
+        # print(list.files(reactive_temp_folder()))
         
         # List all files inside the folder without the parent directory
         files_to_zip <- list.files(reactive_temp_folder(), full.names = TRUE, recursive = TRUE)
