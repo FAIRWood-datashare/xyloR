@@ -4,7 +4,7 @@
 #' visualizes the data using maps and plots, and includes validation checks for data consistency.
 #'
 #' @import shiny bslib readxl writexl openxlsx leaflet plotly dplyr reactable, zip
-#' @importFrom shinyjs useShinyjs
+#' @importFrom shinyjs useShinyjs toggleState hide show
 #' @export
 #'
 #' @examples
