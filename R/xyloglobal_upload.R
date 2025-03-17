@@ -556,7 +556,7 @@ xyloglobal_upload <- function() {
       shiny::req(input$meta_file)  # Ensure the metadata file is uploaded before proceeding
       
       # Define the save path for the metadata file
-      meta_file_saved <- file.path(reactive_temp_folder(), basename(meta_file))
+      meta_file_saved <- file.path(reactive_temp_folder(), basename(input$meta_file$datapath))
       
       # save a copy in temp folder
       file.copy(input$meta_file$datapath, meta_file_saved, overwrite = TRUE)
