@@ -3,7 +3,7 @@
 #' This Shiny application facilitates the upload of observation and metadata files,
 #' visualizes the data using maps and plots, and includes validation checks for data consistency.
 #'
-#' @import shiny bslib readxl writexl openxlsx leaflet plotly dplyr reactable, zip
+#' @import shiny shinyjs bslib readxl writexl openxlsx leaflet plotly dplyr reactable, zip
 #' @importFrom shinyjs useShinyjs toggleState hide show
 #' @export
 #'
@@ -287,7 +287,7 @@ xyloglobal_upload <- function() {
       wb <- openxlsx::loadWorkbook(input$obs_file$datapath)  # Load the workbook
       
       # Save a copy in temp folder
-      obs_file_saved <- file.path(reactive_temp_folder(), basename(obs_file))
+      obs_file_saved <- file.path(reactive_temp_folder(), basename(input$obs_file$datapath))
       openxlsx::saveWorkbook(wb, obs_file_saved, overwrite = TRUE)
       
       # Read site information from the "obs_data_info" sheet
