@@ -544,7 +544,7 @@ xyloglobal_upload <- function() {
           
           # Perform additional processing on the template using the observation data
           shiny::setProgress(value = 0.5, detail = "Prefilling the template...")
-          meta_template <- xyloR::create_xylo_metadata(input$obs_file$datapath, template_path)
+          meta_template <- create_xylo_metadata(input$obs_file$datapath, template_path)
           print("meta_template")
           print(meta_template)
           
@@ -605,7 +605,7 @@ xyloglobal_upload <- function() {
         shiny::setProgress(value = 0.2, detail = "Loading file...")
         
         # Run the metadata validation
-        tbl_validation <- xyloR::meta_format_validation(input$meta_file$datapath)
+        tbl_validation <- meta_format_validation(input$meta_file$datapath)
         
         # Store the results
         validation_results(tbl_validation)
