@@ -3,7 +3,7 @@
 #' This Shiny application facilitates the upload of observation and metadata files,
 #' visualizes the data using maps and plots, and includes validation checks for data consistency.
 #'
-#' @import shiny shinyjs bslib readxl writexl openxlsx leaflet plotly dplyr reactable, zip
+#' @import shiny shinyjs bslib readxl writexl openxlsx leaflet plotly dplyr reactable zip
 #' @importFrom shinyjs useShinyjs toggleState hide show
 #' @export
 #'
@@ -12,9 +12,17 @@
 #' xyloglobal_upload()
 #' }
 xyloglobal_upload <- function() {
+
   ui <- shiny::fluidPage(
     
-    theme = bslib::bs_theme(primary = "#006268", font_scale = 0.8, bootswatch = "yeti"),
+    theme = bslib::bs_theme(primary = "#006268",font_scale = 0.8, bootswatch = "yeti"),
+    # Add custom CSS to change the background color of the card
+    tags$style(HTML("
+    .bg-light-green {
+      background-color: #f4f7f7 !important;
+    }
+    ")),
+    
     shinyjs::useShinyjs(),
     shiny::titlePanel("GloboXylo: Contributing Data"),
     
@@ -186,7 +194,64 @@ xyloglobal_upload <- function() {
                                                          )
                                            )
                                          )
-                         )
+                         ),
+                    
+      # TAB 3: Upload Metadata -----------------------------------------------
+      nav_panel("Authors' Info",
+        bslib::card(
+          class = "bg-light-green p-3 border-end",
+          max_height = 400,
+          bslib::card_header('ROR search tool'),
+          bslib::layout_columns(
+            bslib::card(
+              shiny::selectInput("country_code", "Select country:",
+                                 choices = c(Choose='', get_country_codes()),
+                                 selectize = TRUE),
+              shiny::textInput("search_string", "Enter search string:"),
+              shiny::actionButton("search_ror", "Search for ROR", class = "btn btn-primary")
+              #shiny::selectizeInput("result_choice", "Select Result:", choices = NULL)
+            ),
+            bslib::card(
+              h4('ROR search results:'),
+              DT::DTOutput("ror_results")
+            ),
+            col_widths = c(3,9)
+          )
+        ),
+        bslib::card(
+          bslib::card_header('Provide Authors'),
+          p("Please list all authors (data owners) of the dataset. Note that
+           the order provided here will be used as the order of authorship."),
+          card_body(
+            fillable = FALSE,
+            actionButton("add_author_btn", "Add author", style = "width: 100px",
+                         class = "btn btn-primary"),
+            actionButton("del_author_btn", "Delete author", style = "width: 100px",
+                         class = "btn btn-danger")
+          ),
+          # First author input
+          author_input(1),
+          
+          # the dynamic author inputs
+          uiOutput("author_inputs"),
+          
+          # dynamic contact person
+          h5('Contact person'),
+          uiOutput('contact_person')
+          
+        ),
+        bslib::card(
+          class="border border-0",
+          bslib::card_body(
+            fillable = FALSE,
+            shiny::actionButton('save_authors', 'Submit author info', icon = icon('angle-double-right')))
+        )
+      ),
+                    
+      # TAB 4: Upload Metadata -----------------------------------------------
+      nav_panel("Publications Info",
+                bslib::card()
+      )
     )
   )
   
@@ -326,7 +391,7 @@ xyloglobal_upload <- function() {
     })
     
     # Render ReacTable with key info when file is uploaded
-    output$key_info_table <- renderReactable({
+    output$key_info_table <- reactable::renderReactable({
       req(input$obs_file)  # Ensure the file is uploaded
       req(input$site_filter)  # Ensure the site is selected
       
@@ -379,7 +444,7 @@ xyloglobal_upload <- function() {
     })
     
     # Render ReacTable with key info when file is uploaded
-    output$obs_table <- renderReactable({
+    output$obs_table <- reactable::renderReactable({
       req(input$obs_file)  # Ensure the file is uploaded
       
       # Load and process data from the uploaded file
@@ -491,7 +556,7 @@ xyloglobal_upload <- function() {
     #     # Perform additional processing
     #     shiny::req(input$obs_file)  # Ensure file is uploaded
     #     shiny::setProgress(value = 0.5, detail = "Processing the template...")
-    #     meta_template <- xyloR::create_xylo_metadata(input$obs_file$datapath, template_path)
+    #     meta_template <- create_xylo_metadata(input$obs_file$datapath, template_path)
     #     
     #     # Save the filled-in template
     #     shiny::setProgress(value = 0.8, detail = "Saving the file...")
@@ -545,6 +610,7 @@ xyloglobal_upload <- function() {
           # Perform additional processing on the template using the observation data
           shiny::setProgress(value = 0.5, detail = "Prefilling the template...")
           meta_template <- create_xylo_metadata(input$obs_file$datapath, template_path)
+
           print("meta_template")
           print(meta_template)
           
@@ -849,17 +915,113 @@ xyloglobal_upload <- function() {
         files_to_zip <- gsub("//", "/", files_to_zip)
         
         # Compress the files into a ZIP file, avoiding the parent folder structure
-        zip::zipr(zipfile = file, files = files_to_zip)      }
+        zip::zipr(zipfile = file, files = files_to_zip)      
+      }
     )
     
-      # Placeholder for modal UI output (if needed)
-      output$modal_ui <- renderUI({
-        NULL
-      })
+    # Placeholder for modal UI output (if needed)
+    output$modal_ui <- renderUI({
+      NULL
+    })
 
+      
+    # TAB 3: -------------------------------------------------------------------
     
-  }
+    # toggle: only enable in case we have a country and search string
+    shiny::observe({
+      shinyjs::toggleState(id = "search_ror", 
+                           condition = !((input$search_string=="") && 
+                                          (input$search_country=="")))
+    })
+    
+    # run the search via ROR API
+    shiny::observeEvent(input$search_ror, {
+      req(input$country_code)
+      req(input$search_string)
+
+      search_url <- sprintf(
+        'https://api.ror.org/v2/organizations?query=%s&filter=country.country_code:%s',
+        URLencode(input$search_string),
+        input$country_code)
+
+      ror_res <- httr::GET(search_url, httr::timeout(5))
+
+      if (httr::status_code(ror_res) == 200) {
+        ror_data <- jsonlite::fromJSON(rawToChar(ror_res$content))
+
+        if (ror_data$number_of_results > 0) {
+
+          # get the names (assuming that there is always exactly one ror_display name)
+          res_names <- ror_data$items$names %>%
+            dplyr::bind_rows() %>%
+            filter(grepl('ror_display', types)) %>%
+            dplyr::pull(value)
+        
+          # get the locations
+          res_locs <- ror_data$items$locations %>% 
+            dplyr::bind_rows() %>% 
+            dplyr::pull(geonames_details) %>% 
+            tidyr::unite(col = 'address', name, country_name, sep = ', ') %>% 
+            dplyr::pull(address)
+          
+          # a dataframe of res_locs, res_names and res_ror_ids
+          res_df <- data.frame(ROR = ror_data$items$id, Name = res_names, 
+                               Location = res_locs)
+          
+          #updateSelectizeInput(session, "result_choice", choices = res_names)
+          output$ror_results <- DT::renderDT({
+            DT::datatable(res_df, rownames = FALSE)
+          })
+        } else {
+          showNotification("No ROR results found. Try again.", type = "message")
+        }
+      } else {
+        showNotification("ROR API request failed. Try again.", type = "error")
+      }
+
+    })
+
+    # Keep track of the number of authors
+    author_count <- shiny::reactiveVal(1)
+    
+    # Enable delete button only if there are more than 1 authors
+    shiny::observe({
+      shinyjs::toggleState(id = "del_author_btn", condition = author_count() > 1)
+    })
+    
+    # Add author input if button is clicked
+    shiny::observeEvent(input$add_author_btn, {
+      author_count(author_count() + 1)
+      author_id <- paste0('aut', author_count())
+      shiny::insertUI(
+        selector = "#author_inputs",
+        where = "beforeBegin",
+        ui = div(id = author_id,
+                 author_input(author_count()))
+      )
+      #iv_gen$add_rule(paste0('autname_',author_count()), sv_required())
+    })
+    
+    # Delete author input
+    shiny::observeEvent(input$del_author_btn, {
+      shiny::removeUI(selector = paste0("#aut", author_count()))
+      #iv_gen$remove_rules(paste0('autname_',author_count()))
+      author_count(author_count() - 1)
+      
+    })
+    
+    # Dynamic selection of contact person
+    output$contact_person <- shiny::renderUI({
+      shiny::radioButtons("contact_person", NULL,
+                   choices = paste("Author", 1:author_count()))
+    })
+   
+     
+  } # end of server function
   
-shinyApp(ui, server)
+  
+  shinyApp(ui, server)
+
+
 
 }
