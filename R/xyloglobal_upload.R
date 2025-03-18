@@ -95,21 +95,15 @@ xyloglobal_upload <- function() {
                                                            ),
                                                            style = "display: none;",  # Hidden by default
                                                            id = "card_6"  # Add an ID to reference it later
-                                                         )
-                                           )
-                                         ),
-                                         
-                                         shiny::br(),
-                                         
-                                         # Adding validation checkboxes and next button
-                                         shiny::fluidRow(
-                                           shiny::column(12,
+                                                         ),
+                                                         
+                                                         # Adding validation checkboxes and next button
                                                          bslib::card(
                                                            bslib::card_header("Data Validation"),
                                                            bslib::card_body(
                                                              shiny::checkboxInput("validate_location", "Validate Location", value = FALSE),
                                                              shiny::checkboxInput("validate_data_coverage", "Validate Data Coverage", value = FALSE),
-                                                             shiny::checkboxInput("validate_observation", "Validate observation list", value = FALSE),
+                                                             shiny::checkboxInput("validate_observation", "Validate Observation list", value = FALSE),
                                                              shiny::textOutput("validation_status"),
                                                              shiny::actionButton('next_btn', 'Next', icon = shiny::icon('angle-double-right'), class = "btn btn-primary", disabled = TRUE)
                                                            ),
@@ -117,7 +111,10 @@ xyloglobal_upload <- function() {
                                                            id = "card_7"  # Add an ID to reference it later
                                                          )
                                            )
-                                         )
+                                         ),
+                                         
+                                         shiny::br(),
+                                         
                          ),
                          
                          # TAB 2: Upload Metadata -----------------------------------------------
@@ -378,7 +375,7 @@ xyloglobal_upload <- function() {
       colnames(key_info) <- c("Key Info")
       
       # Render the table with reactable
-      reactable::reactable(key_info, pagination = TRUE, defaultPageSize = 13)
+      reactable::reactable(key_info, pagination = TRUE, striped = TRUE, defaultPageSize = 13)
     })
     
     # Render ReacTable with key info when file is uploaded
@@ -413,7 +410,7 @@ xyloglobal_upload <- function() {
       )
       
       # Render the table with reactable
-      reactable::reactable(grouped)
+      reactable::reactable(grouped, striped = TRUE)
     })
     
     
@@ -748,7 +745,7 @@ xyloglobal_upload <- function() {
                            searchable = TRUE,
                            striped = TRUE,
                            highlight = TRUE,
-                           filterable = TRUE,
+                           filterable = FALSE,
                            columns = list(
                              Sheet = reactable::colDef(name = "Sheet"),
                              Column = reactable::colDef(name = "Column"),
