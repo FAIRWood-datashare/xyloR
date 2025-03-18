@@ -103,21 +103,15 @@ xyloglobal_upload <- function() {
                                                            ),
                                                            style = "display: none;",  # Hidden by default
                                                            id = "card_6"  # Add an ID to reference it later
-                                                         )
-                                           )
-                                         ),
-                                         
-                                         shiny::br(),
-                                         
-                                         # Adding validation checkboxes and next button
-                                         shiny::fluidRow(
-                                           shiny::column(12,
+                                                         ),
+                                                         
+                                                         # Adding validation checkboxes and next button
                                                          bslib::card(
                                                            bslib::card_header("Data Validation"),
                                                            bslib::card_body(
                                                              shiny::checkboxInput("validate_location", "Validate Location", value = FALSE),
                                                              shiny::checkboxInput("validate_data_coverage", "Validate Data Coverage", value = FALSE),
-                                                             shiny::checkboxInput("validate_observation", "Validate observation list", value = FALSE),
+                                                             shiny::checkboxInput("validate_observation", "Validate Observation list", value = FALSE),
                                                              shiny::textOutput("validation_status"),
                                                              shiny::actionButton('next_btn', 'Next', icon = shiny::icon('angle-double-right'), class = "btn btn-primary", disabled = TRUE)
                                                            ),
@@ -125,7 +119,10 @@ xyloglobal_upload <- function() {
                                                            id = "card_7"  # Add an ID to reference it later
                                                          )
                                            )
-                                         )
+                                         ),
+                                         
+                                         shiny::br(),
+                                         
                          ),
                          
                          # TAB 2: Upload Metadata -----------------------------------------------
@@ -322,6 +319,7 @@ xyloglobal_upload <- function() {
     output$download_template <- downloadHandler(
       filename = function() {
         paste0(input$dataset_name, "_xylo_data_", Sys.Date(), ".xlsx")
+ 
       },
       content = function(file) {
         # Ensure input is provided
@@ -442,7 +440,7 @@ xyloglobal_upload <- function() {
       colnames(key_info) <- c("Key Info")
       
       # Render the table with reactable
-      reactable::reactable(key_info, pagination = TRUE, defaultPageSize = 13)
+      reactable::reactable(key_info, pagination = TRUE, striped = TRUE, defaultPageSize = 13)
     })
     
     # Render ReacTable with key info when file is uploaded
@@ -477,7 +475,7 @@ xyloglobal_upload <- function() {
       )
       
       # Render the table with reactable
-      reactable::reactable(grouped)
+      reactable::reactable(grouped, striped = TRUE)
     })
     
     
@@ -594,16 +592,27 @@ xyloglobal_upload <- function() {
         paste0(input$dataset_name, "_xylo_meta_", Sys.Date(), ".xlsx")  # Dynamic filename with the current date
       },
       content = function(file) {
+        print(paste("Saving to:", file))  # Debugging line
+        # Ensure input is provided
+        if (is.null(input$dataset_name) || input$dataset_name == "") {
+          stop("Please enter a dataset name before downloading.")
+        }
+        
         shiny::req(input$obs_file)  # Ensure the observation file is uploaded before processing
         
         shiny::withProgress(message = 'Processing metadata...', value = 0, {
           # Loading the template from the package's extdata folder
           shiny::setProgress(value = 0.2, detail = "Loading the template...")
           template_path <- system.file("extdata", "Datasetname_xylo_meta_yyyy-mm-dd.xlsx", package = "xyloR")
+          print(paste("Template path:", template_path))  # Debugging line
+          
           
           # Perform additional processing on the template using the observation data
           shiny::setProgress(value = 0.5, detail = "Prefilling the template...")
           meta_template <- create_xylo_metadata(input$obs_file$datapath, template_path)
+
+          print("meta_template")
+          print(meta_template)
           
           # Save the filled-in template directly to the file path provided by the downloadHandler
           shiny::setProgress(value = 0.8, detail = "Saving the file...")
@@ -612,6 +621,33 @@ xyloglobal_upload <- function() {
           # Indicate that the file has been downloaded
           shiny::setProgress(value = 1, detail = "File downloaded")  # Completion message
           
+        })
+      }
+    )
+    output$download_meta_template <- shiny::downloadHandler(
+      filename = function() {
+         paste0(input$dataset_name, "_xylo_meta_", Sys.Date(), ".xlsx")
+      },
+      content = function(file) {
+        if (is.null(input$dataset_name) || input$dataset_name == "") {
+          stop("Please enter a dataset name before downloading.")
+        }
+        
+        shiny::req(input$obs_file)  
+ 
+        shiny::withProgress(message = 'Processing metadata...', value = 0, {
+          shiny::setProgress(value = 0.2, detail = "Loading the template...")
+          
+          template_path <- system.file("extdata", "Datasetname_xylo_meta_yyyy-mm-dd.xlsx", package = "xyloR")
+
+          shiny::setProgress(value = 0.5, detail = "Prefilling the template...")
+          meta_template <- create_xylo_metadata(input$obs_file$datapath, template_path)
+          
+          shiny::setProgress(value = 0.8, detail = "Saving the file...")
+          
+          openxlsx::saveWorkbook(meta_template, file, overwrite = TRUE)
+          
+          shiny::setProgress(value = 1, detail = "File ready for download")
         })
       }
     )
@@ -775,7 +811,7 @@ xyloglobal_upload <- function() {
                            searchable = TRUE,
                            striped = TRUE,
                            highlight = TRUE,
-                           filterable = TRUE,
+                           filterable = FALSE,
                            columns = list(
                              Sheet = reactable::colDef(name = "Sheet"),
                              Column = reactable::colDef(name = "Column"),
