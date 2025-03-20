@@ -55,7 +55,7 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
   countries <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
 
   # Preload Köppen datasets
-  koppen_data <- raster::brick(system.file("extdata", "CHELSA_kg1_1981-2010_V.2.1.tif", package = "xyloR"))
+  # koppen_data <- raster::brick(system.file("extdata", "CHELSA_kg1_1981-2010_V.2.1.tif", package = "xyloR"))
 
   # Helper Functions
   get_iso_country <- function(lat, lon) {
