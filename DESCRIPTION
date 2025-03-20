@@ -11,8 +11,12 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 Imports:
   bslib,
+  bsicons,
   dplyr,
+  DT,
   geodata,
+  httr,
+  jsonlite,
   magrittr,
   leaflet,
   lubridate,
@@ -22,6 +26,7 @@ Imports:
   purrr,
   raster,
   reactable,
+  readr,
   readxl,
   sf,
   shiny,

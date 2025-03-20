@@ -24,6 +24,7 @@
 #' @import dplyr
 #' @import readxl
 #' @import writexl
+#' @importFrom readr write_csv
 #' @export
 to_exchange_files <- function(obs_file_path, meta_file_path, dir = tempdir(), dataset_name = "name_your_dataset") {
 
@@ -75,20 +76,31 @@ sample_data <- left_join(meta_sheet_data[["sample"]], meta_sheet_data[["tree"]],
   left_join(meta_sheet_data[["site"]], by = "site_label", relationship = "many-to-many") %>% 
   group_by(zone_hierarchy = paste(network_code, site_code, plot_code, sep = "."), tree_code, sample_code, sampling_date = as.Date(sample_date)) %>%
   summarise(n = n(), .groups = "drop") %>% 
-  select(-n) 
+  select(-n) %>% 
+  dplyr::mutate(comment = NA)
  # save file on desktop
+# sample_data %>% 
+#   writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_sample_table_", Sys.Date(), ".xlsx")), col_names = TRUE)
 sample_data %>% 
-  writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_sample_table_", Sys.Date(), ".xlsx")), col_names = TRUE)
+  readr::write_csv(file.path(dir, paste0(dataset_name, "_sample_table_", Sys.Date(), ".csv")))
 
 # create data for measure_sample
 measure_sample <- sample_data %>%
   left_join(., meta_sheet_data[["sample"]], by = "sample_code", relationship = "many-to-many") %>%
-  left_join(., obs_sheet_data[[1]] %>% select(-tree_label, -sample_id, -sample_date, -sample_comment), by = "sample_label", relationship = "many-to-many")   
+  left_join(., obs_sheet_data[[1]] %>% select(-tree_label, -sample_id, -sample_date, -sample_comment), by = "sample_label", relationship = "many-to-many") %>%
+  dplyr::mutate(
+    Observation_measure = NA,
+    Date_measure = NA,
+    Precision_date_measure = NA
+  ) %>%
+  dplyr::relocate(Observation_measure, Date_measure, Precision_date_measure, .after = sampling_date) %>% 
+  dplyr::select(-tree_label, -sample_date)
 
 # save file on desktop
+# measure_sample %>% 
+#   writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_measure_sample_", Sys.Date(), ".xlsx")), col_names = TRUE)  
 measure_sample %>% 
-  writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_measure_sample_", Sys.Date(), ".xlsx")), col_names = TRUE)  
-
+  readr::write_csv(file.path(dir, paste0(dataset_name, "_measure_sample_", Sys.Date(), ".csv")))
 
 
 ### TREE_TABLE exchange files
@@ -97,19 +109,32 @@ tree_data <- left_join(meta_sheet_data[["sample"]], meta_sheet_data[["tree"]], b
   left_join(meta_sheet_data[["site"]], by = "site_label", relationship = "many-to-many") %>% 
   group_by(zone_hierarchy = paste(network_code, site_code, plot_code, sep = "."), species_code = itrdb_species_code, tree_code) %>%
   summarise(n = n(), .groups = "drop") %>% 
-  select(-n) 
+  select(-n) %>% 
+  dplyr::mutate(comment = NA)
 # save file on desktop
+# tree_data %>% 
+#   writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_tree_table_", Sys.Date(), ".xlsx")), col_names = TRUE)
 tree_data %>% 
-  writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_tree_table_", Sys.Date(), ".xlsx")), col_names = TRUE)
+  readr::write_csv(file.path(dir, paste0(dataset_name, "_tree_table_", Sys.Date(), ".csv")))
 
 # create data for measure_tree
 measure_tree <- tree_data %>%
   left_join(., meta_sheet_data[["tree"]], by = "tree_code", relationship = "many-to-many") %>%
-  select(zone_hierarchy, tree_code, plot_code, tree_species, itrdb_species_code, wood_type, leaf_habit, tree_ring_structure, tree_treatment, tree_dbh, tree_height, tree_age, tree_sex, tree_social_status, tree_health_status, tree_origin, tree_latitude, tree_longitude, on_tree_dendrometer_data, on_tree_sapflux_data, on_tree_phenological_observation, on_tree_weather_data, on_tree_shoot_growth_data, tree_ring_width_data, tree_ring_anatomical_data, tree_ring_isotope_data, number_of_samples, tree_comment)   
+  select(zone_hierarchy, tree_code, plot_code, tree_species, itrdb_species_code, wood_type, leaf_habit, tree_ring_structure, tree_treatment, tree_dbh, tree_height, tree_age, tree_sex, tree_social_status, tree_health_status, tree_origin, tree_latitude, tree_longitude, on_tree_dendrometer_data, on_tree_sapflux_data, on_tree_phenological_observation, on_tree_weather_data, on_tree_shoot_growth_data, tree_ring_width_data, tree_ring_anatomical_data, tree_ring_isotope_data, number_of_samples, tree_comment) %>%
+  dplyr::mutate(
+    Observation_measure = NA,
+    Date_measure = NA,
+    Precision_date_measure = NA
+  ) %>%
+  dplyr::relocate(Observation_measure, Date_measure, Precision_date_measure, .after = tree_code) %>% 
+  dplyr::select(-plot_code, -tree_species, -itrdb_species_code)
+  
  
 # save file on desktop
+# measure_tree %>% 
+#   writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_measure_tree_", Sys.Date(), ".xlsx")), col_names = TRUE)  
 measure_tree %>% 
-  writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_measure_tree_", Sys.Date(), ".xlsx")), col_names = TRUE)  
+  readr::write_csv(file.path(dir, paste0(dataset_name, "_measure_tree_", Sys.Date(), ".csv"))) 
 
 
 
@@ -156,8 +181,10 @@ table_zone <- tibble(
   select(zone_hierarchy, zone_code, zone_name, zone_type)
 
 # save file on desktop
+# table_zone %>% 
+#   writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_study_zone_", Sys.Date(), ".xlsx")), col_names = TRUE)
 table_zone %>% 
-  writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_study_zone_", Sys.Date(), ".xlsx")), col_names = TRUE)
+  readr::write_csv(file.path(dir, paste0(dataset_name, "_study_zone_", Sys.Date(), ".csv")))
 
 # create data for measure_zone
 measure_zone_sitelevel <- table_zone %>%
@@ -177,11 +204,21 @@ measure_zone_networklevel
 
 
 measure_zone <- full_join(measure_zone_networklevel, measure_zone_sitelevel, 
-                                      by = c("zone_hierarchy", "zone_code", "zone_name", "zone_type"))
+                                      by = c("zone_hierarchy", "zone_code", "zone_name", "zone_type")) %>% 
+  dplyr::select(-zone_hierarchy) %>%
+  dplyr::mutate(
+    Observation_measure = NA,
+    Date_measure = NA,
+    Precision_date_measure = NA
+  ) %>%
+  dplyr::relocate(Observation_measure, Date_measure, Precision_date_measure, .after = zone_type)
+
 
 # save file on desktop
+# measure_zone %>% 
+#   writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_measure_zone_", Sys.Date(), ".xlsx")), col_names = TRUE)
 measure_zone %>% 
-  writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_measure_zone_", Sys.Date(), ".xlsx")), col_names = TRUE)
+  readr::write_csv(file.path(dir, paste0(dataset_name, "_measure_zone_", Sys.Date(), ".csv")))
 
 # # Print list of saved files
 # saved_files <- list.files(dir, full.names = TRUE)

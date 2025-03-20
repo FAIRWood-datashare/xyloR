@@ -15,68 +15,222 @@ xyloglobal_upload <- function() {
 
   ui <- shiny::fluidPage(
     
-    theme = bslib::bs_theme(primary = "#006268",font_scale = 0.8, bootswatch = "yeti"),
+    theme = bslib::bs_theme(bootswatch = "darkly", primary = "#375A7F", secondary = "#3498DB", font_scale = 0.8, success = "#00BC8C", warning = "#F39C12", danger = "#E74C3C", info = "#3498DB"),
+    
     # Add custom CSS to change the background color of the card
     tags$style(HTML("
-    .bg-light-green {
-      background-color: #f4f7f7 !important;
-    }
-    ")),
+  .bg-light-green {
+    background-color: #f4f7f7 !important;
+  }
+
+  .card-body {
+    height: auto;  /* Allows height to adjust dynamically based on content */
+    overflow: visible;  /* No scrolling, visible overflow */
+  }
+
+  /* Dark theme for DataTable */
+  .table-dark {
+    background-color: #343a40 !important; /* Dark grey background */
+    color: #ffffff; /* White text */
+  }
+
+  /* DataTable Search Field (Global Search) */
+  .dataTables_filter input {
+    background-color: #444444;  /* Dark grey for search input */
+    color: #ffffff;  /* White text */
+    border: 1px solid #6c757d;  /* Subtle border */
+  }
+
+  /* DataTable Column Filters (per-column filtering inputs) */
+  thead input {
+    background-color: #444444 !important; /* Dark grey for column filters */
+    color: #ffffff !important; /* White text */
+    border: 1px solid #6c757d !important; /* Subtle border */
+  }
+
+  /* Dark background for select dropdowns (including DataTable Show Entries) */
+  .dataTables_length select, 
+  .dataTables_filter input, 
+  .dataTables_info {
+    background-color: #444444 !important;  /* Dark grey */
+    color: #ffffff !important;  /* White text */
+    border: 1px solid #6c757d !important;  /* Subtle border */
+  }
+
+  /* Dark pagination controls */
+  .dataTables_paginate {
+    background-color: #343a40 !important; /* Dark grey */
+  }
+
+  /* Alternating row colors for readability */
+  .table-dark tbody tr:nth-child(even) {
+    background-color: #474747 !important;
+  }
+  .table-dark tbody tr:nth-child(odd) {
+    background-color: #343a40 !important;
+  }
+
+  /* Dark theme for selectInput fields */
+  .form-control, .selectize-input {
+    background-color: #444444 !important; /* Dark grey background */
+    color: #ffffff !important;  /* White text */
+    border: 1px solid #6c757d !important; /* Subtle border */
+  }
+
+  /* Ensure placeholder text in selectInput is visible */
+  .selectize-input::placeholder {
+    color: #bbbbbb !important; /* Light grey for visibility */
+  }
+
+  /* Ensure the dropdown menu in selectInput is also dark */
+  .selectize-dropdown {
+    background-color: #444444 !important; /* Dark grey */
+    color: #ffffff !important;  /* White text */
+    border: 1px solid #6c757d !important; /* Subtle border */
+  }
+
+  /* Dark theme for options in selectInput */
+  .selectize-dropdown-content .option {
+    background-color: #444444 !important; /* Dark grey */
+    color: #ffffff !important; /* White text */
+  }
+
+  /* Darker grey background for selected option */
+  .selectize-dropdown-content .option.selected {
+    background-color: #555555 !important;
+  }
+
+  /* Dark theme for textInput fields */
+  .shiny-input-container input[type='text'], 
+  .shiny-input-container textarea {
+    background-color: #444444 !important;
+    color: #ffffff !important;
+    border: 1px solid #6c757d !important;
+  }
+
+  /* Dark theme for fileInput fields */
+  .shiny-file-input {
+    background-color: #444444 !important;
+    color: #ffffff !important;
+    border: 1px solid #6c757d !important;
+  }
+
+  /* Hover effect for fileInput */
+  .shiny-file-input button:hover {
+    background-color: #555555 !important;
+    color: #ffffff !important;
+  }
+
+  /* Adjust the labels for inputs (dark theme) */
+  .shiny-input-container label {
+    color: #ffffff !important;
+  }
+
+  /* Checkbox Input (Make background dark and checkbox visible) */
+  .shiny-input-container input[type='checkbox'] {
+    background-color: #444444 !important;
+    border: 1px solid #6c757d !important;
+  }
+
+  /* Style checkbox when checked */
+  .shiny-input-container input[type='checkbox']:checked {
+    background-color: #007bff !important; /* Bootstrap primary blue */
+  }
+
+  /* Dark theme for checkbox label */
+  .shiny-input-container .checkbox label {
+    color: #ffffff !important;
+  }
+"))
+    ,
+    
     
     shinyjs::useShinyjs(),
-    shiny::titlePanel("GloboXylo: Contributing Data"),
+    
+    
+    
+    shiny::titlePanel("Welcome to the GloboXylo data collector"),
+    
+    # Short explanation below the title
+    shiny::div("This application allows you to prepare your GloboXylo data efficiently. 
+            Get the template, upload your data, visualize the structure, validate the requirement and export results easily. Follow the instructions below to be guided along the process.", 
+               style = "font-size: 16px; color: #666; margin-bottom: 20px;"),
+    
     
     navset_card_tab(id = 'tabs',
                          
                          # TAB 1: Upload Observation Data -----------------------------------------
-                         nav_panel(title = "Upload observation data",
+                         nav_panel(title = "1. Upload observation data",
                                          
                                          shiny::fluidRow(
                                            # Left Side: Upload Section (With Background Color)
-                                           shiny::column(3, class = "bg-light p-3 border-end",  
+                                           shiny::column(3, class = "bg-light p-2 border-end",
+                                                         style = "height: 100%;",
                                                          bslib::card(
-                                                           bslib::card_header('Name you dataset'),
+                                                           bslib::card_header('1.1 Name your dataset', id = "card_header1.1", class = "bg-danger",
+                                                                              tooltip(
+                                                             bsicons::bs_icon("question-circle"),
+                                                             "Provide a uniquely identifier for your dataset. This will be used to name the output files. Then move to 1.2 Download observation data template",
+                                                             placement = "right"
+                                                           )),
                                                            bslib::card_body(
                                                              fillable = FALSE,
-                                                             shiny::p("Enter the name of your dataset. This should not be more than 10 characters"),
+                                                             shiny::p("Enter the name of your dataset. This should only contains letters/numbers and not be more than 10 characters"),
                                                              textInput("dataset_name", "Enter the name of your dataset", value = ""),
                                                              actionButton("submit", "Validate name", class = "btn btn-primary")
                                                            )
                                                          ),
                                                          
                                                          bslib::card(
-                                                           bslib::card_header('Download observation data template'),
+                                                           bslib::card_header('1.2 Download observation data template', id = "card_header1.2", class = "bg-warning",
+                                                                              tooltip(
+                                                                                bsicons::bs_icon("question-circle"),
+                                                                                "Click 'download template' to save an empty Excel template file for your observation data. Click 'download filled example' to download a prefilled example file. Then move to 1.3 Upload the filled observation data file",
+                                                                                placement = "right"
+                                                                              )),
                                                            bslib::card_body(
                                                              fillable = FALSE,
                                                              shiny::p("Click the button to download the template. Fill it in, save it, then browse and load the file."),
-                                                             # shiny::actionButton("open_obs_temp", "Click to open data template!", class = "btn btn-primary"),
-                                                             downloadButton("download_template", "Download Template", class = "btn btn-primary"),
-                                                             # shiny::textOutput("obs_file_copied")
+                                                             # Use fluidRow and column to position buttons next to each other
+                                                             shiny::fluidRow(
+                                                               shiny::column(6,  # Adjust width of each button as needed
+                                                                             downloadButton("download_template", "Download Template", class = "btn btn-primary")
+                                                               ),
+                                                               shiny::column(6,  # Adjust width of each button as needed
+                                                                             downloadButton("download_example_obs", "Download filled example", class = "btn btn-secondary")
+                                                               )
+                                                             )
                                                            ),
                                                            style = "display: none;",
                                                            id = "card_1"
                                                          ),
                                                          
                                                          bslib::card(
-                                                           bslib::card_header('Upload the filled observation data file!'),
+                                                           bslib::card_header('1.3 Upload the filled observation data file!', id = "card_header1.3", class = "bg-danger",
+                                                                              tooltip(
+                                                                                bsicons::bs_icon("question-circle"),
+                                                                                "Use the browser to upload your filled excel file filled with your observation data. A map with the location of your site and a two tables with an overview of the sampling coverage and a summary of type of observation will open. You can switch between sites with the dropdown field here below. Then move to 1.4 Validate your data",
+                                                                                placement = "right"
+                                                                              )),
                                                            shiny::fileInput("obs_file", "", accept = c(".xlsx"), multiple = FALSE),
                                                            shiny::selectInput("site_filter", "Select Site", choices = NULL, selected = NULL, selectize = TRUE),                                                            style = "height: 300px; display: none;",
                                                            id = "card_2"
                                                          ),
                                                          
-                                                         # Add a ReactTable of key info below the cards
+                                                         # Add a DT Table of key info below the cards
                                                          bslib::card(
                                                            bslib::card_header("Key Information Table"),
                                                            bslib::card_body(
-                                                             reactable::reactableOutput("key_info_table")
+                                                             DT::dataTableOutput("key_info_table")
                                                            ),
-                                                           style = "display: none;",  # Hidden by default
+                                                           style = "display: none; height: auto; min-height: 600px; overflow: visible;",  # Hidden by default
                                                            id = "card_3"  # Add an ID to reference it later
                                                          )
                                            ),
                                            
                                            # Right Side: Map & Plotly + Add Observations Table here
-                                           shiny::column(9,  
+                                           shiny::column(9,
+                                                         style = "height: 100%;",  
                                                          bslib::card(
                                                            bslib::card_header("Geolocation Map"),
                                                            bslib::card_body(
@@ -87,7 +241,14 @@ xyloglobal_upload <- function() {
                                                          ),
                                                          
                                                          bslib::card(
-                                                           bslib::card_header("Data Coverage Overview"),
+                                                           bslib::card_header("Data Coverage Overview",
+                                                           # Plot settings popover button
+                                                           popover(
+                                                             bsicons::bs_icon("gear", class = "ms-auto"),  # Icon for settings
+                                                             selectInput("color", "Color by", choices = c("tree_species", "sample_id", "plot_label"), selected = "tree_species"),
+                                                             title = "Plot Settings"
+                                                           ),
+                                                           class = "d-flex align-items-center gap-1"),
                                                            bslib::card_body(
                                                              plotly::plotlyOutput("data_coverage_plot", height = "300px")
                                                            ),
@@ -99,15 +260,20 @@ xyloglobal_upload <- function() {
                                                          bslib::card(
                                                            bslib::card_header("Observations performed [number of radial files]"),
                                                            bslib::card_body(
-                                                             reactable::reactableOutput("obs_table")
+                                                             DT::dataTableOutput("obs_table")
                                                            ),
-                                                           style = "display: none;",  # Hidden by default
+                                                           style = "display: none; height: auto; min-height: 200px; overflow: visible;",  # Hidden by default
                                                            id = "card_6"  # Add an ID to reference it later
                                                          ),
                                                          
                                                          # Adding validation checkboxes and next button
                                                          bslib::card(
-                                                           bslib::card_header("Data Validation"),
+                                                           bslib::card_header("1.4 Validate your data", id = "card_header1.4", class = "bg-danger",
+                                                                              tooltip(
+                                                                                bsicons::bs_icon("question-circle"),
+                                                                                "Validate your data by chcking that the location, the data coverage and the observation type are correct by checking the checkbox below. Then the next button will activate. Click it to access the next tab and move to 2.1 Download prefilled metadata template",
+                                                                                placement = "right"
+                                                                              )),
                                                            bslib::card_body(
                                                              shiny::checkboxInput("validate_location", "Validate Location", value = FALSE),
                                                              shiny::checkboxInput("validate_data_coverage", "Validate Data Coverage", value = FALSE),
@@ -116,7 +282,7 @@ xyloglobal_upload <- function() {
                                                              shiny::actionButton('next_btn', 'Next', icon = shiny::icon('angle-double-right'), class = "btn btn-primary", disabled = TRUE)
                                                            ),
                                                            style = "display: none;",  # Hidden by default
-                                                           id = "card_7"  # Add an ID to reference it later
+                                                           id = "card_7",  # Add an ID to reference it later
                                                          )
                                            )
                                          ),
@@ -126,27 +292,43 @@ xyloglobal_upload <- function() {
                          ),
                          
                          # TAB 2: Upload Metadata -----------------------------------------------
-                         nav_panel("Upload metadata",
-                                         
+                         nav_panel("2. Upload metadata",
+                                   
                                          shiny::fluidRow(
                                            # Left side
-                                           shiny::column(3, class = "bg-light p-3 border-end",  
+                                           shiny::column(3, class = "bg-light p-2 border-end",
+                                                         style = "height: 100%;",  
                                                          bslib::card(
-                                                           bslib::card_header('Download prefilled metadata template'),
+                                                           bslib::card_header('2.1 Download prefilled metadata template', id = "card_header2.1", class = "bg-warning",
+                                                                              tooltip(
+                                                                                bsicons::bs_icon("question-circle"),
+                                                                                "Click 'download template' to save an empty Excel template file for your meta data. Click 'download filled example' to download a prefilled example file. Then move to 2.2 Load the completed metadata file",
+                                                                                placement = "right"
+                                                                              )),
                                                            bslib::card_body(
                                                              fillable = FALSE,
                                                              shiny::p("Click to open, prefill, and download the metadata template, prefilled with data from the observations file"),
                                                              shiny::p("Complete the prefilled metadata, save it again, and then browse to load the filled file for format check."),
                                                              shiny::p("Note: It may take a few seconds for the prefilled template to open.", style = "color: red;"),
-                                                             #shiny::actionButton("open_meta_temp", "Click to open meta template!", class = "btn btn-primary"),
-                                                             #shiny::textOutput("meta_file_copied"),
-                                                             downloadButton("download_meta_template", "Download Metadata Template", class = "btn btn-primary")
-                                                             
+                                                             # Use fluidRow and column to position buttons next to each other
+                                                             shiny::fluidRow(
+                                                               shiny::column(6,  # Adjust width of each button as needed
+                                                                             downloadButton("download_meta_template", "Download Metadata Template", class = "btn btn-primary")
+                                                               ),
+                                                               shiny::column(6,  # Adjust width of each button as needed
+                                                                             downloadButton("download_example_meta", "Download filled example", class = "btn btn-secondary")
+                                                               )
+                                                             )
                                                            )
                                                          ),
                                                          
                                                          bslib::card(
-                                                           bslib::card_header('Load the completed metadata file (you just saved!) to perform validation'),
+                                                           bslib::card_header('2.2 Load the completed metadata file (you just saved!) to perform validation', id = "card_header2.2", class = "bg-danger",
+                                                                              tooltip(
+                                                                                bsicons::bs_icon("question-circle"),
+                                                                                "Use the browser to upload your filled excel file filled with your metadata data. A sunburst plot and a table with the hierarchical structure of yoru data will appear You can explore within the structure by clicking on the plot. A 'Validation table' will also open showing in red the open issues to comply the requirement of the DB formatting. These need to be fixed by correcting the metadata file and upload again untill the 'validation table' get green The 2.3 'Download exchange files as ZIP' get active and you can click it to export your files for submission the the GLOBOxylo DB.",
+                                                                                placement = "right"
+                                                                              )),
                                                            bslib::card_body(
                                                              shiny::fileInput("meta_file", "", accept = c(".xlsx")),
                                                              # actionButton("validate_meta", "Validate Metadata", class = "btn btn-success"),
@@ -158,23 +340,30 @@ xyloglobal_upload <- function() {
                                            ),
                                            
                                            # Right side (New ReactTable)
-                                           shiny::column(9,  
+                                           shiny::column(9,
+                                                         style = "height: 100%;",  
                                                          bslib::card(
                                                            bslib::card_header("Overview of data structure"),
                                                            bslib::card_body(
-                                                             plotly::plotlyOutput("hierarchical_structure", height = "400px")
+                                                             plotly::plotlyOutput("hierarchical_structure", height = "500px")
                                                            ),
                                                            bslib::card_body(
-                                                             reactable::reactableOutput("meta_table")  # ReactTable placeholder
+                                                             DT::dataTableOutput("meta_table", height = "500px")  # ReactTable placeholder
                                                            )
                                                          ),
                                                          bslib::card(
-                                                           bslib::card_header("Report of validation check!"),
+                                                           bslib::card_header("Report of validation check!", id = "card_header2.3", class = "bg-danger",
+                                                                              tooltip(
+                                                                                bsicons::bs_icon("question-circle"),
+                                                                                "Green = all fine! you can proceed. Red = Problems) Need to be fixed to comply DB formatting. check your metadafile and fix where necessary and move back to 2.2 Load the completed metadata file",
+                                                                                placement = "right"
+                                                                              )),
                                                            bslib::card_body(
-                                                             reactable::reactableOutput("validation_table"),  
-                                                             shiny::uiOutput("validation_message") 
+                                                             DT::dataTableOutput("validation_table"),  
+                                                             shiny::uiOutput("validation_message"),
+                                                             style = "min-height: 0; padding: 10px;"  # Reduces padding and enforces minimal height
                                                            ),                                                          
-                                                           style = "display: none;",  # Hidden by default
+                                                           style = "display: none; height: fit-content; overflow: hidden;",  # Adjust height dynamically
                                                            id = "card_8"  # Add an ID to reference it later
                                                          )
                                            ),
@@ -187,9 +376,11 @@ xyloglobal_upload <- function() {
                                                          bslib::card(
                                                            class = "border border-0 text-center",
                                                            # shiny::actionButton('submit_btn', 'Create exchange files', disabled = TRUE, icon = shiny::icon('angle-double-right'), class = "btn btn-primary"),
-                                                           downloadButton("download_zip", "Download Exchange Files as ZIP", class = "btn btn-primary"),
+                                                           downloadButton("download_zip", "2.3 Download Exchange Files as ZIP", class = "btn btn-primary"),
                                                            # Modal for submission feedback
-                                                           shiny::uiOutput("modal_ui")
+                                                           shiny::uiOutput("modal_ui"),
+                                                           style = "display: none;",  # Hidden by default
+                                                           id = "card_9"  # Add an ID to reference it later
                                                            
                                                          )
                                            )
@@ -258,53 +449,10 @@ xyloglobal_upload <- function() {
 
   server <- function(input, output, session) {
     
-    # TAB 1: ---------------------------------------------------------------------
-    
-    # Observe event for the Validate name button
-    observeEvent(input$submit, {
-      dataset_name <- input$dataset_name
-      
-      # Validate the name (check if the name is between 1 and 10 characters)
-      if (nchar(dataset_name) > 0 && nchar(dataset_name) <= 10) {
-        
-        # Show the cards after validation
-        shinyjs::show("card_1")  # Show the card for downloading the template
-        shinyjs::show("card_2")  # Show the card for uploading the observation data
-        
-        # Optionally, you can also update the UI with a confirmation or success message
-        showModal(modalDialog(
-          title = "Validation Successful",
-          "Dataset name is valid! You can now proceed with the next steps.",
-          easyClose = TRUE,
-          footer = NULL
-        ))
-        
-      } else {
-        # If the name is invalid, show an error message
-        showModal(modalDialog(
-          title = "Invalid Name",
-          "Please enter a valid dataset name (1 to 10 characters).",
-          easyClose = TRUE,
-          footer = NULL
-        ))
-        
-        # Optionally, hide the cards again
-        shinyjs::hide("card_1")
-        shinyjs::hide("card_2")
-        shinyjs::hide("card_3")
-      }
-    })   
-    
-    # Reactive expression for dataset name
-    dataset_name_reactive <- reactive({
-      input$dataset_name
-    })
-    
-  
     # Initialize reactive variable for temp folder
     reactive_temp_folder <- reactiveVal()
     
-    # Set temp folder on startup
+    # Set temporary folder on startup for saving the created and uploaded excel files
     observe({
       dataset_name <- dataset_name_reactive()  # Access the reactive value within observe
       temp_folder <- file.path(tempdir(), paste0("GloboXylo_", dataset_name, "_", Sys.Date()))
@@ -315,11 +463,72 @@ xyloglobal_upload <- function() {
       dir.create(temp_folder, showWarnings = FALSE, recursive = TRUE)
     })
     
+    
+    # TAB 1: ---------------------------------------------------------------------
+    
+    ### CARD 1.1 with the DATASET NAME 
+    # Observe event for the Validate name button
+    observeEvent(input$submit, {
+      validate_dataset_name()
+    }, ignoreNULL = TRUE, ignoreInit = TRUE)
+    
+    # Run validation when Enter is pressed
+    shinyjs::runjs("
+  $('#dataset_name').keypress(function(e) {
+    if(e.which == 13) {  // 13 = Enter key
+      $('#submit').click();  // Simulate clicking the submit button
+    }
+  });
+")
+    
+    # Define validation as a function to avoid duplication
+    validate_dataset_name <- function() {
+      dataset_name <- isolate(input$dataset_name)  # Prevent reactivity while typing
+      
+      # Ensure name is 1-10 characters and only contains letters/numbers
+      if (nchar(dataset_name) > 0 && nchar(dataset_name) <= 10 && grepl("^[a-zA-Z0-9]+$", dataset_name)) {
+        
+        shinyjs::addClass("card_header1.1", "bg-success")  # Green header
+        shinyjs::removeClass("card_header1.1", "bg-danger")
+        
+        # Show the cards after validation
+        shinyjs::show("card_1")  
+        shinyjs::show("card_2")  
+        
+      } else {
+        # If invalid, show error message
+        shinyjs::addClass("card_header1.1", "bg-danger")  # Red header
+        shinyjs::removeClass("card_header1.1", "bg-success")
+        
+        showModal(modalDialog(
+          title = "Invalid Name",
+          "Please enter a valid dataset name (1 to 10 **alphanumeric** characters, no spaces or special characters).",
+          easyClose = TRUE,
+          footer = NULL
+        ))
+      }
+    }
+    
+    # Listen for changes in text input field and update header color if empty
+    observe({
+      dataset_name <- input$dataset_name
+      if (nchar(dataset_name) == 0) {
+        # If input is empty, set card header to danger
+        shinyjs::addClass("card_header1.1", "bg-danger")
+        shinyjs::removeClass("card_header1.1", "bg-success")
+      }
+    })
+    
+    # Reactive expression for dataset name
+    dataset_name_reactive <- reactive({
+      input$dataset_name
+    })
+  
+    ### CARD 1.2 with the DOWNLOAD TEMPLATE 
     # Download TEMPLATE for OBSERVATION FILE
     output$download_template <- downloadHandler(
       filename = function() {
         paste0(input$dataset_name, "_xylo_data_", Sys.Date(), ".xlsx")
- 
       },
       content = function(file) {
         # Ensure input is provided
@@ -337,10 +546,42 @@ xyloglobal_upload <- function() {
         
         # Copy the file to the location for downloading
         file.copy(obs_path_temporary, file)
+        
+        # Update the header color to 'success' after the template is downloaded
+        shinyjs::addClass(id = "card_header1.2", class = "bg-success")  # Green header for success
+        shinyjs::removeClass(id = "card_header1.2", class = "bg-warning")  # Remove warning (yellow)
+        
+        # # Optionally, show a modal to confirm the download
+        # showModal(modalDialog(
+        #   title = "Template Downloaded",
+        #   "The template has been successfully downloaded.",
+        #   easyClose = TRUE,
+        #   footer = NULL
+        # ))
       }
     )
 
-    
+    # Download FILLED EXAMPLE OBSERVATION FILE
+    output$download_example_obs <- downloadHandler(
+      filename = function() {
+        paste0("Example_Filled_Obs.xlsx")
+      },
+      content = function(file) {
+        # Define the template path
+        template_path <- system.file("extdata", "Ltal.2007_xylo_data_2025-03-06.xlsx", package = "xyloR")
+        
+        # Load the template
+        obs_template <- openxlsx::loadWorkbook(template_path)
+        
+        # Save directly to the user-selected location
+        openxlsx::saveWorkbook(obs_template, file, overwrite = TRUE)
+      }
+    )
+
+
+
+
+    ### CARD 1.3 with the UPLOAD OBSERVATION FILE
     # upload FILLED OBSERVATION FILE and RENDER INFORMATION
     
     # get possible sites in file to fill selectInput$site_filter dropdown
@@ -368,9 +609,12 @@ xyloglobal_upload <- function() {
       shinyjs::show("card_5")
       shinyjs::show("card_6")
       shinyjs::show("card_7")
+      
+      # Apply the validated color to the header of the card where the file upload happens
+      shinyjs::addClass(id = "card_header1.3", class = "bg-success")
+      shinyjs::removeClass(id = "card_header1.3", class = "bg-danger")
     })
     
-
     # Reactive xylo_obs data
     xylo_obs <- reactive({
       req(input$obs_file)
@@ -390,13 +634,15 @@ xyloglobal_upload <- function() {
       
     })
     
+    ### CARD 4 with DT KEY INFO TABLE
     # Render ReacTable with key info when file is uploaded
-    output$key_info_table <- reactable::renderReactable({
+    output$key_info_table <- DT::renderDataTable({
       req(input$obs_file)  # Ensure the file is uploaded
       req(input$site_filter)  # Ensure the site is selected
       
       # Load and process data from the uploaded file
       df <- xylo_obs()
+      
       # filtered Site info
       wb <- openxlsx::loadWorkbook(input$obs_file$datapath)
       site_info <- openxlsx::readWorkbook(wb, sheet = "obs_data_info", startRow = 6, colNames = FALSE) %>% 
@@ -437,14 +683,29 @@ xyloglobal_upload <- function() {
         "n_Dates" = n_dates,
         "n_Samples" = n_samples
       ))
-      colnames(key_info) <- c("Key Info")
       
-      # Render the table with reactable
-      reactable::reactable(key_info, pagination = TRUE, striped = TRUE, defaultPageSize = 13)
+      colnames(key_info) <- c("Key Info")
+
+      # Return the table to render with DT
+      DT::datatable(key_info, 
+                    options = list(
+                      paging = FALSE,    # Disable pagination
+                      searching = FALSE,
+                      pageLength = 13,  # Limit the number of rows shown to 13
+                      autoWidth = TRUE,  # Automatically adjust column widths
+                      dom = 't',  # Use pagination controls
+                      scrollX = FALSE,   # Disable horizontal scrolling
+                      scrollY = FALSE,   # Disable vertical scrolling
+                      columnDefs = list(list(className = 'dt-center', targets = "_all")) # Center align columns
+                    ),
+                    rownames = TRUE,  # Hide row names
+                    class = "table-dark"  # Apply dark theme
+      )
     })
     
-    # Render ReacTable with key info when file is uploaded
-    output$obs_table <- reactable::renderReactable({
+    ### CARD 6 with DT KEY STRUCTURE of OBS TABLE
+    # Render ReacTable with OBS table structure
+    output$obs_table <- DT::renderDataTable({
       req(input$obs_file)  # Ensure the file is uploaded
       
       # Load and process data from the uploaded file
@@ -474,11 +735,23 @@ xyloglobal_upload <- function() {
         PR = c(length(intersect(Pr_vars, count_vars)), length(intersect(Pr_vars, width_vars)))
       )
       
-      # Render the table with reactable
-      reactable::reactable(grouped, striped = TRUE)
+      # Render the table with DT and apply dark theme styles
+      DT::datatable(grouped, 
+                    options = list(
+                      paging = FALSE,    # Disable pagination
+                      searching = FALSE, # Remove search bar (optional)
+                      autoWidth = TRUE,
+                      dom = 't',  # Use pagination controls
+                      scrollX = FALSE,  # Enable horizontal scrolling
+                      scrollY = FALSE,  # Limit the height
+                      columnDefs = list(list(className = 'dt-center', targets = "_all")) # Center align columns
+                    ),
+                    rownames = FALSE, # Hide row names
+                    class = "table-dark"  # Apply dark theme
+      )
     })
     
-    
+    ### CARD 5 with LEAFLET MAP
     # Render Leaflet map when file is uploaded
     output$mymap <- renderLeaflet({
       req(input$obs_file)
@@ -496,22 +769,34 @@ xyloglobal_upload <- function() {
         leaflet::addMarkers(lng = lng, lat = lat, popup = paste0("Site: ", site_info$site_label))
     })
     
-    # Plotly plot: scatter plot of tree sample collection dates (Tab 1)
+    ### CARD 7 with DATA COVERAGE
+    # Render PLOTLY PLOT with data coverage
     output$data_coverage_plot <- renderPlotly({
-      req(input$obs_file)
-      req(input$site_filter)
       df <- xylo_obs()
-      df$ColorFactor <- as.factor(df$sample_id)  # Color factor for distinct colors
+      req(df)  # Ensure df exists
+      
+      # Ensure the column exists in df
+      if (!(input$color %in% colnames(df))) {
+        stop("Selected color column does not exist in the dataset.")
+      }
       
       # Plot the data
-      plot_ly(df, x = ~sample_date, y = ~tree_label, type = 'scatter', mode = 'markers',
-              color = ~ColorFactor,  # Color by Sample_id
+      plot_ly(df, 
+              x = ~sample_date, 
+              y = ~tree_label, 
+              type = 'scatter', 
+              mode = 'markers',
+              color = as.factor(df[[input$color]]),  # Color by the selected variable
               marker = list(size = 10, opacity = 0.7)) %>%
         layout(title = "Tree Sample Collection Dates",
-               xaxis = list(title = "Date"),
-               yaxis = list(title = "Tree Label", categoryorder = "category ascending"))
+               xaxis = list(title = "Date", showgrid = FALSE, zeroline = FALSE, color = "white"),
+               yaxis = list(title = "Tree Label", categoryorder = "category ascending", color = "white"),
+               plot_bgcolor = "#2e2e2e",  # Dark background for the plot
+               paper_bgcolor = "#2e2e2e",  # Dark background for paper area
+               font = list(color = "white"))  # White font color for axis titles
     })
     
+    ### CARD 1.4 with the VALIDATION CHECKBOXES
     observe({
       validate_location <- input$validate_location
       validate_data_coverage <- input$validate_data_coverage
@@ -523,15 +808,24 @@ xyloglobal_upload <- function() {
       # Update validation status
       if (validate_location && validate_data_coverage && validate_observation) {
         output$validation_status <- renderText("Validation complete! You can proceed.")
+        
+        # Update card header color to green (success)
+        shinyjs::addClass(id = "card_header1.4", class = "bg-success")
+        shinyjs::removeClass(id = "card_header1.4", class = "bg-danger")
+        
       } else {
         output$validation_status <- renderText("Please validate location, data coverage, and observation list before proceeding.")
+        
+        # Update card header color to red (danger)
+        shinyjs::addClass(id = "card_header1.4", class = "bg-danger")
+        shinyjs::removeClass(id = "card_header1.4", class = "bg-success")
+        
       }
     })
     
     observeEvent(input$next_btn, {
       # bslib::update_navs(session, "inTabset", selected = "Upload metadata")
-      bslib::nav_select(id = "tabs", selected = "Upload metadata", session = session)
-
+      bslib::nav_select(id = "tabs", selected = "2. Upload metadata", session = session)
     })
     
     # TAB 2: ---------------------------------------------------------------------
@@ -539,45 +833,6 @@ xyloglobal_upload <- function() {
     xylo_file <- shiny::reactive({
       openxlsx::loadWorkbook(shiny::req(input$obs_file$datapath))
     })
-    
-    # # upload METADATA FILE TEMPLATE and CREATE METADATAFILE
-    # shiny::observeEvent(input$open_meta_temp, {
-    #   # Show the progress bar
-    #   shiny::withProgress(message = 'Processing metadata...', value = 0, {
-    #     
-    #     # Loading the template
-    #     template_path <- system.file("extdata", "Datasetname_xylo_meta_yyyy-mm-dd.xlsx", package = "xyloR")
-    #     meta_path_temporary <- file.path(tempdir_path, paste0("Datasetname_xylo_meta_", Sys.Date(), ".xlsx"))
-    #     
-    #     # Update progress
-    #     shiny::setProgress(value = 0.2, detail = "Loading the template...")
-    #     meta_template <- openxlsx::loadWorkbook(template_path)  # load the template
-    #     
-    #     # Perform additional processing
-    #     shiny::req(input$obs_file)  # Ensure file is uploaded
-    #     shiny::setProgress(value = 0.5, detail = "Processing the template...")
-    #     meta_template <- create_xylo_metadata(input$obs_file$datapath, template_path)
-    #     
-    #     # Save the filled-in template
-    #     shiny::setProgress(value = 0.8, detail = "Saving the file...")
-    #     openxlsx::saveWorkbook(meta_template, meta_path_temporary, overwrite = TRUE)  # save in tempdir
-    #     
-    #     # Open the file based on OS
-    #     shiny::setProgress(value = 1, detail = "Opening the file...")
-    #     tryCatch({
-    #       if (.Platform$OS.type == "windows") {
-    #         system2("cmd", c("/c", "start", shQuote(meta_path_temporary)), wait = FALSE)
-    #       } else if (Sys.info()["sysname"] == "Darwin") {
-    #         system(paste("open", shQuote(meta_path_temporary)))
-    #       } else {
-    #         system(paste("xdg-open", shQuote(meta_path_temporary)))
-    #       }
-    #     },
-    #     error = function(e) {
-    #       shiny::showNotification("File could not be opened!", type = "error")
-    #     })
-    #   })
-    # })
     
     # print the tempdir() path just in case
     output$meta_file_copied <- shiny::renderText({
@@ -611,9 +866,7 @@ xyloglobal_upload <- function() {
           shiny::setProgress(value = 0.5, detail = "Prefilling the template...")
           meta_template <- create_xylo_metadata(input$obs_file$datapath, template_path)
 
-          print("meta_template")
-          print(meta_template)
-          
+
           # Save the filled-in template directly to the file path provided by the downloadHandler
           shiny::setProgress(value = 0.8, detail = "Saving the file...")
           openxlsx::saveWorkbook(meta_template, file, overwrite = TRUE)  # Save to download location provided by Shiny
@@ -624,15 +877,13 @@ xyloglobal_upload <- function() {
         })
       }
     )
+    
     output$download_meta_template <- shiny::downloadHandler(
       filename = function() {
          paste0(input$dataset_name, "_xylo_meta_", Sys.Date(), ".xlsx")
       },
       content = function(file) {
-        if (is.null(input$dataset_name) || input$dataset_name == "") {
-          stop("Please enter a dataset name before downloading.")
-        }
-        
+
         shiny::req(input$obs_file)  
  
         shiny::withProgress(message = 'Processing metadata...', value = 0, {
@@ -648,9 +899,31 @@ xyloglobal_upload <- function() {
           openxlsx::saveWorkbook(meta_template, file, overwrite = TRUE)
           
           shiny::setProgress(value = 1, detail = "File ready for download")
+          
+          # Apply the validated color to the header of the card where the file upload happens
+          shinyjs::addClass(id = "card_header2.1", class = "bg-success")
+          shinyjs::removeClass(id = "card_header2.1", class = "bg-danger")
+          
         })
       }
     )
+    
+    output$download_example_meta <- downloadHandler(
+      filename = function() {
+        paste0("Example_Filled_Meta.xlsx")
+      },
+      content = function(file) {
+        # Define the template path
+        template_path <- system.file("extdata", "Ltal.2007_xylo_meta_2025-03-08.xlsx", package = "xyloR")
+        
+        # Load the template
+        obs_template <- openxlsx::loadWorkbook(template_path)
+        
+        # Save directly to the user-selected location
+        openxlsx::saveWorkbook(obs_template, file, overwrite = TRUE)
+      }
+    )
+    
     
     # Check format validation
     validation_results <- shiny::reactiveVal(NULL)  # Store validation results
@@ -676,8 +949,9 @@ xyloglobal_upload <- function() {
         # Store the results
         validation_results(tbl_validation)
         
-        # Update progress to indicate completion of validation
-        shiny::setProgress(value = 1, detail = "Validation complete!")
+        # Apply the validated color to the header of the card where the file upload happens
+        shinyjs::addClass(id = "card_header2.2", class = "bg-success")
+        shinyjs::removeClass(id = "card_header2.2", class = "bg-danger")
         shinyjs::show("card_8")
       })
     })
@@ -687,136 +961,294 @@ xyloglobal_upload <- function() {
       tbl <- validation_results()
       
       if (is.null(tbl) || nrow(tbl) == 0) {
-        shiny::tagList(
-          shiny::tags$b("Congratulations! Your files are ready to be submitted!", 
-          style = "color: green;"  # Make the bold text red
-        ),
-          shiny::tags$p("You can now click on the 'Create exchange files' button!",
-                        style = "color: green;"  # Make the paragraph text red
+        # Apply success styling
+        shinyjs::addClass(id = "card_header2.3", class = "bg-success")
+        shinyjs::removeClass(id = "card_header2.3", class = "bg-danger")
+        shinyjs::show("card_9")
+        
+        return(
+          shiny::div(
+            class = "alert alert-success p-3 rounded",  # Bootstrap alert with padding
+            shiny::tags$h4(
+              shiny::icon("check-circle"),  # Success icon
+              " Success!", 
+              class = "mb-2"
+            ),
+            shiny::tags$p(
+              "Congratulations! Your files are ready to be submitted.", 
+              class = "mb-2"
+            ),
+            shiny::tags$p(
+              "You can now click on the button ",
+              shiny::tags$b("'Download exchange files as ZIP'!"),
+              class = "mb-0"
+            )
           )
         )
       } else {
-        shiny::tagList(
-          shiny::tags$b(
-            "Validation Issues Found!", 
-            style = "color: red;"  # Make the bold text red
-          ),
-          shiny::tags$p(
-            "Please review the validation issues below before proceeding.",
-            style = "color: red;"  # Make the paragraph text red
-          ),
-          reactable::reactable(tbl, defaultPageSize = 10)
+        # Apply error styling
+        shinyjs::addClass(id = "card_header2.3", class = "bg-danger")
+        shinyjs::removeClass(id = "card_header2.3", class = "bg-success")
+        
+        return(
+          shiny::div(
+            class = "alert alert-danger p-3 rounded",  # Bootstrap alert for errors
+            shiny::tags$h4(
+              shiny::icon("exclamation-triangle"),  # Error icon
+              " Validation Issues Found!", 
+              class = "mb-2"
+            ),
+            shiny::tags$p(
+              "Please review the validation issues listed before proceeding.",
+              class = "mb-3"
+            ),
+            
+            # Render DataTable (uncomment if needed)
+            # DT::datatable(tbl, 
+            #               options = list(
+            #                 pageLength = 10,
+            #                 searching = TRUE, 
+            #                 autoWidth = TRUE,
+            #                 dom = 'Bfrtip',  
+            #                 scrollX = TRUE,  
+            #                 buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+            #               ), 
+            #               rownames = FALSE,
+            #               class = "table table-dark table-striped table-hover"
+            # )
+          )
         )
       }
     })
     
     # Render Plotly sunburst plot with hierarchical data
-    output$hierarchical_structure  <- plotly::renderPlotly({
+    # Store df_hierarchy as a reactive value
+    df_hierarchy_reactive <- shiny::reactive({
       shiny::req(input$meta_file$datapath)
       
       # Load meta file
-      meta_file <- shiny::req(input$meta_file$datapath)
+      meta_file <- input$meta_file$datapath
       sheet_names <- setdiff(readxl::excel_sheets(meta_file), c("instructions", "DropList", "ListOfVariables"))
       sheet_data <- setNames(lapply(sheet_names, function(sheet) readxl::read_excel(meta_file, sheet = sheet)[-1:-6,]), sheet_names)
       
-      # group all samples per year, tree, plot, site, and network from sheet_data into a single data frame and count the number of samples per group
+      # Process hierarchical data
       df_joined <- dplyr::left_join(sheet_data[["sample"]], sheet_data[["tree"]], by = "tree_label", relationship = "many-to-many") %>%
-        dplyr::left_join(sheet_data[["site"]], by = "site_label", relationship = "many-to-many") %>% 
+        dplyr::left_join(sheet_data[["site"]], by = "site_label", relationship = "many-to-many") %>%
         dplyr::group_by(network_label, site_label, plot_label, tree_label, year = lubridate::year(sample_date), sample_id) %>%
-        dplyr::summarise(n = dplyr::n()) %>%
-        dplyr::ungroup() %>%
-        dplyr::mutate(site_label = paste0(network_label, "__", site_label),
-                      plot_label = paste0(site_label, "__", plot_label),
-                      tree_label = paste0(plot_label, "__", tree_label),
-                      year_label = paste0(tree_label, "__", year),
-                      sample_label = paste0(year_label, "__", sample_id)) # Ensures uniqueness
+        dplyr::summarise(n = dplyr::n(), .groups = "drop") %>%
+        dplyr::mutate(
+          site_label = paste0(network_label, "__", site_label),
+          plot_label = paste0(site_label, "__", plot_label),
+          tree_label = paste0(plot_label, "__", tree_label),
+          year_label = paste0(tree_label, "__", year),
+          sample_label = paste0(year_label, "__", sample_id)
+        )
       
-      # Step 1: Aggregate at the tree level (sum of n)
+      # Create hierarchical dataset
       df_tree <- df_joined %>%
         dplyr::group_by(tree_label, plot_label) %>%
         dplyr::summarise(value = sum(n), .groups = "drop") %>%
         dplyr::rename(id = tree_label, parent = plot_label)
       
-      # Step 2: Aggregate at the plot level (count number of unique trees per plot)
       df_plot <- df_joined %>%
         dplyr::distinct(plot_label, site_label, tree_label) %>%
         dplyr::group_by(plot_label, site_label) %>%
         dplyr::summarise(value = dplyr::n(), .groups = "drop") %>%
-        dplyr::rename(id = plot_label, parent = site_label) # Extract the site from plot label
+        dplyr::rename(id = plot_label, parent = site_label)
       
-      # Step 3: Aggregate at the site level (count number of unique plots per site)
       df_site <- df_joined %>%
         dplyr::distinct(site_label, network_label) %>%
         dplyr::group_by(site_label, network_label) %>%
         dplyr::summarise(value = dplyr::n(), .groups = "drop") %>%
-        dplyr::rename(id = site_label, parent = network_label)   # Assign network label
+        dplyr::rename(id = site_label, parent = network_label)
       
-      # Step 4: Combine all levels into final hierarchy
       df_hierarchy <- dplyr::bind_rows(df_tree, df_plot, df_site) %>%
         dplyr::distinct(id, parent, value) %>%
         dplyr::arrange(parent, id) %>%
         dplyr::mutate(
-          label = sub(".*__", "", id),  # Extract last part after "_"
-          text = paste0(label, " (", value, ")")  # Format as "Label (Value)"
+          label = sub(".*__", "", id),  
+          text = paste0(label, " (", value, ")")  
         )
       
-      # Create the sunburst plot
+      return(df_hierarchy)
+    })
+    
+    # Render the sunburst plot
+    output$hierarchical_structure <- plotly::renderPlotly({
+      df_hierarchy <- df_hierarchy_reactive()  # Access the reactive df_hierarchy
+      
       sunburst_plot <- plotly::plot_ly(
         data = df_hierarchy, 
         ids = ~id, 
         labels = ~text, 
         parents = ~parent, 
         values = ~value, 
-        type = "sunburst"
-      )
+        type = "sunburst",
+        source = "sunburst_selection"  # Correctly set source ID
+      ) %>%
+        plotly::layout(
+          paper_bgcolor = "#1E1E1E",  # Set background color for the whole plot area (dark)
+          plot_bgcolor = "#1E1E1E",   # Set background color for the plotting area
+          font = list(color = "#FFFFFF"),  # Set font color to white
+          colorway = c("#00BC8C", "#F39C12", "#E74C3C", "#3498DB"),  # Correct color palette for the sunburst
+          hoverlabel = list(bgcolor = "#333333", font = list(color = "#FFFFFF")),  # Set hover label style
+          title = list(text = "Hierarchical Structure", font = list(color = "#FFFFFF")),  # Title color in white
+          margin = list(t = 50, b = 50, l = 50, r = 50)  # Set margins around the plot
+        )
+      
+      # Register the plotly click event
+      sunburst_plot <- plotly::event_register(sunburst_plot, "plotly_click")
       
       sunburst_plot
     })
     
-    # Render summary table
-    output$meta_table <- reactable::renderReactable({
+    # Render the summary table based on selection
+    output$meta_table <- DT::renderDataTable({
       shiny::req(input$meta_file$datapath)
       
-      # Load meta file
-      meta_file <- shiny::req(input$meta_file$datapath)
-      
-      # Read all sheets except "instructions", "DropList", "ListOfVariables"
+      # Load the meta file
+      meta_file <- input$meta_file$datapath
       sheet_names <- setdiff(readxl::excel_sheets(meta_file), c("instructions", "DropList", "ListOfVariables"))
-      sheet_data <- setNames(lapply(sheet_names, function(sheet) 
-        readxl::read_excel(meta_file, sheet = sheet)[-1:-6,]), sheet_names)
+      sheet_data <- setNames(lapply(sheet_names, function(sheet) readxl::read_excel(meta_file, sheet = sheet)[-1:-6,]), sheet_names)
       
       # Join sample, tree, and site data and group by relevant columns
       df_joined <- dplyr::left_join(sheet_data[["sample"]], sheet_data[["tree"]], by = "tree_label") %>%
         dplyr::left_join(sheet_data[["site"]], by = "site_label") %>%
         dplyr::group_by(network_label, site_label, plot_label, tree_label, year = lubridate::year(sample_date), sample_id) %>%
-        dplyr::summarise(n = dplyr::n(), .groups = "drop")  # Ensure correct summarisation
+        dplyr::summarise(n = dplyr::n(), .groups = "drop")  # Ensure correct summarization
       
-      # Render the Reactable table
-      reactable::reactable(df_joined,
-                           searchable = TRUE,
-                           striped = TRUE,
-                           highlight = TRUE,
-                           filterable = TRUE,
-                           style = list(
-                             height = "400px",  # Adjust height as needed
-                             width = "100%"     # Width set to 100% of the container
-                           ))
+      # Capture selection from sunburst plot
+      selection <- plotly::event_data("plotly_click", source = "sunburst_selection")
+      
+      # Filter data based on selection
+      if (!is.null(selection)) {
+        point_number <- selection$pointNumber
+        df_hierarchy <- df_hierarchy_reactive()  # Access the reactive df_hierarchy
+        selected_row <- df_hierarchy[point_number + 1, ]  # Adding 1 because pointNumber is 0-based
+ 
+        # Split the 'id' of the selected row into components
+        site_label_split <- strsplit(as.character(selected_row$id), "__")[[1]][2]  # Site label (2nd element)
+        plot_label_split <- strsplit(as.character(selected_row$id), "__")[[1]][3]  # Plot label (3rd element)
+        tree_label_split <- strsplit(as.character(selected_row$id), "__")[[1]][4]  # Tree label (4th element)
+        
+        # Filter df_joined based on selected row in df_hierarchy
+        df_joined <- df_joined %>%
+          dplyr::filter(
+            (is.na(site_label_split) | site_label == site_label_split) &
+              (is.na(plot_label_split) | plot_label == plot_label_split) &
+              (is.na(tree_label_split) | tree_label == tree_label_split)
+          )
+      }
+      
+      # Render the table with filtered data
+      DT::datatable(
+        df_joined,
+        options = list(
+          paging = TRUE,
+          searching = TRUE,
+          autoWidth = TRUE,
+          dom = 'Blfrtip',  # Show table (no search/pagination)
+          scrollX = FALSE,
+          scrollY = TRUE,
+          columnDefs = list(
+            list(className = 'dt-center', targets = "_all")  # Center-align all columns
+          )
+        ),
+        filter = "top",
+        class = "table-dark"  # Apply dark theme
+      )
     })
     
-    # Render VALIDATION table
-    output$validation_table <- reactable::renderReactable({
-      shiny::req(validation_results(), nrow(validation_results()) > 0)  # Show table only if there are errors
+    # Render DT VALIDATION table
+    output$validation_table <- DT::renderDataTable({
+      shiny::req(validation_results(), nrow(validation_results()) > 0)
       
-      reactable::reactable(validation_results(), 
-                           searchable = TRUE,
-                           striped = TRUE,
-                           highlight = TRUE,
-                           filterable = FALSE,
-                           columns = list(
-                             Sheet = reactable::colDef(name = "Sheet"),
-                             Column = reactable::colDef(name = "Column"),
-                             Issue = reactable::colDef(name = "Issue", minWidth = 300)
-                           ))
+      DT::datatable(
+        validation_results(),
+        options = list(
+          paging = FALSE,
+          searching = FALSE,
+          autoWidth = TRUE,
+          dom = 'Blfrtip',
+          scrollX = FALSE,
+          scrollY = FALSE,
+          columnDefs = list(
+            list(className = 'dt-center', targets = "_all")
+          ),
+          rowCallback = DT::JS("
+        function(row, data, index) {
+          $('td', row).css('color', '#E74C3C');
+        }
+      ")
+        ),
+        filter = "none",
+        class = "table-dark"
+      )
+    })
+    
+    # Render OUTPUT VALIDATION REPORT
+    output$validation_message <- shiny::renderUI({
+      tbl <- validation_results()
+      
+      if (is.null(tbl) || nrow(tbl) == 0) {
+        # Apply success styling
+        shinyjs::addClass(id = "card_header2.3", class = "bg-success")
+        shinyjs::removeClass(id = "card_header2.3", class = "bg-danger")
+        shinyjs::show("card_9")
+        
+        return(
+          shiny::div(
+            class = "alert alert-success p-3 rounded",  # Bootstrap alert with padding
+            shiny::tags$h4(
+              shiny::icon("check-circle"),  # Success icon
+              " Success!", 
+              class = "mb-2"
+            ),
+            shiny::tags$p(
+              "Congratulations! Your files are ready to be submitted.", 
+              class = "mb-2"
+            ),
+            shiny::tags$p(
+              "You can now click on the button ",
+              shiny::tags$b("'Download exchange files as ZIP'!"),
+              class = "mb-0"
+            )
+          )
+        )
+      } else {
+        # Apply error styling
+        shinyjs::addClass(id = "card_header2.3", class = "bg-danger")
+        shinyjs::removeClass(id = "card_header2.3", class = "bg-success")
+        
+        return(
+          shiny::div(
+            class = "alert alert-danger p-3 rounded",  # Bootstrap alert for errors
+            shiny::tags$h4(
+              shiny::icon("exclamation-triangle"),  # Error icon
+              " Validation Issues Found!", 
+              class = "mb-2"
+            ),
+            shiny::tags$p(
+              "Please review the validation issues listed above, before proceeding.",
+              class = "mb-3"
+            ),
+            
+            # Render DataTable (uncomment if needed)
+            # DT::datatable(tbl, 
+            #               options = list(
+            #                 pageLength = 10,
+            #                 searching = TRUE, 
+            #                 autoWidth = TRUE,
+            #                 dom = 'Bfrtip',  
+            #                 scrollX = TRUE,  
+            #                 buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+            #               ), 
+            #               rownames = FALSE,
+            #               class = "table table-dark table-striped table-hover"
+            # )
+          )
+        )
+      }
     })
     
     # Enable submit button only if validation is successful
@@ -825,57 +1257,7 @@ xyloglobal_upload <- function() {
       shinyjs::toggleState(id = "download_zip", condition = !is.null(tbl) && nrow(tbl) == 0)
     })
     
-    # # Show success message when the submit button is clicked
-    # shiny::observeEvent(input$submit_btn, {
-    #   shiny::showModal(shiny::modalDialog(
-    #     title = "Submission Successful",
-    #     "Your metadata file has been successfully submitted!",
-    #     easyClose = TRUE
-    #   ))
-    # })
-    
-      # # Observe the submit button click event
-      # shiny::observeEvent(input$submit_btn, {
-      #   
-      #   # Ensure the user has uploaded both the final observation and metadata files
-      #   if (is.null(input$obs_file_final) || is.null(input$meta_file_final)) {
-      #     shiny::showModal(shiny::modalDialog(
-      #       title = "Missing Files",
-      #       "Please upload both the final observation and metadata files.",
-      #       easyClose = TRUE
-      #     ))
-      #     return(NULL)
-      #   }
-      #   
-      #   # Get the paths to the uploaded final files
-      #   obs_file_path <- obs_file_saved
-      #   meta_file_path <- meta_file_saved
-      #   
-      #   # Call the function to process and save the exchange files
-      #   result <- tryCatch({
-      #     to_exchange_files(obs_file_path, meta_file_path)  # Pass the file paths directly
-      #   }, error = function(e) {
-      #     # In case of an error, return a message
-      #     return(paste("Error: ", e$message))
-      #   })
-      #   
-      #   # Show success or error modal based on the result
-      #   if (grepl("files saved", result)) {
-      #     shiny::showModal(shiny::modalDialog(
-      #       title = "Submission Successful",
-      #       "Your exchange files have been successfully created!",
-      #       easyClose = TRUE
-      #     ))
-      #   } else {
-      #     shiny::showModal(shiny::modalDialog(
-      #       title = "Submission Failed",
-      #       paste("An error occurred: ", result),
-      #       easyClose = TRUE
-      #     ))
-      #   }
-      # })
-      # 
-    
+
     # Folder path where the files will be saved
     output$download_zip <- downloadHandler(
       filename = function() {

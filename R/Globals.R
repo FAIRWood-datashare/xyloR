@@ -2,7 +2,10 @@
 
 utils::globalVariables(c(
   "path_out", "Network", "Site_code", "Tree_label", "Number.of.samples",
-  "Sample_id", "Measure_Radial", "Measure", "Value", "Date", "tbl_Person", "tbl_Site", "tbl_Tree", "tbl_Sample", "tbl_Publication", "Koppen_climate_class", "Organization_name", "Name", "Table", "cell", "constraints", 'data origin', "elevation", "itrdb_species_code", "latitude", "leaf_habit", "longitude", "navPanel", "navsetCardTab", "network_code", "network_label", "number_of_samples", "observe",
+  "Sample_id", "Measure_Radial", "Measure", "Value", "Date", "tbl_Person", "tbl_Site", "tbl_Tree", 
+  "tbl_Sample", "tbl_Publication", "Koppen_climate_class", "Organization_name", "Name", "Table", 
+  "cell", "constraints", 'data origin', "elevation", "itrdb_species_code", "latitude", "leaf_habit", 
+  "longitude", "navPanel", "navsetCardTab", "network_code", "network_label", "number_of_samples", "observe",
   "observeEvent", "on_tree_dendrometer_data",
   "on_tree_phenological_observation", "on_tree_sapflux_data",
   "on_tree_shoot_growth_data", "on_tree_weather_data", "plot_code", "plot_label",
@@ -14,5 +17,7 @@ utils::globalVariables(c(
   "tree_ring_isotope_data", "tree_ring_structure", "tree_ring_width_data",
   "tree_sex", "tree_social_status", "tree_species", "tree_treatment",
   "updateActionButton", "updateSelectInput", "updateTabsetPanel", "wood_type", "year",
-  "year_label", "zone_code", "zone_hierarchy", "zone_name", "zone_type", ".", "cell constraints", "Mandatory", "Domain", "toggleState", "parent", "value", "label", "head", "obs_file"
+  "year_label", "zone_code", "zone_hierarchy", "zone_name", "zone_type", ".", "cell constraints", 
+  "Mandatory", "Domain", "toggleState", "parent", "value", "label", "head", "obs_file", "Date_measure", 
+  "Observation_measure", "Precision_date_measure", "address", "country_name", "geonames_details", "name", "sampling_date", "types"
 ))
