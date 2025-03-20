@@ -844,42 +844,6 @@ xyloglobal_upload <- function() {
     # Download Handler for Metadata Template
     output$download_meta_template <- shiny::downloadHandler(
       filename = function() {
-        paste0(input$dataset_name, "_xylo_meta_", Sys.Date(), ".xlsx")  # Dynamic filename with the current date
-      },
-      content = function(file) {
-        print(paste("Saving to:", file))  # Debugging line
-        # Ensure input is provided
-        if (is.null(input$dataset_name) || input$dataset_name == "") {
-          stop("Please enter a dataset name before downloading.")
-        }
-        
-        shiny::req(input$obs_file)  # Ensure the observation file is uploaded before processing
-        
-        shiny::withProgress(message = 'Processing metadata...', value = 0, {
-          # Loading the template from the package's extdata folder
-          shiny::setProgress(value = 0.2, detail = "Loading the template...")
-          template_path <- system.file("extdata", "Datasetname_xylo_meta_yyyy-mm-dd.xlsx", package = "xyloR")
-          print(paste("Template path:", template_path))  # Debugging line
-          
-          
-          # Perform additional processing on the template using the observation data
-          shiny::setProgress(value = 0.5, detail = "Prefilling the template...")
-          meta_template <- create_xylo_metadata(input$obs_file$datapath, template_path)
-
-
-          # Save the filled-in template directly to the file path provided by the downloadHandler
-          shiny::setProgress(value = 0.8, detail = "Saving the file...")
-          openxlsx::saveWorkbook(meta_template, file, overwrite = TRUE)  # Save to download location provided by Shiny
-          
-          # Indicate that the file has been downloaded
-          shiny::setProgress(value = 1, detail = "File downloaded")  # Completion message
-          
-        })
-      }
-    )
-    
-    output$download_meta_template <- shiny::downloadHandler(
-      filename = function() {
          paste0(input$dataset_name, "_xylo_meta_", Sys.Date(), ".xlsx")
       },
       content = function(file) {
