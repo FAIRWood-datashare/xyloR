@@ -848,7 +848,9 @@ xyloglobal_upload <- function() {
       },
       content = function(file) {
 
-        shiny::req(input$obs_file)  
+        #shiny::req(input$obs_file)  
+        
+        # print(input$obs_file$datapath)
  
         shiny::withProgress(message = 'Processing metadata...', value = 0, {
           shiny::setProgress(value = 0.2, detail = "Loading the template...")
