@@ -88,7 +88,8 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
   xylo_header <- openxlsx::readWorkbook(xylo_workbook, sheet = "obs_data_info", rows = 1:3, colNames = FALSE)
   xylo_obs <- openxlsx::readWorkbook(xylo_workbook, sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] %>% 
     dplyr::tibble() %>%
-    dplyr::mutate(sample_date = as.Date(as.numeric(sample_date), origin = "1899-12-30")) %>%
+    # dplyr::mutate(sample_date = as.Date(as.numeric(sample_date), origin = "1899-12-30")) %>%
+    dplyr::mutate(sample_date = lubridate::parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))) %>% 
     dplyr::filter(!is.na(sample_date))
   obs_data_info <- openxlsx::readWorkbook(xylo_workbook, sheet = "obs_data_info", startRow = 6, colNames = FALSE) %>% setNames(c("site_label", "latitude", "longitude", "elevation"))
 

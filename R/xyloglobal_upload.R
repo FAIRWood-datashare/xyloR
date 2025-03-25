@@ -622,7 +622,8 @@ xyloglobal_upload <- function() {
       wb <- openxlsx::loadWorkbook(input$obs_file$datapath)
       df <- openxlsx::readWorkbook(wb, sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] %>% 
         dplyr::tibble() %>%
-        dplyr::mutate(sample_date = as.Date(as.numeric(sample_date), origin = "1899-12-30")) %>%
+        # dplyr::mutate(sample_date = as.Date(as.numeric(sample_date), origin = "1899-12-30")) %>%
+        dplyr::mutate(sample_date = lubridate::parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))) %>% 
         dplyr::filter(!is.na(sample_date))
       
       # Filter by site_code if selected
@@ -630,9 +631,9 @@ xyloglobal_upload <- function() {
       return(df)
       
       shinyjs::show("card_7")
-      
-      
     })
+    
+    
     
     ### CARD 4 with DT KEY INFO TABLE
     # Render ReacTable with key info when file is uploaded
