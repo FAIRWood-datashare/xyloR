@@ -159,7 +159,7 @@ xyloglobal_upload <- function() {
     
     navset_card_tab(id = 'tabs',
                          
-                         # TAB 1: Upload Observation Data -----------------------------------------
+      # TAB 1: Upload Observation Data -----------------------------------------
                          nav_panel(title = "1. Upload observation data",
                                          
                                          shiny::fluidRow(
@@ -291,7 +291,7 @@ xyloglobal_upload <- function() {
                                          
                          ),
                          
-                         # TAB 2: Upload Metadata -----------------------------------------------
+      # TAB 2: Upload Metadata -----------------------------------------------
                          nav_panel("2. Upload metadata",
                                    
                                          shiny::fluidRow(
@@ -388,6 +388,22 @@ xyloglobal_upload <- function() {
                          ),
                     
       # TAB 3: Upload Metadata -----------------------------------------------
+      nav_panel("View Observations", value = "View Observations",
+                conditionalPanel(
+                  condition = "input.obs_file.size > 0",  # Make sure this is triggered when file is uploaded
+                  bslib::card(
+                    h4('Basic Info on Observation:'),
+                    div(style = "height: auto;", DT::dataTableOutput("obs_data_info"))
+                  ),
+                  bslib::card(
+                    h4('Observation:'),
+                    DT::dataTableOutput("observation"),
+                    fill = TRUE  # Allows the card to expand
+                  )
+                )
+      ),
+      
+      # TAB 4: Upload Metadata -----------------------------------------------
       nav_panel("Authors' Info",
         bslib::card(
           class = "bg-light-green p-3 border-end",
@@ -439,14 +455,21 @@ xyloglobal_upload <- function() {
         )
       ),
                     
-      # TAB 4: Upload Metadata -----------------------------------------------
+      # TAB 5: Upload Metadata -----------------------------------------------
       nav_panel("Publications Info",
                 bslib::card()
-      )
+      ),
+      
+      
+     # -----------------------------------------------
     )
   )
   
 
+# -----------------------------------------------
+# -----------------------------------------------
+  
+  
   server <- function(input, output, session) {
     
     # Initialize reactive variable for temp folder
@@ -597,8 +620,22 @@ xyloglobal_upload <- function() {
       # print(list.files(reactive_temp_folder()))
       
       # Read site information from the "obs_data_info" sheet
-      site_info <- openxlsx::readWorkbook(wb, sheet = "obs_data_info", startRow = 6, colNames = FALSE) %>% 
-        setNames(c("site_label", "latitude", "longitude", "elevation"))
+      site_info <- openxlsx::readWorkbook(wb, sheet = "obs_data_info", startRow = 6, colNames = FALSE)
+      obs_data <- openxlsx::readWorkbook(wb, sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] %>% 
+        dplyr::tibble() 
+      
+      # Check the number of columns
+      if (ncol(site_info) == 3) {
+        site_label <- unique(obs_data$site_label) %>% tibble() %>% filter(!is.na(.))  # Extract unique site labels
+        site_info <- cbind(site_label, site_info)   # Add it as the first column
+      } else if (ncol(site_info) != 4) {
+        stop("⚠️ Error: Expected 3 or 4 columns in 'Xylo_obs_data'. Please check your data format.")
+      }
+      
+      
+      # Apply column names only if the check passes
+      site_info <- setNames(site_info, c("site_label", "latitude", "longitude", "elevation"))
+      
       
       # Extract unique site labels and update the dropdown
       updateSelectInput(session, "site_filter", choices = unique(site_info$site_label))
@@ -621,19 +658,39 @@ xyloglobal_upload <- function() {
       req(input$site_filter)
       wb <- openxlsx::loadWorkbook(input$obs_file$datapath)
       df <- openxlsx::readWorkbook(wb, sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] %>% 
-        dplyr::tibble() %>%
-        # dplyr::mutate(sample_date = as.Date(as.numeric(sample_date), origin = "1899-12-30")) %>%
-        dplyr::mutate(sample_date = lubridate::parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))) %>% 
-        dplyr::filter(!is.na(sample_date))
+        dplyr::tibble() 
+      
+      # Check if sample_date is numeric (Excel date format)
+      if (!is.numeric(df$sample_date)) {
+        df <- df %>%
+          dplyr::mutate(sample_date = as.Date(as.numeric(sample_date), origin = "1899-12-30"))
+      } else {
+        # If not numeric, assume it's in character format and parse using lubridate
+        df <- df %>%
+          dplyr::mutate(sample_date = lubridate::parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy")))
+      }
+      
+      df <- df %>% dplyr::filter(!is.na(sample_date))
+
       
       # Filter by site_code if selected
       df <- df %>% dplyr::filter(site_label == input$site_filter)
       return(df)
       
+      
+      
       shinyjs::show("card_7")
     })
     
-    
+    # Reactive observation data
+    WB <- reactive({
+      req(input$obs_file)
+      req(input$site_filter)
+      wb <- openxlsx::loadWorkbook(input$obs_file$datapath)
+      
+      
+      return(wb)
+    })
     
     ### CARD 4 with DT KEY INFO TABLE
     # Render ReacTable with key info when file is uploaded
@@ -646,9 +703,25 @@ xyloglobal_upload <- function() {
       
       # filtered Site info
       wb <- openxlsx::loadWorkbook(input$obs_file$datapath)
-      site_info <- openxlsx::readWorkbook(wb, sheet = "obs_data_info", startRow = 6, colNames = FALSE) %>% 
-        setNames(c("site_label", "latitude", "longitude", "elevation")) %>%
+
+      # Read site information from the "obs_data_info" sheet
+      site_info <- openxlsx::readWorkbook(wb, sheet = "obs_data_info", startRow = 6, colNames = FALSE)
+      obs_data <- openxlsx::readWorkbook(wb, sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] %>% 
+        dplyr::tibble() 
+      
+      # Check the number of columns
+      if (ncol(site_info) == 3) {
+        site_label <- unique(obs_data$site_label) %>% tibble() %>% filter(!is.na(.))  # Extract unique site labels
+        site_info <- cbind(site_label, site_info)   # Add it as the first column
+      } else if (ncol(site_info) != 4) {
+        stop("⚠️ Error: Expected 3 or 4 columns in 'Xylo_obs_data'. Please check your data format.")
+      }
+      
+      
+      # Apply column names only if the check passes
+      site_info <- setNames(site_info, c("site_label", "latitude", "longitude", "elevation")) %>%
         dplyr::filter(site_label == input$site_filter)
+  
       
       # Extract key information
       owner_lastname <- as.character(openxlsx::readWorkbook(wb, sheet = "obs_data_info", rows = 2, cols = 4, colNames = FALSE))
@@ -661,9 +734,9 @@ xyloglobal_upload <- function() {
       longitude <- site_info %>% dplyr::select(longitude) %>% dplyr::pull() %>% as.numeric()
       elevation <- site_info %>% dplyr::select(elevation) %>% dplyr::pull() %>% as.numeric()
       network <- unique(df$network_label)
-      site <- unique(df$site_label)
-      from <- as.Date(range(df$sample_date)[1], origin = "1899-12-30")
-      to <- as.Date(range(df$sample_date)[2], origin = "1899-12-30")
+      site <- unique(df$site_label) %>% tibble() %>% filter(!is.na(.))
+      from <- as.Date(min(df$sample_date, na.rm = TRUE), origin = "1899-12-30")
+      to <- as.Date(max(df$sample_date, na.rm = TRUE), origin = "1899-12-30")
       n_trees <- length(unique(df$tree_label))
       n_dates <- length(unique(df$sample_date))
       n_samples <- nrow(df)
@@ -758,8 +831,22 @@ xyloglobal_upload <- function() {
       req(input$obs_file)
       req(input$site_filter)
       wb <- openxlsx::loadWorkbook(input$obs_file$datapath)  # Read the OBS file
-      site_info <- openxlsx::readWorkbook(wb, sheet = "obs_data_info", startRow = 6, colNames = FALSE) %>% 
-        setNames(c("site_label", "latitude", "longitude", "elevation")) %>% 
+      # Read site information from the "obs_data_info" sheet
+      site_info <- openxlsx::readWorkbook(wb, sheet = "obs_data_info", startRow = 6, colNames = FALSE)
+      obs_data <- openxlsx::readWorkbook(wb, sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] %>% 
+        dplyr::tibble() 
+      
+      # Check the number of columns
+      if (ncol(site_info) == 3) {
+        site_label <- unique(obs_data$site_label) %>% tibble() %>% filter(!is.na(.))  # Extract unique site labels
+        site_info <- cbind(site_label, site_info)   # Add it as the first column
+      } else if (ncol(site_info) != 4) {
+        stop("⚠️ Error: Expected 3 or 4 columns in 'Xylo_obs_data'. Please check your data format.")
+      }
+      
+      
+      # Apply column names only if the check passes
+      site_info <- setNames(site_info, c("site_label", "latitude", "longitude", "elevation")) %>%
         dplyr::filter(site_label == input$site_filter)
       lng <- site_info %>% dplyr::select(longitude) %>% dplyr::pull() %>% as.numeric()
       lat <- site_info %>% dplyr::select(latitude) %>% dplyr::pull() %>% as.numeric()
@@ -1273,8 +1360,394 @@ xyloglobal_upload <- function() {
       NULL
     })
 
+    # TAB 3: ---------------------------------------------------------------------
+    
+    # check for mandatory cells
+    checkMandatory <- function(data, column_name, value_column, condition_value = TRUE, color = "red") {
+      data %>%
+        formatStyle(
+          columns = column_name, 
+          valueColumns = value_column, 
+          backgroundColor = styleEqual(
+            levels = condition_value, 
+            values = c(color)
+          )
+        )
+    }
+    
+    # check for character length
+    checkLength <- function(data, column_name, value_column, cuts, color_values = c("", "red")) {
+      data %>%
+        formatStyle(
+          columns = column_name,
+          valueColumns = value_column,
+          backgroundColor = styleInterval(cuts = cuts, values = color_values)
+        )
+    }
+    
+    # check for character length
+    checkFormatting <- function(data, column, validation_column, false_color = "red", true_color = "") {
+      data %>%
+        formatStyle(
+          columns = column,
+          valueColumns = validation_column,
+          backgroundColor = styleEqual(
+            levels = c(TRUE, FALSE),
+            values = c(true_color, false_color)
+          )
+        )
+    }
+    
+  # dinfo  #### 
+    # Reactive dataset
+    dinfo <- reactiveVal()
+    
+    observe({
+      req(input$obs_file)  # Ensure file is uploaded
       
-    # TAB 3: -------------------------------------------------------------------
+      # Read the dataset
+      site_info <- openxlsx::readWorkbook(WB(), sheet = "obs_data_info", startRow = 6, colNames = FALSE) %>%
+        dplyr::tibble() 
+      obs_data <- openxlsx::readWorkbook(WB(), sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] %>% 
+        dplyr::tibble() 
+      
+      # Check the number of columns
+      if (ncol(site_info) == 3) {
+        site_label <- unique(obs_data$site_label) %>% tibble() %>% filter(!is.na(.))  # Extract unique site labels
+        site_info <- cbind(site_label, site_info)   # Add it as the first column
+      } else if (ncol(site_info) != 4) {
+        stop("⚠️ Error: Expected 3 or 4 columns in 'Xylo_obs_data'. Please check your data format.")
+      }
+      
+      
+      # Apply column names only if the check passes
+      site_info <- setNames(site_info, c("site_label", "latitude", "longitude", "elevation")) 
+      
+      
+      # Add validation columns
+      site_info <- site_info %>%
+        dplyr::mutate(
+          valid_latitute = is.numeric(latitude) & !is.na(latitude) & latitude >= -90 & latitude <= 90,
+          valid_longitude = is.numeric(longitude) & !is.na(longitude) & longitude >= -180 & longitude <= 180,
+          valid_elevation = is.numeric(elevation) & !is.na(elevation) & elevation >= 0 & elevation <= 10000
+        )
+      
+      dinfo(site_info)  # Store in reactive value
+    })
+    
+    # Render the editable DT table obs_info
+    output$obs_data_info  <- DT::renderDT({
+      DT::datatable(dinfo(), 
+                    rownames = FALSE,
+                    editable = list(target = "cell", disable = list(columns = c())), # Disable editing for certain columns
+                    options = list(
+                      pageLength = 10,  # Limit the number of rows shown to 10
+                      autoWidth = TRUE,  # Automatically adjust column widths
+                      dom = 'Bfrtip',  # Use pagination controls
+                      scrollX = TRUE,   # Enable horizontal scrolling
+                      scrollY = FALSE,  # Disable vertical scrolling
+                      buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),  # Add export buttons
+                      initComplete = JS(
+                        "function(settings, json) {",
+                        "  var table = this.api();",
+                        "  table.columns().every(function(index) {",
+                        "    var column = table.column(index);",
+                        "    var redFound = false;",
+                        "    column.nodes().each(function(cell, i) {",
+                        "      if ($(cell).css('background-color') == 'rgb(255, 0, 0)') {  // Detect red cell background color",
+                        "        redFound = true;",
+                        "      }",
+                        "    });",
+                        "    if (!redFound) {",
+                        "      $(column.header()).css({'background-color': 'green', 'color': 'black'});",
+                        "    }",
+                        "  });",
+                        "}"
+                      ),
+                      columnDefs = list(list(visible=FALSE, targets=c(4:(ncol(dinfo())-1))))
+                    )) %>% 
+        checkFormatting("latitude", "valid_latitute") %>% 
+        checkFormatting("longitude", "valid_longitude") %>% 
+        checkFormatting("elevation", "valid_elevation")
+    })
+    
+    # Observe cell edits and save back into xlsx
+    observeEvent(input$obs_data_info_cell_edit, {
+      info <- input$obs_data_info_cell_edit
+      
+      df <- dinfo()  # Get current data
+      
+      # Update the specific cell
+      df[info$row, info$col + 1] <- as.numeric(info$value)  # Ensure numeric conversion
+      
+      # Recalculate validations
+      df <- df %>%
+        dplyr::mutate(
+          valid_latitute = is.numeric(latitude) & !is.na(latitude) & latitude >= -90 & latitude <= 90,
+          valid_longitude = is.numeric(longitude) & !is.na(longitude) & longitude >= -180 & longitude <= 180,
+          valid_elevation = is.numeric(elevation) & !is.na(elevation) & elevation >= 0 & elevation <= 10000
+        )
+      
+      dinfo(df)  # Save updated data
+      
+      # Write updated data back to the workbook
+      openxlsx::writeData(WB(), sheet = "obs_data_info", df, startRow = 5, colNames = TRUE)
+      
+      # Save the workbook
+      openxlsx::saveWorkbook(WB(), file = input$obs_file$datapath, overwrite = TRUE)
+    })    
+    
+    #### dobs   ####
+    # Reactive dataset
+    dobs <- reactiveVal()
+    
+    observe({
+      req(input$obs_file)  # Ensure file is uploaded
+      
+      # Read data from Excel, skipping first 6 rows
+      data <- openxlsx::readWorkbook(WB(), sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] %>% 
+        dplyr::tibble()
+      
+      # Check if sample_date is numeric and convert to Date
+      data <- data %>%
+        dplyr::mutate(
+          sample_date = case_when(
+            !is.na(sample_date) & is.numeric(as.numeric(sample_date)) ~ as.Date(as.numeric(sample_date), origin = "1899-12-30"),
+            !is.na(sample_date) & !is.numeric(as.numeric(sample_date)) ~ lubridate::parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy")),
+            TRUE ~ NA_Date_  # Set NA for any invalid date or missing values
+          )
+        )
+      
+      dobs(data)  # Store in reactive value
+    })
+    
+    # Render the editable DT table observation
+    output$observation <- DT::renderDT({
+      # Get the data from the reactive expression
+      data_to_render <- dobs()
+      # data_to_render[is.na(data_to_render)] <- "NA"
+      # data_to_render$site_label[1] <- NA
+      # data_to_render$network_label[1] <- "LOT"
+      
+      data_to_render <- data_to_render %>%
+        mutate(
+          nchar_sample_id = nchar(sample_id),
+          nchar_tree_species = nchar(tree_species),
+          nchar_tree_label = nchar(tree_label),
+          nchar_plot_label = nchar(plot_label),
+          nchar_site_label = nchar(site_label),
+          nchar_network_label = nchar(network_label),
+          nchar_sample_label = nchar(sample_label),
+          nchar_radial_file = nchar(radial_file),
+          
+          NA_sample_date = is.na(sample_date) | sample_date %in% c("", "NA"),
+          NA_tree_species = is.na(tree_species) | tree_species %in% c("", "NA"),
+          NA_plot_label = is.na(plot_label) | plot_label %in% c("", "NA"),
+          NA_site_label = is.na(site_label) | site_label %in% c("", "NA"),
+          NA_radial_file = is.na(radial_file) | radial_file %in% c("", "NA"),
+          sample_date = as.character(sample_date),  # Ensure sample_date is a character
+          sample_date = ifelse(sample_date %in% c("", "NA"), NA, sample_date),  # Convert "NA" and empty strings to NA
+          valid_sample_date = !is.na(parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))),
+          duplicate_sample_label = duplicated(sample_label) | duplicated(sample_label, fromLast = TRUE)
+          )
+      
+      
+      # List of valid species
+      species_list <- openxlsx::readWorkbook(WB(), sheet = "DropList") %>%  
+        select(Tree_species) %>% pull() 
+      
+      
+      DT::datatable(data_to_render, 
+                    rownames = FALSE,
+                    editable = list(target = "cell", disable = list(columns = c())), # Disable editing for certain columns
+                    options = list(
+                      pageLength = 100,  # Limit the number of rows shown to 10
+                      autoWidth = TRUE,  # Automatically adjust column widths
+                      dom = 'Bfrtip',  # Use pagination controls
+                      scrollX = TRUE,   # Enable horizontal scrolling
+                      scrollY = FALSE,  # Disable vertical scrolling
+                      buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),  # Add export buttons
+                      initComplete = JS(
+                        "function(settings, json) {",
+                        "  var table = this.api();",
+                        "  table.columns().every(function(index) {",
+                        "    var column = table.column(index);",
+                        "    var redFound = false;",
+                        "    column.nodes().each(function(cell, i) {",
+                        "      if ($(cell).css('background-color') == 'rgb(255, 0, 0)') {  // Detect red cell background color",
+                        "        redFound = true;",
+                        "      }",
+                        "    });",
+                        "    if (!redFound) {",
+                        "      $(column.header()).css({'background-color': 'green', 'color': 'black'});",
+                        "    }",
+                        "  });",
+                        "}"
+                      ),
+                      columnDefs = list(list(visible=FALSE, targets=c(15:(ncol(data_to_render)-1))))
+                      
+                    ))  %>%
+        
+        ### Droplist
+        formatStyle("tree_species", 
+                    backgroundColor = styleEqual(
+                      levels = length(unique(data_to_render$tree_species)[!unique(data_to_render$tree_species) %in% species_list]) > 0,  # Non-matching species
+                      values = c("red")  # Red for non-matching species
+                    )) %>% 
+        
+        ### date format
+        formatStyle(columns = "sample_date", valueColumns = "valid_sample_date",
+                    backgroundColor = styleEqual(
+                      levels = FALSE,
+                      values = c("red")
+                    )) %>%
+        
+        ### uniqueness
+        formatStyle(columns = "sample_date", valueColumns = "duplicate_sample_label",
+          backgroundColor = styleEqual(
+            levels = TRUE,
+            values = c("red")
+          )
+        ) %>%
+        
+        # Use the function checkLength
+        checkLength("sample_id", "nchar_sample_id", cuts = 64, color_values = c("", "red")) %>%
+        checkLength("tree_species", "nchar_tree_species", cuts = 64, color_values = c("", "red")) %>%
+        checkLength("tree_label", "nchar_tree_label", cuts = 64, color_values = c("", "red")) %>%
+        checkLength("plot_label", "nchar_plot_label", cuts = 64, color_values = c("", "red")) %>%
+        checkLength("site_label", "nchar_site_label", cuts = 64, color_values = c("", "red")) %>%
+        checkLength("network_label", "nchar_network_label", cuts = 64, color_values = c("", "red")) %>%
+        checkLength("sample_label", "nchar_sample_label", cuts = 64, color_values = c("", "red")) %>%
+        checkLength("radial_file", "nchar_radial_file", cuts = 6, color_values = c("", "red")) %>%
+        
+        # Use the function checkMandatory
+        checkMandatory("sample_date", "NA_sample_date", color = "red") %>%
+        checkMandatory("tree_species", "NA_tree_species", color = "red") %>%
+        checkMandatory("plot_label", "NA_plot_label", color = "red") %>% 
+        checkMandatory("site_label", "NA_site_label", color = "red") %>%
+        checkMandatory("radial_file", "NA_radial_file", color = "red")
+      
+    })
+    
+    # Observe Cell Edits
+    observeEvent(input$observation_cell_edit, {
+      info <- input$observation_cell_edit
+      
+      data <- dobs()  # Get current data
+      
+      # Update the specific cell
+      data[info$row, info$col + 1] <- info$value
+      
+      # List of valid species
+      species_list <- openxlsx::readWorkbook(WB(), sheet = "DropList") %>%  
+        select(Tree_species) %>% pull() 
+      
+      
+      # Recalculate validations
+      data <- data %>%
+        mutate(
+          sample_date = case_when(
+            is.numeric(sample_date) ~ as.Date(as.numeric(sample_date), origin = "1899-12-30"),
+            TRUE ~ lubridate::parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))
+          ),
+          valid_sample_date = !is.na(parse_date_time(as.character(sample_date), orders = c("ymd", "dmy", "mdy"))),
+          # Update character length columns for the edited row
+          nchar_sample_id = nchar(sample_id),
+          nchar_tree_species = nchar(tree_species),
+          nchar_tree_label = nchar(tree_label),
+          nchar_plot_label = nchar(plot_label),
+          nchar_site_label = nchar(site_label),
+          nchar_network_label = nchar(network_label),
+          nchar_sample_label = nchar(sample_label),
+          nchar_radial_file = nchar(radial_file),
+          # Mandatory checks
+          NA_sample_date = is.na(sample_date) | sample_date %in% c("", "NA"),
+          NA_tree_species = is.na(tree_species) | tree_species %in% c("", "NA"),
+          NA_plot_label = is.na(plot_label) | plot_label %in% c("", "NA"),
+          NA_site_label = is.na(site_label) | site_label %in% c("", "NA"),
+          NA_radial_file = is.na(radial_file) | radial_file %in% c("", "NA"),
+          sample_date = as.character(sample_date),  # Ensure sample_date is a character
+          sample_date = ifelse(sample_date %in% c("", "NA"), NA, sample_date),  # Convert "NA" and empty strings to NA
+          valid_sample_date = !is.na(parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))),
+          duplicate_sample_label = duplicated(sample_label) | duplicated(sample_label, fromLast = TRUE)
+        )
+      
+      dobs(data)  # Save updated data
+      
+      # Directly update the table with only the affected row's validation results
+      output$observation <- DT::renderDT({
+        # Get the updated data (only the modified row will be different)
+        data_to_render <- dobs()
+        
+        DT::datatable(data_to_render, 
+                      rownames = FALSE,
+                      editable = list(target = "cell", disable = list(columns = c())), # Disable editing for certain columns
+                      options = list(
+                        pageLength = 100,  # Limit the number of rows shown to 10
+                        autoWidth = TRUE,  # Automatically adjust column widths
+                        dom = 'Bfrtip',  # Use pagination controls
+                        scrollX = TRUE,   # Enable horizontal scrolling
+                        scrollY = FALSE,  # Disable vertical scrolling
+                        buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),  # Add export buttons
+                        initComplete = JS(
+                          "function(settings, json) {",
+                          "  var table = this.api();",
+                          "  table.columns().every(function(index) {",
+                          "    var column = table.column(index);",
+                          "    var redFound = false;",
+                          "    column.nodes().each(function(cell, i) {",
+                          "      if ($(cell).css('background-color') == 'rgb(255, 0, 0)') {  // Detect red cell background color",
+                          "        redFound = true;",
+                          "      }",
+                          "    });",
+                          "    if (!redFound) {",
+                          "      $(column.header()).css({'background-color': 'green', 'color': 'black'});",
+                          "    }",
+                          "  });",
+                          "}"
+                        ),
+                        columnDefs = list(list(visible=FALSE, targets=c(15:(ncol(data_to_render)-1))))
+                      )) %>%
+          
+          # Apply styles and validations only for the affected row (info$row)
+          formatStyle("tree_species", 
+                      backgroundColor = styleEqual(
+                        levels = length(unique(data_to_render$tree_species)[!unique(data_to_render$tree_species) %in% species_list]) > 0,
+                        values = c("red")
+                      )) %>%
+          formatStyle(columns = "sample_date", valueColumns = "valid_sample_date",
+                      backgroundColor = styleEqual(levels = FALSE, values = c("red"))
+          ) %>%
+          formatStyle(columns = "sample_date", valueColumns = "duplicate_sample_label",
+                      backgroundColor = styleEqual(levels = TRUE, values = c("red"))
+          ) %>%
+          
+          # Apply length checks only for affected row
+          checkLength("sample_id", "nchar_sample_id", cuts = 64, color_values = c("", "red")) %>%
+          checkLength("tree_species", "nchar_tree_species", cuts = 64, color_values = c("", "red")) %>%
+          checkLength("tree_label", "nchar_tree_label", cuts = 64, color_values = c("", "red")) %>%
+          checkLength("plot_label", "nchar_plot_label", cuts = 64, color_values = c("", "red")) %>%
+          checkLength("site_label", "nchar_site_label", cuts = 64, color_values = c("", "red")) %>%
+          checkLength("network_label", "nchar_network_label", cuts = 64, color_values = c("", "red")) %>%
+          checkLength("sample_label", "nchar_sample_label", cuts = 64, color_values = c("", "red")) %>%
+          checkLength("radial_file", "nchar_radial_file", cuts = 6, color_values = c("", "red")) %>%
+          
+          # Apply mandatory field checks
+          checkMandatory("sample_date", "NA_sample_date", color = "red") %>%
+          checkMandatory("tree_species", "NA_tree_species", color = "red") %>%
+          checkMandatory("plot_label", "NA_plot_label", color = "red") %>% 
+          checkMandatory("site_label", "NA_site_label", color = "red") %>%
+          checkMandatory("radial_file", "NA_radial_file", color = "red")
+      })
+      
+      # Write updated data back to the workbook
+      openxlsx::writeData(WB(), sheet = "Xylo_obs_data", data, startRow = 7, colNames = TRUE)
+      
+      # Save the workbook
+      openxlsx::saveWorkbook(WB(), file = input$obs_file$datapath, overwrite = TRUE)
+    })
+    
+    # TAB 4: -------------------------------------------------------------------
     
     # toggle: only enable in case we have a country and search string
     shiny::observe({
@@ -1364,8 +1837,12 @@ xyloglobal_upload <- function() {
       shiny::radioButtons("contact_person", NULL,
                    choices = paste("Author", 1:author_count()))
     })
-   
-     
+    
+    
+    
+    # TAB 5: -------------------------------------------------------------------
+
+    
   } # end of server function
   
   
