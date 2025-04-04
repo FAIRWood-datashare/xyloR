@@ -1542,14 +1542,17 @@ xyloglobal_upload <- function() {
           
           NA_sample_date = is.na(sample_date) | sample_date %in% c("", "NA"),
           NA_tree_species = is.na(tree_species) | tree_species %in% c("", "NA"),
+          NA_tree_label = is.na(tree_label) | tree_label %in% c("", "NA"),
           NA_plot_label = is.na(plot_label) | plot_label %in% c("", "NA"),
           NA_site_label = is.na(site_label) | site_label %in% c("", "NA"),
           NA_radial_file = is.na(radial_file) | radial_file %in% c("", "NA"),
-          sample_date = as.character(sample_date),  # Ensure sample_date is a character
-          sample_date = ifelse(sample_date %in% c("", "NA"), NA, sample_date),  # Convert "NA" and empty strings to NA
-          valid_sample_date = !is.na(parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))),
-          duplicate_sample_label = duplicated(sample_label) | duplicated(sample_label, fromLast = TRUE)
-          )
+          # sample_date = as.character(sample_date),  # Ensure sample_date is a character
+          # sample_date = ifelse(sample_date %in% c("", "NA"), NA, sample_date),  # Convert "NA" and empty strings to NA
+          valid_sample_date = !is.na(parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))) == FALSE,
+          duplicate_sample_label = duplicated(sample_label) | duplicated(sample_label, fromLast = TRUE),
+          # Indroplist check
+          in_species_list = data_to_render$tree_species %in% species_list == FALSE
+        )
       
       
       # List of valid species
@@ -1588,28 +1591,6 @@ xyloglobal_upload <- function() {
                       
                     ))  %>%
         
-        ### Droplist
-        formatStyle("tree_species", 
-                    backgroundColor = styleEqual(
-                      levels = length(unique(data_to_render$tree_species)[!unique(data_to_render$tree_species) %in% species_list]) > 0,  # Non-matching species
-                      values = c("red")  # Red for non-matching species
-                    )) %>% 
-        
-        ### date format
-        formatStyle(columns = "sample_date", valueColumns = "valid_sample_date",
-                    backgroundColor = styleEqual(
-                      levels = FALSE,
-                      values = c("red")
-                    )) %>%
-        
-        ### uniqueness
-        formatStyle(columns = "sample_date", valueColumns = "duplicate_sample_label",
-          backgroundColor = styleEqual(
-            levels = TRUE,
-            values = c("red")
-          )
-        ) %>%
-        
         # Use the function checkLength
         checkLength("sample_id", "nchar_sample_id", cuts = 64, color_values = c("", "red")) %>%
         checkLength("tree_species", "nchar_tree_species", cuts = 64, color_values = c("", "red")) %>%
@@ -1623,9 +1604,17 @@ xyloglobal_upload <- function() {
         # Use the function checkMandatory
         checkMandatory("sample_date", "NA_sample_date", color = "red") %>%
         checkMandatory("tree_species", "NA_tree_species", color = "red") %>%
+        checkMandatory("tree_label", "NA_tree_label", color = "red") %>% 
         checkMandatory("plot_label", "NA_plot_label", color = "red") %>% 
         checkMandatory("site_label", "NA_site_label", color = "red") %>%
-        checkMandatory("radial_file", "NA_radial_file", color = "red")
+        checkMandatory("radial_file", "NA_radial_file", color = "red") %>% 
+        
+        # Use the function checkMandatory for droplist check
+        checkMandatory("tree_species", "in_species_list", color = "red") %>% 
+        # Use the function checkMandatory for uniqueness check
+        checkMandatory("sample_label", "duplicate_sample_label", color = "red") %>% 
+        # Use the function checkMandatory for date format validation
+        checkMandatory("sample_date", "valid_sample_date", color = "red")
       
     })
     
@@ -1636,7 +1625,30 @@ xyloglobal_upload <- function() {
       data <- dobs()  # Get current data
       
       # Update the specific cell
-      data[info$row, info$col + 1] <- info$value
+      # data[info$row, info$col + 1] <- info$value
+      
+      col_name <- names(data)[info$col + 1]
+      col_type <- class(data[[col_name]])
+      
+      # Safely coerce based on column type
+      new_value <- switch(
+        col_type[1],
+        "numeric" = as.numeric(info$value),
+        "integer" = as.integer(info$value),
+        "Date" = as.Date(info$value),
+        "POSIXct" = {
+          parsed <- parse_date_time(info$value, orders = c("ymd", "dmy", "mdy"))
+          if (is.na(parsed)) {
+            showNotification("Invalid date format", type = "error")
+            return(NULL)
+          } else {
+            as.Date(parsed)  # << store only the date part
+          }
+        },
+        info$value  # fallback
+      )
+      
+      data[info$row, col_name] <- new_value
       
       # List of valid species
       species_list <- openxlsx::readWorkbook(WB(), sheet = "DropList") %>%  
@@ -1663,83 +1675,21 @@ xyloglobal_upload <- function() {
           # Mandatory checks
           NA_sample_date = is.na(sample_date) | sample_date %in% c("", "NA"),
           NA_tree_species = is.na(tree_species) | tree_species %in% c("", "NA"),
+          NA_tree_label = is.na(tree_label) | tree_label %in% c("", "NA"),
           NA_plot_label = is.na(plot_label) | plot_label %in% c("", "NA"),
           NA_site_label = is.na(site_label) | site_label %in% c("", "NA"),
           NA_radial_file = is.na(radial_file) | radial_file %in% c("", "NA"),
-          sample_date = as.character(sample_date),  # Ensure sample_date is a character
-          sample_date = ifelse(sample_date %in% c("", "NA"), NA, sample_date),  # Convert "NA" and empty strings to NA
-          valid_sample_date = !is.na(parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))),
-          duplicate_sample_label = duplicated(sample_label) | duplicated(sample_label, fromLast = TRUE)
+          # sample_date = as.character(sample_date),  # Ensure sample_date is a character
+          # sample_date = ifelse(sample_date %in% c("", "NA"), NA, sample_date),  # Convert "NA" and empty strings to NA
+          valid_sample_date = !is.na(parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))) == FALSE,
+          duplicate_sample_label = duplicated(sample_label) | duplicated(sample_label, fromLast = TRUE),
+          # Indroplist check
+          in_species_list = data_to_render$tree_species %in% species_list == FALSE
         )
       
       dobs(data)  # Save updated data
       
-      # Directly update the table with only the affected row's validation results
-      output$observation <- DT::renderDT({
-        # Get the updated data (only the modified row will be different)
-        data_to_render <- dobs()
-        
-        DT::datatable(data_to_render, 
-                      rownames = FALSE,
-                      editable = list(target = "cell", disable = list(columns = c())), # Disable editing for certain columns
-                      options = list(
-                        pageLength = 100,  # Limit the number of rows shown to 10
-                        autoWidth = TRUE,  # Automatically adjust column widths
-                        dom = 'Bfrtip',  # Use pagination controls
-                        scrollX = TRUE,   # Enable horizontal scrolling
-                        scrollY = FALSE,  # Disable vertical scrolling
-                        buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),  # Add export buttons
-                        initComplete = JS(
-                          "function(settings, json) {",
-                          "  var table = this.api();",
-                          "  table.columns().every(function(index) {",
-                          "    var column = table.column(index);",
-                          "    var redFound = false;",
-                          "    column.nodes().each(function(cell, i) {",
-                          "      if ($(cell).css('background-color') == 'rgb(255, 0, 0)') {  // Detect red cell background color",
-                          "        redFound = true;",
-                          "      }",
-                          "    });",
-                          "    if (!redFound) {",
-                          "      $(column.header()).css({'background-color': 'green', 'color': 'black'});",
-                          "    }",
-                          "  });",
-                          "}"
-                        ),
-                        columnDefs = list(list(visible=FALSE, targets=c(15:(ncol(data_to_render)-1))))
-                      )) %>%
-          
-          # Apply styles and validations only for the affected row (info$row)
-          formatStyle("tree_species", 
-                      backgroundColor = styleEqual(
-                        levels = length(unique(data_to_render$tree_species)[!unique(data_to_render$tree_species) %in% species_list]) > 0,
-                        values = c("red")
-                      )) %>%
-          formatStyle(columns = "sample_date", valueColumns = "valid_sample_date",
-                      backgroundColor = styleEqual(levels = FALSE, values = c("red"))
-          ) %>%
-          formatStyle(columns = "sample_date", valueColumns = "duplicate_sample_label",
-                      backgroundColor = styleEqual(levels = TRUE, values = c("red"))
-          ) %>%
-          
-          # Apply length checks only for affected row
-          checkLength("sample_id", "nchar_sample_id", cuts = 64, color_values = c("", "red")) %>%
-          checkLength("tree_species", "nchar_tree_species", cuts = 64, color_values = c("", "red")) %>%
-          checkLength("tree_label", "nchar_tree_label", cuts = 64, color_values = c("", "red")) %>%
-          checkLength("plot_label", "nchar_plot_label", cuts = 64, color_values = c("", "red")) %>%
-          checkLength("site_label", "nchar_site_label", cuts = 64, color_values = c("", "red")) %>%
-          checkLength("network_label", "nchar_network_label", cuts = 64, color_values = c("", "red")) %>%
-          checkLength("sample_label", "nchar_sample_label", cuts = 64, color_values = c("", "red")) %>%
-          checkLength("radial_file", "nchar_radial_file", cuts = 6, color_values = c("", "red")) %>%
-          
-          # Apply mandatory field checks
-          checkMandatory("sample_date", "NA_sample_date", color = "red") %>%
-          checkMandatory("tree_species", "NA_tree_species", color = "red") %>%
-          checkMandatory("plot_label", "NA_plot_label", color = "red") %>% 
-          checkMandatory("site_label", "NA_site_label", color = "red") %>%
-          checkMandatory("radial_file", "NA_radial_file", color = "red")
-      })
-      
+
       # Write updated data back to the workbook
       openxlsx::writeData(WB(), sheet = "Xylo_obs_data", data, startRow = 7, colNames = TRUE)
       
