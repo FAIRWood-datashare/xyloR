@@ -13,142 +13,176 @@
 #' }
 xyloglobal_upload <- function() {
 
+  # UI -------------------------------------------------------------------------
   ui <- shiny::fluidPage(
     
     theme = bslib::bs_theme(bootswatch = "darkly", primary = "#375A7F", secondary = "#3498DB", font_scale = 0.8, success = "#00BC8C", warning = "#F39C12", danger = "#E74C3C", info = "#3498DB"),
     
     # Add custom CSS to change the background color of the card
     tags$style(HTML("
-  .bg-light-green {
-    background-color: #f4f7f7 !important;
-  }
+      .bg-light-green {
+        background-color: #f4f7f7 !important;
+      }
 
-  .card-body {
-    height: auto;  /* Allows height to adjust dynamically based on content */
-    overflow: visible;  /* No scrolling, visible overflow */
-  }
+      .card-body {
+        height: auto;  /* Allows height to adjust dynamically based on content */
+        overflow: visible;  /* No scrolling, visible overflow */
+      }
 
-  /* Dark theme for DataTable */
-  .table-dark {
-    background-color: #343a40 !important; /* Dark grey background */
-    color: #ffffff; /* White text */
-  }
+      /* Dark theme for DataTable */
+      .table-dark {
+        background-color: #343a40 !important; /* Dark grey background */
+        color: #ffffff; /* White text */
+      }
 
-  /* DataTable Search Field (Global Search) */
-  .dataTables_filter input {
-    background-color: #444444;  /* Dark grey for search input */
-    color: #ffffff;  /* White text */
-    border: 1px solid #6c757d;  /* Subtle border */
-  }
+      /* DataTable Search Field (Global Search) */
+      .dataTables_filter input {
+        background-color: #444444;  /* Dark grey for search input */
+        color: #ffffff;  /* White text */
+        border: 1px solid #6c757d;  /* Subtle border */
+      }
 
-  /* DataTable Column Filters (per-column filtering inputs) */
-  thead input {
-    background-color: #444444 !important; /* Dark grey for column filters */
-    color: #ffffff !important; /* White text */
-    border: 1px solid #6c757d !important; /* Subtle border */
-  }
+      /* DataTable Column Filters (per-column filtering inputs) */
+      thead input {
+        background-color: #444444 !important; /* Dark grey for column filters */
+        color: #ffffff !important; /* White text */
+        border: 1px solid #6c757d !important; /* Subtle border */
+      }
 
-  /* Dark background for select dropdowns (including DataTable Show Entries) */
-  .dataTables_length select, 
-  .dataTables_filter input, 
-  .dataTables_info {
-    background-color: #444444 !important;  /* Dark grey */
-    color: #ffffff !important;  /* White text */
-    border: 1px solid #6c757d !important;  /* Subtle border */
-  }
+      /* Dark background for select dropdowns (including DataTable Show Entries) */
+      .dataTables_length select, 
+      .dataTables_filter input, 
+      .dataTables_info {
+        background-color: #444444 !important;  /* Dark grey */
+        color: #ffffff !important;  /* White text */
+        border: 1px solid #6c757d !important;  /* Subtle border */
+      }
 
-  /* Dark pagination controls */
-  .dataTables_paginate {
-    background-color: #343a40 !important; /* Dark grey */
-  }
-
-  /* Alternating row colors for readability */
-  .table-dark tbody tr:nth-child(even) {
-    background-color: #474747 !important;
-  }
-  .table-dark tbody tr:nth-child(odd) {
-    background-color: #343a40 !important;
-  }
-
-  /* Dark theme for selectInput fields */
-  .form-control, .selectize-input {
-    background-color: #444444 !important; /* Dark grey background */
-    color: #ffffff !important;  /* White text */
-    border: 1px solid #6c757d !important; /* Subtle border */
-  }
-
-  /* Ensure placeholder text in selectInput is visible */
-  .selectize-input::placeholder {
-    color: #bbbbbb !important; /* Light grey for visibility */
-  }
-
-  /* Ensure the dropdown menu in selectInput is also dark */
-  .selectize-dropdown {
-    background-color: #444444 !important; /* Dark grey */
-    color: #ffffff !important;  /* White text */
-    border: 1px solid #6c757d !important; /* Subtle border */
-  }
-
-  /* Dark theme for options in selectInput */
-  .selectize-dropdown-content .option {
-    background-color: #444444 !important; /* Dark grey */
-    color: #ffffff !important; /* White text */
-  }
-
-  /* Darker grey background for selected option */
-  .selectize-dropdown-content .option.selected {
-    background-color: #555555 !important;
-  }
-
-  /* Dark theme for textInput fields */
-  .shiny-input-container input[type='text'], 
-  .shiny-input-container textarea {
-    background-color: #444444 !important;
-    color: #ffffff !important;
-    border: 1px solid #6c757d !important;
-  }
-
-  /* Dark theme for fileInput fields */
-  .shiny-file-input {
-    background-color: #444444 !important;
-    color: #ffffff !important;
-    border: 1px solid #6c757d !important;
-  }
-
-  /* Hover effect for fileInput */
-  .shiny-file-input button:hover {
-    background-color: #555555 !important;
-    color: #ffffff !important;
-  }
-
-  /* Adjust the labels for inputs (dark theme) */
-  .shiny-input-container label {
-    color: #ffffff !important;
-  }
-
-  /* Checkbox Input (Make background dark and checkbox visible) */
-  .shiny-input-container input[type='checkbox'] {
-    background-color: #444444 !important;
-    border: 1px solid #6c757d !important;
-  }
-
-  /* Style checkbox when checked */
-  .shiny-input-container input[type='checkbox']:checked {
-    background-color: #007bff !important; /* Bootstrap primary blue */
-  }
-
-  /* Dark theme for checkbox label */
-  .shiny-input-container .checkbox label {
-    color: #ffffff !important;
-  }
-"))
-    ,
+      /* Dark pagination controls */
+      .dataTables_paginate {
+        background-color: #343a40 !important; /* Dark grey */
+      }
     
+      /* Alternating row colors for readability */
+      .table-dark tbody tr:nth-child(even) {
+        background-color: #474747 !important;
+      }
+      .table-dark tbody tr:nth-child(odd) {
+        background-color: #343a40 !important;
+      }
     
+      /* Dark theme for selectInput fields */
+      .form-control, .selectize-input {
+        background-color: #444444 !important; /* Dark grey background */
+        color: #ffffff !important;  /* White text */
+        border: 1px solid #6c757d !important; /* Subtle border */
+      }
+    
+      /* Ensure placeholder text in selectInput is visible */
+      .selectize-input::placeholder {
+        color: #bbbbbb !important; /* Light grey for visibility */
+      }
+    
+      /* Ensure the dropdown menu in selectInput is also dark */
+      .selectize-dropdown {
+        background-color: #444444 !important; /* Dark grey */
+        color: #ffffff !important;  /* White text */
+        border: 1px solid #6c757d !important; /* Subtle border */
+      }
+    
+      /* Dark theme for options in selectInput */
+      .selectize-dropdown-content .option {
+        background-color: #444444 !important; /* Dark grey */
+        color: #ffffff !important; /* White text */
+      }
+    
+      /* Darker grey background for selected option */
+      .selectize-dropdown-content .option.selected {
+        background-color: #555555 !important;
+      }
+
+      /* Dark theme for textInput fields */
+      .shiny-input-container input[type='text'], 
+      .shiny-input-container textarea {
+        background-color: #444444 !important;
+        color: #ffffff !important;
+        border: 1px solid #6c757d !important;
+      }
+    
+      /* Dark theme for fileInput fields */
+      .shiny-file-input {
+        background-color: #444444 !important;
+        color: #ffffff !important;
+        border: 1px solid #6c757d !important;
+      }
+    
+      /* Hover effect for fileInput */
+      .shiny-file-input button:hover {
+        background-color: #555555 !important;
+        color: #ffffff !important;
+      }
+    
+      /* Adjust the labels for inputs (dark theme) */
+      .shiny-input-container label {
+        color: #ffffff !important;
+      }
+    
+      /* Checkbox Input (Make background dark and checkbox visible) */
+      .shiny-input-container input[type='checkbox'] {
+        background-color: #444444 !important;
+        border: 1px solid #6c757d !important;
+      }
+    
+      /* Style checkbox when checked */
+      .shiny-input-container input[type='checkbox']:checked {
+        background-color: #007bff !important; /* Bootstrap primary blue */
+      }
+    
+      /* Dark theme for checkbox label */
+      .shiny-input-container .checkbox label {
+        color: #ffffff !important;
+      }
+      
+      /* MN: new */
+      /* Dark mode styles for rhandsontable */
+      .htCore {
+        background-color: #333333;
+        color: #ffffff;
+      }
+      
+      .htCore th {
+        background-color: #444444;
+        color: #ffffff;
+      }
+      
+      .htCore td {
+        background-color: #333333;
+        color: #ffffff;
+      }
+      
+      .htCore .htDimmed {
+        color: #999999;
+      }
+      
+      .htCore .current {
+        background-color: #555555 !important;
+      }
+      
+      .htCore .area {
+        background-color: #666666 !important;
+      }
+      
+      /* red background for the tab header */
+      .red-tab {
+      background-color:red;
+      }
+      
+    ")),
+    
+
     shinyjs::useShinyjs(),
     
-    
-    
+
     shiny::titlePanel("Welcome to the GloboXylo data collector"),
     
     # Short explanation below the title
@@ -158,242 +192,248 @@ xyloglobal_upload <- function() {
     
     
     navset_card_tab(id = 'tabs',
-                         
+                           
       # TAB 1: Upload Observation Data -----------------------------------------
-                         nav_panel(title = "1. Upload observation data",
-                                         
-                                         shiny::fluidRow(
-                                           # Left Side: Upload Section (With Background Color)
-                                           shiny::column(3, class = "bg-light p-2 border-end",
-                                                         style = "height: 100%;",
-                                                         bslib::card(
-                                                           bslib::card_header('1.1 Name your dataset', id = "card_header1.1", class = "bg-danger",
-                                                                              tooltip(
-                                                             bsicons::bs_icon("question-circle"),
-                                                             "Provide a uniquely identifier for your dataset. This will be used to name the output files. Then move to 1.2 Download observation data template",
-                                                             placement = "right"
-                                                           )),
-                                                           bslib::card_body(
-                                                             fillable = FALSE,
-                                                             shiny::p("Enter the name of your dataset. This should only contains letters/numbers and not be more than 10 characters"),
-                                                             textInput("dataset_name", "Enter the name of your dataset", value = ""),
-                                                             actionButton("submit", "Validate name", class = "btn btn-primary")
-                                                           )
-                                                         ),
-                                                         
-                                                         bslib::card(
-                                                           bslib::card_header('1.2 Download observation data template', id = "card_header1.2", class = "bg-warning",
-                                                                              tooltip(
-                                                                                bsicons::bs_icon("question-circle"),
-                                                                                "Click 'download template' to save an empty Excel template file for your observation data. Click 'download filled example' to download a prefilled example file. Then move to 1.3 Upload the filled observation data file",
-                                                                                placement = "right"
-                                                                              )),
-                                                           bslib::card_body(
-                                                             fillable = FALSE,
-                                                             shiny::p("Click the button to download the template. Fill it in, save it, then browse and load the file."),
-                                                             # Use fluidRow and column to position buttons next to each other
-                                                             shiny::fluidRow(
-                                                               shiny::column(6,  # Adjust width of each button as needed
-                                                                             downloadButton("download_template", "Download Template", class = "btn btn-primary")
-                                                               ),
-                                                               shiny::column(6,  # Adjust width of each button as needed
-                                                                             downloadButton("download_example_obs", "Download filled example", class = "btn btn-secondary")
-                                                               )
-                                                             )
-                                                           ),
-                                                           style = "display: none;",
-                                                           id = "card_1"
-                                                         ),
-                                                         
-                                                         bslib::card(
-                                                           bslib::card_header('1.3 Upload the filled observation data file!', id = "card_header1.3", class = "bg-danger",
-                                                                              tooltip(
-                                                                                bsicons::bs_icon("question-circle"),
-                                                                                "Use the browser to upload your filled excel file filled with your observation data. A map with the location of your site and a two tables with an overview of the sampling coverage and a summary of type of observation will open. You can switch between sites with the dropdown field here below. Then move to 1.4 Validate your data",
-                                                                                placement = "right"
-                                                                              )),
-                                                           shiny::fileInput("obs_file", "", accept = c(".xlsx"), multiple = FALSE),
-                                                           shiny::selectInput("site_filter", "Select Site", choices = NULL, selected = NULL, selectize = TRUE),                                                            style = "height: 300px; display: none;",
-                                                           id = "card_2"
-                                                         ),
-                                                         
-                                                         # Add a DT Table of key info below the cards
-                                                         bslib::card(
-                                                           bslib::card_header("Key Information Table"),
-                                                           bslib::card_body(
-                                                             DT::dataTableOutput("key_info_table")
-                                                           ),
-                                                           style = "display: none; height: auto; min-height: 600px; overflow: visible;",  # Hidden by default
-                                                           id = "card_3"  # Add an ID to reference it later
-                                                         )
-                                           ),
-                                           
-                                           # Right Side: Map & Plotly + Add Observations Table here
-                                           shiny::column(9,
-                                                         style = "height: 100%;",  
-                                                         bslib::card(
-                                                           bslib::card_header("Geolocation Map"),
-                                                           bslib::card_body(
-                                                             leaflet::leafletOutput("mymap", height = "400px")
-                                                           ),
-                                                           style = "display: none;",  # Hidden by default
-                                                           id = "card_4"  # Add an ID to reference it later
-                                                         ),
-                                                         
-                                                         bslib::card(
-                                                           bslib::card_header("Data Coverage Overview",
-                                                           # Plot settings popover button
-                                                           popover(
-                                                             bsicons::bs_icon("gear", class = "ms-auto"),  # Icon for settings
-                                                             selectInput("color", "Color by", choices = c("tree_species", "sample_id", "plot_label"), selected = "tree_species"),
-                                                             title = "Plot Settings"
-                                                           ),
-                                                           class = "d-flex align-items-center gap-1"),
-                                                           bslib::card_body(
-                                                             plotly::plotlyOutput("data_coverage_plot", height = "300px")
-                                                           ),
-                                                           style = "display: none;",  # Hidden by default
-                                                           id = "card_5"  # Add an ID to reference it later
-                                                         ),
-                                                         
-                                                         # Move Observations performed section here
-                                                         bslib::card(
-                                                           bslib::card_header("Observations performed [number of radial files]"),
-                                                           bslib::card_body(
-                                                             DT::dataTableOutput("obs_table")
-                                                           ),
-                                                           style = "display: none; height: auto; min-height: 200px; overflow: visible;",  # Hidden by default
-                                                           id = "card_6"  # Add an ID to reference it later
-                                                         ),
-                                                         
-                                                         # Adding validation checkboxes and next button
-                                                         bslib::card(
-                                                           bslib::card_header("1.4 Validate your data", id = "card_header1.4", class = "bg-danger",
-                                                                              tooltip(
-                                                                                bsicons::bs_icon("question-circle"),
-                                                                                "Validate your data by chcking that the location, the data coverage and the observation type are correct by checking the checkbox below. Then the next button will activate. Click it to access the next tab and move to 2.1 Download prefilled metadata template",
-                                                                                placement = "right"
-                                                                              )),
-                                                           bslib::card_body(
-                                                             shiny::checkboxInput("validate_location", "Validate Location", value = FALSE),
-                                                             shiny::checkboxInput("validate_data_coverage", "Validate Data Coverage", value = FALSE),
-                                                             shiny::checkboxInput("validate_observation", "Validate Observation list", value = FALSE),
-                                                             shiny::textOutput("validation_status"),
-                                                             shiny::actionButton('next_btn', 'Next', icon = shiny::icon('angle-double-right'), class = "btn btn-primary", disabled = TRUE)
-                                                           ),
-                                                           style = "display: none;",  # Hidden by default
-                                                           id = "card_7",  # Add an ID to reference it later
-                                                         )
+      nav_panel(title = "1. Upload observation data",
+                       
+                       shiny::fluidRow(
+                         # Left Side: Upload Section (With Background Color)
+                         shiny::column(3, class = "bg-light p-2 border-end",
+                                       style = "height: 100%;",
+                                       bslib::card(
+                                         bslib::card_header('1.1 Name your dataset', id = "card_header1.1", class = "bg-danger",
+                                                            tooltip(
+                                           bsicons::bs_icon("question-circle"),
+                                           "Provide a uniquely identifier for your dataset. This will be used to name the output files. Then move to 1.2 Download observation data template",
+                                           placement = "right"
+                                         )),
+                                         bslib::card_body(
+                                           fillable = FALSE,
+                                           shiny::p("Enter the name of your dataset. This should only contains letters/numbers and not be more than 10 characters"),
+                                           textInput("dataset_name", "Enter the name of your dataset", value = ""),
+                                           actionButton("submit", "Validate name", class = "btn btn-primary")
+                                         )
+                                       ),
+                                       
+                                       bslib::card(
+                                         bslib::card_header('1.2 Download observation data template', id = "card_header1.2", class = "bg-warning",
+                                                            tooltip(
+                                                              bsicons::bs_icon("question-circle"),
+                                                              "Click 'download template' to save an empty Excel template file for your observation data. Click 'download filled example' to download a prefilled example file. Then move to 1.3 Upload the filled observation data file",
+                                                              placement = "right"
+                                                            )),
+                                         bslib::card_body(
+                                           fillable = FALSE,
+                                           shiny::p("Click the button to download the template. Fill it in, save it, then browse and load the file."),
+                                           # Use fluidRow and column to position buttons next to each other
+                                           shiny::fluidRow(
+                                             shiny::column(6,  # Adjust width of each button as needed
+                                                           downloadButton("download_template", "Download Template", class = "btn btn-primary")
+                                             ),
+                                             shiny::column(6,  # Adjust width of each button as needed
+                                                           downloadButton("download_example_obs", "Download filled example", class = "btn btn-secondary")
+                                             )
                                            )
                                          ),
-                                         
-                                         shiny::br(),
-                                         
+                                         style = "display: none;",
+                                         id = "card_1"
+                                       ),
+                                       
+                                       bslib::card(
+                                         bslib::card_header('1.3 Upload the filled observation data file!', id = "card_header1.3", class = "bg-danger",
+                                                            tooltip(
+                                                              bsicons::bs_icon("question-circle"),
+                                                              "Use the browser to upload your filled excel file filled with your observation data. A map with the location of your site and a two tables with an overview of the sampling coverage and a summary of type of observation will open. You can switch between sites with the dropdown field here below. Then move to 1.4 Validate your data",
+                                                              placement = "right"
+                                                            )),
+                                         shiny::fileInput("obs_file", "", accept = c(".xlsx"), multiple = FALSE),
+                                         shiny::selectInput("site_filter", "Select Site", choices = NULL, selected = NULL, selectize = TRUE),                                                            style = "height: 300px; display: none;",
+                                         id = "card_2"
+                                       ),
+                                       
+                                       # Add a DT Table of key info below the cards
+                                       bslib::card(
+                                         bslib::card_header("Key Information Table"),
+                                         bslib::card_body(
+                                           DT::dataTableOutput("key_info_table")
+                                         ),
+                                         style = "display: none; height: auto; min-height: 600px; overflow: visible;",  # Hidden by default
+                                         id = "card_3"  # Add an ID to reference it later
+                                       )
                          ),
+                         
+                         # Right Side: Map & Plotly + Add Observations Table here
+                         shiny::column(9,
+                                       style = "height: 100%;",  
+                                       bslib::card(
+                                         bslib::card_header("Geolocation Map"),
+                                         bslib::card_body(
+                                           leaflet::leafletOutput("mymap", height = "400px")
+                                         ),
+                                         style = "display: none;",  # Hidden by default
+                                         id = "card_4"  # Add an ID to reference it later
+                                       ),
+                                       
+                                       bslib::card(
+                                         bslib::card_header("Data Coverage Overview",
+                                         # Plot settings popover button
+                                         popover(
+                                           bsicons::bs_icon("gear", class = "ms-auto"),  # Icon for settings
+                                           selectInput("color", "Color by", choices = c("tree_species", "sample_id", "plot_label"), selected = "tree_species"),
+                                           title = "Plot Settings"
+                                         ),
+                                         class = "d-flex align-items-center gap-1"),
+                                         bslib::card_body(
+                                           plotly::plotlyOutput("data_coverage_plot", height = "300px")
+                                         ),
+                                         style = "display: none;",  # Hidden by default
+                                         id = "card_5"  # Add an ID to reference it later
+                                       ),
+                                       
+                                       # Move Observations performed section here
+                                       bslib::card(
+                                         bslib::card_header("Observations performed [number of radial files]"),
+                                         bslib::card_body(
+                                           DT::dataTableOutput("obs_table")
+                                         ),
+                                         style = "display: none; height: auto; min-height: 200px; overflow: visible;",  # Hidden by default
+                                         id = "card_6"  # Add an ID to reference it later
+                                       ),
+                                       
+                                       # Adding validation checkboxes and next button
+                                       bslib::card(
+                                         bslib::card_header("1.4 Validate your data", id = "card_header1.4", class = "bg-danger",
+                                                            tooltip(
+                                                              bsicons::bs_icon("question-circle"),
+                                                              "Validate your data by chcking that the location, the data coverage and the observation type are correct by checking the checkbox below. Then the next button will activate. Click it to access the next tab and move to 2.1 Download prefilled metadata template",
+                                                              placement = "right"
+                                                            )),
+                                         bslib::card_body(
+                                           shiny::checkboxInput("validate_location", "Validate Location", value = FALSE),
+                                           shiny::checkboxInput("validate_data_coverage", "Validate Data Coverage", value = FALSE),
+                                           shiny::checkboxInput("validate_observation", "Validate Observation list", value = FALSE),
+                                           shiny::textOutput("validation_status"),
+                                           shiny::actionButton('next_btn', 'Next', icon = shiny::icon('angle-double-right'), class = "btn btn-primary", disabled = TRUE)
+                                         ),
+                                         style = "display: none;",  # Hidden by default
+                                         id = "card_7",  # Add an ID to reference it later
+                                       )
+                         )
+                       ),
+                       
+                       shiny::br(),
+                       
+       ),
                          
       # TAB 2: Upload Metadata -----------------------------------------------
-                         nav_panel("2. Upload metadata",
-                                   
-                                         shiny::fluidRow(
-                                           # Left side
-                                           shiny::column(3, class = "bg-light p-2 border-end",
-                                                         style = "height: 100%;",  
-                                                         bslib::card(
-                                                           bslib::card_header('2.1 Download prefilled metadata template', id = "card_header2.1", class = "bg-warning",
-                                                                              tooltip(
-                                                                                bsicons::bs_icon("question-circle"),
-                                                                                "Click 'download template' to save an empty Excel template file for your meta data. Click 'download filled example' to download a prefilled example file. Then move to 2.2 Load the completed metadata file",
-                                                                                placement = "right"
-                                                                              )),
-                                                           bslib::card_body(
-                                                             fillable = FALSE,
-                                                             shiny::p("Click to open, prefill, and download the metadata template, prefilled with data from the observations file"),
-                                                             shiny::p("Complete the prefilled metadata, save it again, and then browse to load the filled file for format check."),
-                                                             shiny::p("Note: It may take a few seconds for the prefilled template to open.", style = "color: red;"),
-                                                             # Use fluidRow and column to position buttons next to each other
-                                                             shiny::fluidRow(
-                                                               shiny::column(6,  # Adjust width of each button as needed
-                                                                             downloadButton("download_meta_template", "Download Metadata Template", class = "btn btn-primary")
-                                                               ),
-                                                               shiny::column(6,  # Adjust width of each button as needed
-                                                                             downloadButton("download_example_meta", "Download filled example", class = "btn btn-secondary")
-                                                               )
-                                                             )
-                                                           )
-                                                         ),
-                                                         
-                                                         bslib::card(
-                                                           bslib::card_header('2.2 Load the completed metadata file (you just saved!) to perform validation', id = "card_header2.2", class = "bg-danger",
-                                                                              tooltip(
-                                                                                bsicons::bs_icon("question-circle"),
-                                                                                "Use the browser to upload your filled excel file filled with your metadata data. A sunburst plot and a table with the hierarchical structure of yoru data will appear You can explore within the structure by clicking on the plot. A 'Validation table' will also open showing in red the open issues to comply the requirement of the DB formatting. These need to be fixed by correcting the metadata file and upload again untill the 'validation table' get green The 2.3 'Download exchange files as ZIP' get active and you can click it to export your files for submission the the GLOBOxylo DB.",
-                                                                                placement = "right"
-                                                                              )),
-                                                           bslib::card_body(
-                                                             shiny::fileInput("meta_file", "", accept = c(".xlsx")),
-                                                             # actionButton("validate_meta", "Validate Metadata", class = "btn btn-success"),
-                                                             shiny::textOutput("meta_validation_status"),
-                                                             shiny::verbatimTextOutput("meta_validation_errors")
-                                                           )
-                                                         )
-                                                         
-                                           ),
-                                           
-                                           # Right side (New ReactTable)
-                                           shiny::column(9,
-                                                         style = "height: 100%;",  
-                                                         bslib::card(
-                                                           bslib::card_header("Overview of data structure"),
-                                                           bslib::card_body(
-                                                             plotly::plotlyOutput("hierarchical_structure", height = "500px")
-                                                           ),
-                                                           bslib::card_body(
-                                                             DT::dataTableOutput("meta_table", height = "500px")  # ReactTable placeholder
-                                                           )
-                                                         ),
-                                                         bslib::card(
-                                                           bslib::card_header("Report of validation check!", id = "card_header2.3", class = "bg-danger",
-                                                                              tooltip(
-                                                                                bsicons::bs_icon("question-circle"),
-                                                                                "Green = all fine! you can proceed. Red = Problems) Need to be fixed to comply DB formatting. check your metadafile and fix where necessary and move back to 2.2 Load the completed metadata file",
-                                                                                placement = "right"
-                                                                              )),
-                                                           bslib::card_body(
-                                                             DT::dataTableOutput("validation_table"),  
-                                                             shiny::uiOutput("validation_message"),
-                                                             style = "min-height: 0; padding: 10px;"  # Reduces padding and enforces minimal height
-                                                           ),                                                          
-                                                           style = "display: none; height: fit-content; overflow: hidden;",  # Adjust height dynamically
-                                                           id = "card_8"  # Add an ID to reference it later
-                                                         )
-                                           ),
-                                         ),
-                                         
-                                         shiny::br(),
-                                         
-                                         shiny::fluidRow(
-                                           shiny::column(12,
-                                                         bslib::card(
-                                                           class = "border border-0 text-center",
-                                                           # shiny::actionButton('submit_btn', 'Create exchange files', disabled = TRUE, icon = shiny::icon('angle-double-right'), class = "btn btn-primary"),
-                                                           downloadButton("download_zip", "2.3 Download Exchange Files as ZIP", class = "btn btn-primary"),
-                                                           # Modal for submission feedback
-                                                           shiny::uiOutput("modal_ui"),
-                                                           style = "display: none;",  # Hidden by default
-                                                           id = "card_9"  # Add an ID to reference it later
-                                                           
-                                                         )
+      nav_panel("2. Upload metadata",
+                 
+                       shiny::fluidRow(
+                         # Left side
+                         shiny::column(3, class = "bg-light p-2 border-end",
+                                       style = "height: 100%;",  
+                                       bslib::card(
+                                         bslib::card_header('2.1 Download prefilled metadata template', id = "card_header2.1", class = "bg-warning",
+                                                            tooltip(
+                                                              bsicons::bs_icon("question-circle"),
+                                                              "Click 'download template' to save an empty Excel template file for your meta data. Click 'download filled example' to download a prefilled example file. Then move to 2.2 Load the completed metadata file",
+                                                              placement = "right"
+                                                            )),
+                                         bslib::card_body(
+                                           fillable = FALSE,
+                                           shiny::p("Click to open, prefill, and download the metadata template, prefilled with data from the observations file"),
+                                           shiny::p("Complete the prefilled metadata, save it again, and then browse to load the filled file for format check."),
+                                           shiny::p("Note: It may take a few seconds for the prefilled template to open.", style = "color: red;"),
+                                           # Use fluidRow and column to position buttons next to each other
+                                           shiny::fluidRow(
+                                             shiny::column(6,  # Adjust width of each button as needed
+                                                           downloadButton("download_meta_template", "Download Metadata Template", class = "btn btn-primary")
+                                             ),
+                                             shiny::column(6,  # Adjust width of each button as needed
+                                                           downloadButton("download_example_meta", "Download filled example", class = "btn btn-secondary")
+                                             )
                                            )
                                          )
+                                       ),
+                                       
+                                       bslib::card(
+                                         bslib::card_header('2.2 Load the completed metadata file (you just saved!) to perform validation', id = "card_header2.2", class = "bg-danger",
+                                                            tooltip(
+                                                              bsicons::bs_icon("question-circle"),
+                                                              "Use the browser to upload your filled excel file filled with your metadata data. A sunburst plot and a table with the hierarchical structure of yoru data will appear You can explore within the structure by clicking on the plot. A 'Validation table' will also open showing in red the open issues to comply the requirement of the DB formatting. These need to be fixed by correcting the metadata file and upload again untill the 'validation table' get green The 2.3 'Download exchange files as ZIP' get active and you can click it to export your files for submission the the GLOBOxylo DB.",
+                                                              placement = "right"
+                                                            )),
+                                         bslib::card_body(
+                                           shiny::fileInput("meta_file", "", accept = c(".xlsx")),
+                                           # actionButton("validate_meta", "Validate Metadata", class = "btn btn-success"),
+                                           shiny::textOutput("meta_validation_status"),
+                                           shiny::verbatimTextOutput("meta_validation_errors")
+                                         )
+                                       )
+                                       
                          ),
+                         
+                         # Right side (New ReactTable)
+                         shiny::column(9,
+                                       style = "height: 100%;",  
+                                       bslib::card(
+                                         bslib::card_header("Overview of data structure"),
+                                         bslib::card_body(
+                                           plotly::plotlyOutput("hierarchical_structure", height = "500px")
+                                         ),
+                                         bslib::card_body(
+                                           DT::dataTableOutput("meta_table", height = "500px")  # ReactTable placeholder
+                                         )
+                                       ),
+                                       bslib::card(
+                                         bslib::card_header("Report of validation check!", id = "card_header2.3", class = "bg-danger",
+                                                            tooltip(
+                                                              bsicons::bs_icon("question-circle"),
+                                                              "Green = all fine! you can proceed. Red = Problems) Need to be fixed to comply DB formatting. check your metadafile and fix where necessary and move back to 2.2 Load the completed metadata file",
+                                                              placement = "right"
+                                                            )),
+                                         bslib::card_body(
+                                           DT::dataTableOutput("validation_table"),  
+                                           shiny::uiOutput("validation_message"),
+                                           style = "min-height: 0; padding: 10px;"  # Reduces padding and enforces minimal height
+                                         ),                                                          
+                                         style = "display: none; height: fit-content; overflow: hidden;",  # Adjust height dynamically
+                                         id = "card_8"  # Add an ID to reference it later
+                                       )
+                         ),
+                       ),
+                       
+                       shiny::br(),
+                       
+                       shiny::fluidRow(
+                         shiny::column(12,
+                                       bslib::card(
+                                         class = "border border-0 text-center",
+                                         # shiny::actionButton('submit_btn', 'Create exchange files', disabled = TRUE, icon = shiny::icon('angle-double-right'), class = "btn btn-primary"),
+                                         downloadButton("download_zip", "2.3 Download Exchange Files as ZIP", class = "btn btn-primary"),
+                                         # Modal for submission feedback
+                                         shiny::uiOutput("modal_ui"),
+                                         style = "display: none;",  # Hidden by default
+                                         id = "card_9"  # Add an ID to reference it later
+                                         
+                                       )
+                         )
+                       )
+       ),
                     
       # TAB 3: Upload Metadata -----------------------------------------------
-      nav_panel("View Observations", value = "View Observations",
+      nav_panel(
+        title = div(id="obs_panel_tab", "View Observations"),
+        value = "View Observations",
                 conditionalPanel(
                   condition = "input.obs_file.size > 0",  # Make sure this is triggered when file is uploaded
                   bslib::card(
                     h4('Basic Info on Observation:'),
-                    div(style = "height: auto;", DT::dataTableOutput("obs_data_info"))
+                    div(style = "height: auto;", DT::dataTableOutput("obs_data_info")),
+                    # MN: new rhandsomtable added plus save button
+                    verbatimTextOutput("testing"),
+                    rhandsontable::rHandsontableOutput("obs_data_info2"),
+                    actionButton('save_obs_data_btn', "Save Basic Info", icon = icon('save'))
                   ),
                   bslib::card(
                     h4('Observation:'),
@@ -469,7 +509,7 @@ xyloglobal_upload <- function() {
 # -----------------------------------------------
 # -----------------------------------------------
   
-  
+  # SERVER ---------------------------------------------------------------------
   server <- function(input, output, session) {
     
     # Initialize reactive variable for temp folder
@@ -1365,10 +1405,10 @@ xyloglobal_upload <- function() {
     # check for mandatory cells
     checkMandatory <- function(data, column_name, value_column, condition_value = TRUE, color = "red") {
       data %>%
-        formatStyle(
+        DT::formatStyle(
           columns = column_name, 
           valueColumns = value_column, 
-          backgroundColor = styleEqual(
+          backgroundColor = DT::styleEqual(
             levels = condition_value, 
             values = c(color)
           )
@@ -1378,20 +1418,20 @@ xyloglobal_upload <- function() {
     # check for character length
     checkLength <- function(data, column_name, value_column, cuts, color_values = c("", "red")) {
       data %>%
-        formatStyle(
+        DT::formatStyle(
           columns = column_name,
           valueColumns = value_column,
-          backgroundColor = styleInterval(cuts = cuts, values = color_values)
+          backgroundColor = DT::styleInterval(cuts = cuts, values = color_values)
         )
     }
     
     # check for character length
     checkFormatting <- function(data, column, validation_column, false_color = "red", true_color = "") {
       data %>%
-        formatStyle(
+        DT::formatStyle(
           columns = column,
           valueColumns = validation_column,
-          backgroundColor = styleEqual(
+          backgroundColor = DT::styleEqual(
             levels = c(TRUE, FALSE),
             values = c(true_color, false_color)
           )
@@ -1427,13 +1467,16 @@ xyloglobal_upload <- function() {
       # Add validation columns
       site_info <- site_info %>%
         dplyr::mutate(
-          valid_latitute = is.numeric(latitude) & !is.na(latitude) & latitude >= -90 & latitude <= 90,
+          valid_latitude = is.numeric(latitude) & !is.na(latitude) & latitude >= -90 & latitude <= 90,
           valid_longitude = is.numeric(longitude) & !is.na(longitude) & longitude >= -180 & longitude <= 180,
           valid_elevation = is.numeric(elevation) & !is.na(elevation) & elevation >= 0 & elevation <= 10000
         )
       
       dinfo(site_info)  # Store in reactive value
     })
+    
+    
+    
     
     # Render the editable DT table obs_info
     output$obs_data_info  <- DT::renderDT({
@@ -1466,7 +1509,7 @@ xyloglobal_upload <- function() {
                       ),
                       columnDefs = list(list(visible=FALSE, targets=c(4:(ncol(dinfo())-1))))
                     )) %>% 
-        checkFormatting("latitude", "valid_latitute") %>% 
+        checkFormatting("latitude", "valid_latitude") %>% 
         checkFormatting("longitude", "valid_longitude") %>% 
         checkFormatting("elevation", "valid_elevation")
     })
@@ -1483,7 +1526,7 @@ xyloglobal_upload <- function() {
       # Recalculate validations
       df <- df %>%
         dplyr::mutate(
-          valid_latitute = is.numeric(latitude) & !is.na(latitude) & latitude >= -90 & latitude <= 90,
+          valid_latitude = is.numeric(latitude) & !is.na(latitude) & latitude >= -90 & latitude <= 90,
           valid_longitude = is.numeric(longitude) & !is.na(longitude) & longitude >= -180 & longitude <= 180,
           valid_elevation = is.numeric(elevation) & !is.na(elevation) & elevation >= 0 & elevation <= 10000
         )
@@ -1496,6 +1539,89 @@ xyloglobal_upload <- function() {
       # Save the workbook
       openxlsx::saveWorkbook(WB(), file = input$obs_file$datapath, overwrite = TRUE)
     })    
+    
+    
+    ######################## MN: new rhandsontable code starts here
+    
+    # DUPLICATE ENTRIES: custom JS code for rendering duplicate entries red
+    custom_renderer_duplicates <- "
+      function(instance, td, row, col, prop, value, cellProperties) {
+        Handsontable.renderers.TextRenderer.apply(this, arguments);
+        var data = instance.getDataAtCol(col);
+        var duplicates = data.filter(function(val, index, arr) {
+          return arr.indexOf(val) !== index && val === value;
+        });
+        if (duplicates.length > 0) {
+          td.style.background = '#e74c3c';
+        }
+      }"
+    
+    output$obs_data_info2 <- rhandsontable::renderRHandsontable({
+      rhandsontable::rhandsontable(
+        dinfo() %>% dplyr::select(-valid_latitude, -valid_longitude, -valid_elevation),
+        rowHeaders = FALSE,
+        stretchH = "all",
+        contextMenu = FALSE) %>%
+        rhandsontable::hot_validate_numeric(col='latitude', min = -90, max = 90, allowInvalid = TRUE) %>%
+        rhandsontable::hot_validate_numeric(col='longitude', min = -180, max = 180, allowInvalid = TRUE) %>%
+        rhandsontable::hot_validate_numeric(col='elevation', min = 0, max = 10000, allowInvalid = TRUE) %>%
+        rhandsontable::hot_col("site_label", renderer = custom_renderer_duplicates)
+    })
+    
+    
+    dinfo_edited <- reactive({
+      req(input$obs_data_info2)
+      rhandsontable::hot_to_r(input$obs_data_info2)
+    })
+    
+    observe({
+      req(dinfo_edited)
+      # Update the dinfo reactive value with the edited data
+      site_info <- dinfo_edited()
+      # re evaluate
+      site_info <- site_info %>%
+        dplyr::mutate(
+          valid_latitude = is.numeric(latitude) & !is.na(latitude) & latitude >= -90 & latitude <= 90,
+          valid_longitude = is.numeric(longitude) & !is.na(longitude) & longitude >= -180 & longitude <= 180,
+          valid_elevation = is.numeric(elevation) & !is.na(elevation) & elevation >= 0 & elevation <= 10000
+        )
+      
+      check_valid <- all(c(site_info$valid_latitude,site_info$valid_longitude,site_info$valid_elevation))
+      check_unique_sitelabel <- length(unique(site_info$site_label)) == nrow(site_info)
+      check_not_empty <- all(!is.na(site_info)) & all(site_info != "")
+      
+      # make the tab red
+      shinyjs::toggleClass(
+        id = "obs_panel_tab",
+        class = "red-tab", condition = any(!check_valid, !check_unique_sitelabel, !check_not_empty))
+      
+      # disable the save button
+      shinyjs::toggleState(id = 'save_obs_data_btn', condition = all(check_valid, check_unique_sitelabel, check_not_empty))
+      
+    })
+    
+    output$testing <- renderPrint({
+      paste('Data will be saved to: ', input$obs_file$datapath)
+    })
+    
+    # Save data when button is clicked
+    observeEvent(input$save_obs_data_btn, {
+      req(dinfo_edited())
+      # Get the edited data
+      df_site <- dinfo_edited()
+      
+      # Write updated data back to the workbook
+      openxlsx::writeData(WB(), sheet = "obs_data_info", df_site, startRow = 5, colNames = TRUE)
+      
+      # Save the workbook
+      openxlsx::saveWorkbook(WB(), file = input$obs_file$datapath, overwrite = TRUE)
+      
+      # Show success message
+      shinyjs::info("Data saved successfully!")
+    })
+    
+    
+    ########################### End of MN edits
     
     #### dobs   ####
     # Reactive dataset
@@ -1514,12 +1640,13 @@ xyloglobal_upload <- function() {
           sample_date = case_when(
             !is.na(sample_date) & is.numeric(as.numeric(sample_date)) ~ as.Date(as.numeric(sample_date), origin = "1899-12-30"),
             !is.na(sample_date) & !is.numeric(as.numeric(sample_date)) ~ lubridate::parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy")),
-            TRUE ~ NA_Date_  # Set NA for any invalid date or missing values
+            TRUE ~ dttr2::NA_Date_  # Set NA for any invalid date or missing values
           )
         )
       
       dobs(data)  # Store in reactive value
     })
+    
     
     # Render the editable DT table observation
     output$observation <- DT::renderDT({
@@ -1528,6 +1655,9 @@ xyloglobal_upload <- function() {
       # data_to_render[is.na(data_to_render)] <- "NA"
       # data_to_render$site_label[1] <- NA
       # data_to_render$network_label[1] <- "LOT"
+      
+      species_list <- openxlsx::readWorkbook(WB(), sheet = "DropList") %>%  
+        select(Tree_species) %>% pull() 
       
       data_to_render <- data_to_render %>%
         mutate(
@@ -1548,16 +1678,14 @@ xyloglobal_upload <- function() {
           NA_radial_file = is.na(radial_file) | radial_file %in% c("", "NA"),
           # sample_date = as.character(sample_date),  # Ensure sample_date is a character
           # sample_date = ifelse(sample_date %in% c("", "NA"), NA, sample_date),  # Convert "NA" and empty strings to NA
-          valid_sample_date = !is.na(parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))) == FALSE,
+          valid_sample_date = !is.na(lubridate::parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))) == FALSE,
           duplicate_sample_label = duplicated(sample_label) | duplicated(sample_label, fromLast = TRUE),
           # Indroplist check
-          in_species_list = data_to_render$tree_species %in% species_list == FALSE
+          in_species_list = tree_species %in% species_list == FALSE
         )
       
       
-      # List of valid species
-      species_list <- openxlsx::readWorkbook(WB(), sheet = "DropList") %>%  
-        select(Tree_species) %>% pull() 
+
       
       
       DT::datatable(data_to_render, 
@@ -1637,7 +1765,7 @@ xyloglobal_upload <- function() {
         "integer" = as.integer(info$value),
         "Date" = as.Date(info$value),
         "POSIXct" = {
-          parsed <- parse_date_time(info$value, orders = c("ymd", "dmy", "mdy"))
+          parsed <- lubridate::parse_date_time(info$value, orders = c("ymd", "dmy", "mdy"))
           if (is.na(parsed)) {
             showNotification("Invalid date format", type = "error")
             return(NULL)
@@ -1662,7 +1790,7 @@ xyloglobal_upload <- function() {
             is.numeric(sample_date) ~ as.Date(as.numeric(sample_date), origin = "1899-12-30"),
             TRUE ~ lubridate::parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))
           ),
-          valid_sample_date = !is.na(parse_date_time(as.character(sample_date), orders = c("ymd", "dmy", "mdy"))),
+          valid_sample_date = !is.na(lubridate::parse_date_time(as.character(sample_date), orders = c("ymd", "dmy", "mdy"))),
           # Update character length columns for the edited row
           nchar_sample_id = nchar(sample_id),
           nchar_tree_species = nchar(tree_species),
@@ -1681,10 +1809,10 @@ xyloglobal_upload <- function() {
           NA_radial_file = is.na(radial_file) | radial_file %in% c("", "NA"),
           # sample_date = as.character(sample_date),  # Ensure sample_date is a character
           # sample_date = ifelse(sample_date %in% c("", "NA"), NA, sample_date),  # Convert "NA" and empty strings to NA
-          valid_sample_date = !is.na(parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))) == FALSE,
+          valid_sample_date = !is.na(lubridate::parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))) == FALSE,
           duplicate_sample_label = duplicated(sample_label) | duplicated(sample_label, fromLast = TRUE),
           # Indroplist check
-          in_species_list = data_to_render$tree_species %in% species_list == FALSE
+          in_species_list = tree_species %in% species_list == FALSE
         )
       
       dobs(data)  # Save updated data

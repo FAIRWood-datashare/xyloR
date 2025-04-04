@@ -6,4 +6,6 @@ inst/doc
 dev
 .DS_Store
 desktop.ini
+.Rhistory
+inst/.DS_Store
 
