@@ -24,7 +24,7 @@ utils::globalVariables(c(
 
 # hot_col_wrapper <- function(ht, col, col_config, tbl_ref_data = NULL, ref_col_name = NULL) {
 #   readOnly <- ifelse(is.null(col_config$readOnly), FALSE, col_config$readOnly)
-#   
+# 
 #   # for column validation based on reference table data
 #   if (!is.null(tbl_ref_data) && !is.null(ref_col_name) && col == ref_col_name) {
 #     renderer_js <- renderer_unique_column(tbl_ref_data, ref_col_name)  # Ensure tbl2$site_code is valid
@@ -35,8 +35,8 @@ utils::globalVariables(c(
 #         readOnly = readOnly
 #       )
 #   } else if (col_config$type == 'character') {  # for char cols
-    
-    
+
+
 hot_col_wrapper <- function(ht, col, col_config) {
   readOnly <- ifelse(is.null(col_config$readOnly), FALSE, col_config$readOnly)
   # for char cols:
@@ -72,16 +72,27 @@ hot_col_wrapper <- function(ht, col, col_config) {
   } else if (col_config$type == 'dropdown') {
     renderer_js <- renderer_drop(
       required = col_config$required,
-      options = col_config$options
+      options = col_config$options,
+      readOnly = readOnly
     )
-    ht %>%
-      rhandsontable::hot_col(
-        col,
-        type = 'dropdown',
-        source = col_config$options,
-        renderer = renderer_js,
-        readOnly = readOnly
-      )
+    # Only set dropdown if editable
+    if (readOnly) {
+      ht %>%
+        rhandsontable::hot_col(
+          col,
+          renderer = renderer_js,
+          readOnly = TRUE
+        )
+    } else {
+      ht %>%
+        rhandsontable::hot_col(
+          col,
+          type = 'dropdown',
+          source = col_config$options,
+          renderer = renderer_js,
+          readOnly = FALSE
+        )
+    }
     # for checkbox cols:
   } else if (col_config$type == 'checkbox') {
     renderer_js <- renderer_check(
@@ -166,6 +177,12 @@ renderer_char <- function(required = NULL, min_length = NULL, max_length = NULL,
       } else {
         td.style.background = '';
       }
+      
+      if (!cellProperties.readOnly) {
+        td.style.color = '#e91e63';
+      } else {
+        td.style.color = '';
+      }
 
       Handsontable.renderers.TextRenderer.apply(this, arguments);
 
@@ -173,13 +190,14 @@ renderer_char <- function(required = NULL, min_length = NULL, max_length = NULL,
     }", check_required, minl, maxl, check_regex, regp, check_unique)))
 }
 
-renderer_drop <- function(required = NULL, options){
+renderer_drop <- function(required = NULL, options, readOnly = FALSE){
   check_required <- ifelse(is.null(required), "false", ifelse(required, "true", "false"))
   options_js <- paste0("[", paste0(sprintf("'%s'", options), collapse = ", "), "]")
   
+  renderer_type <- if (readOnly) "TextRenderer" else "DropdownRenderer"
+  
   htmlwidgets::JS(htmltools::HTML(sprintf("
     function(instance, td, row, col, prop, value, cellProperties) {
-      // remove old tippy if necessary
       if (td.hasOwnProperty('_tippy')) {
         td._tippy.destroy();
       }
@@ -187,32 +205,32 @@ renderer_drop <- function(required = NULL, options){
       var isValid = true;
       var message = '';
 
-      // check if value is empty
       if (value === null || value === '') {
         if (%s) {
           isValid = false;
           message = 'required field';
         }
       } else if (%s.indexOf(value) === -1) {
-        // check if value is in options
         isValid = false;
         message = 'invalid choice';
       }
 
       if (!isValid) {
-        // set background color and tooltip
         td.style.background = '#ff4c42';
         tippy(td, { content: message });
       } else {
         td.style.background = '';
       }
+      
+      if (!cellProperties.readOnly) {
+        td.style.color = '#e91e63';
+      } else {
+        td.style.color = '';
+      }
 
-
-      Handsontable.renderers.DropdownRenderer.apply(this, arguments);
-
+      Handsontable.renderers.%s.apply(this, arguments);
       return td;
-    }", check_required, options_js)))
-  
+    }", check_required, options_js, renderer_type)))
 }
 
 renderer_num <- function(required = NULL, min_val = NULL, max_val = NULL){
@@ -263,6 +281,12 @@ renderer_num <- function(required = NULL, min_val = NULL, max_val = NULL){
       } else {
         td.style.background = '';
       }
+      
+      if (!cellProperties.readOnly) {
+        td.style.color = '#e91e63';
+      } else {
+        td.style.color = '';
+      }
 
       Handsontable.renderers.NumericRenderer.apply(this, arguments);
 
@@ -307,6 +331,12 @@ renderer_check <- function(required = NULL, min_checks = NULL, max_checks = NULL
     } else {
       td.style.background = '';
     }
+      
+      if (!cellProperties.readOnly) {
+        td.style.color = '#e91e63';
+      } else {
+        td.style.color = '';
+      }
 
     Handsontable.renderers.CheckboxRenderer.apply(this, arguments);
     return td;
@@ -346,6 +376,12 @@ renderer_date <- function(required = NULL){
       } else {
         td.style.background = '';
       }
+      
+      if (!cellProperties.readOnly) {
+        td.style.color = '#e91e63';
+      } else {
+        td.style.color = '';
+      }
 
       Handsontable.renderers.DateRenderer.apply(this, arguments);
       return td;
@@ -353,8 +389,16 @@ renderer_date <- function(required = NULL){
 }
 
 # renderer_unique_column <- function(tbl_ref_data, ref_col_name) {
-#   # Get unique values from the reference column (e.g., tbl1$site_code)
-#   unique(na.omit(tbl_ref_data[[ref_col_name]]))
+#   # Safety check
+#   if (is.null(tbl_ref_data) || !ref_col_name %in% names(tbl_ref_data)) {
+#     warning(paste("⚠️ Reference column", ref_col_name, "not found in data."))
+#     return(NULL)
+#   }
+#   
+#   ref_values <- unique(na.omit(tbl_ref_data[[ref_col_name]]))
+#   
+#   # Ensure non-null JSON-safe string
+#   ref_values_json <- if (length(ref_values) == 0) "[]" else jsonlite::toJSON(ref_values, auto_unbox = TRUE)
 #   
 #   htmlwidgets::JS(htmltools::HTML(sprintf("
 #     function(instance, td, row, col, prop, value, cellProperties) {
@@ -363,34 +407,35 @@ renderer_date <- function(required = NULL){
 #         td._tippy.destroy();
 #       }
 # 
+#       var refValues = %s;
 #       var isValid = true;
-#       var message = 'not in observation data';
+#       var message = 'Value does not exist in reference column';
 # 
 #       // Check if value is empty
 #       if (value === null || value === '') {
 #         isValid = false;
-#         message = 'required field';
+#         message = 'Required field';
 #       }
-#       // Check if value exists in the reference column (from tbl1$site_code)
-#       else if (%s.indexOf(value) === -1) {
+#       // Check if value exists in refValues
+#       else if (refValues.indexOf(value) === -1) {
 #         isValid = false;
-#         message = 'value does not exist in tbl1$site_code';
+#         message = 'Value not found in reference column';
 #       }
 # 
 #       // Apply validation result
 #       if (!isValid) {
-#         td.style.background = '#ff4c42';  // Invalid background
+#         td.style.background = '#ff4c42';
 #         tippy(td, { content: message });
 #       } else {
-#         td.style.background = '';  // Reset valid background
+#         td.style.background = '';
 #       }
 # 
 #       Handsontable.renderers.TextRenderer.apply(this, arguments);
 #       return td;
 #     }
-#   ", jsonlite::toJSON(ref_values, auto_unbox = TRUE))))
+#   ", ref_values_json)))
 # }
-
+# 
 
 
 # #### validation configuration
