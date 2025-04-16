@@ -1,4 +1,4 @@
-
+`%||%` <- function(a, b) if (!is.null(a)) a else b
 
 utils::globalVariables(c(
   "path_out", "Network", "Site_code", "Tree_label", "Number.of.samples",

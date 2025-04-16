@@ -592,38 +592,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         )
       ),
       
-      # TAB 7: View publication -----------------------------------------------
-      nav_panel(
-        title = div(id = "meta_publication", "Publication"),
-        value = "Publication",
-        
-        shiny::fluidRow(
-          
-          # Sidebar (left) — Save action
-          shiny::column(1, class = "bg-light p-2 border-end", style = "height: 100%;",
-            
-            bslib::card(
-              bslib::card_header(""),
-              bslib::card_body(
-                actionButton('save_publication', "Save publication", icon = icon('save'))
-              )
-            )
-          ),
-          
-          # Main content (right) — Metadata table
-          shiny::column(11, style = "height: 100%;",
-            
-            bslib::card(
-              bslib::card_header("Publication Metadata"),
-              bslib::card_body(
-                div(rhandsontable::rHandsontableOutput("tbl6"))
-              )
-            )
-          )
-        )
-      ),
-      
-            # TAB 8: View Author -----------------------------------------------
+      # TAB 7: View Author -----------------------------------------------
       nav_panel(
         title = div(id="meta_author", "Author"),
         value = "Author",
@@ -676,6 +645,42 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
             shiny::actionButton('save_authors', 'Submit author info', icon = icon('angle-double-right')))
         )
       ),
+      
+      # TAB 8: View publication -----------------------------------------------
+      nav_panel(
+          title = div(id = "meta_publication", "Publication"),
+          value = "Publication",
+          
+          fluidRow(
+            column(1, class = "bg-light p-2 border-end", style = "height: 100%;",
+                   bslib::card(
+                     bslib::card_body(
+                       actionButton('save_publication', "Save publication", icon = icon('save'))
+                     )
+                   )
+            ),
+            
+            column(11, style = "height: 100%;",
+                   bslib::card(
+                     textInput("doi_input", "Enter DOI:"),
+                     actionButton("search_doi", "Search for DOI", class = "btn btn-info"),
+                     actionButton("add_publication", "Add Publication")
+                   ),
+                   bslib::card(
+                     h6('DOI search result:'),
+                     textOutput("doi_result"),
+                     verbatimTextOutput("testing")
+                   ),
+                   bslib::card(
+                     bslib::card_header("Publication Metadata"),
+                     bslib::card_body(
+                       div(rhandsontable::rHandsontableOutput("tbl7"))
+                     )
+                   )
+            )
+          )
+        )
+      ,
                     
       
      # -----------------------------------------------
@@ -1654,6 +1659,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
 
       # tbl2 Obs
       tree_species_droplist <- droplist1 %>% select(tree_species) %>% filter(!is.na(tree_species)) %>% pull()
+      itrdb_species_code_droplist <- droplist1 %>% select(ITRDB_species_code) %>% filter(!is.na(ITRDB_species_code)) %>% pull()
 
       base_configs <- list(
         tbl1 = list(
@@ -1667,8 +1673,10 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         tbl2 = list(
           sample_date = list(type = "date", required = TRUE),
           sample_id = list(type = "character", required = TRUE, min_length = 1, max_length = 64),
-          tree_species = list(type = "dropdown", required = TRUE, options =c("Picea abies (L.) Karst.", "Larix decidua Mill.")),
+          tree_species = list(type = "character", required = TRUE, min_length = 1, max_length = 64, readOnly = TRUE),
+          # tree_species = list(type = "dropdown", required = TRUE, options =c("Picea abies (L.) Karst.", "Larix decidua Mill.")),
           # tree_species = list(type = "dropdown", required = TRUE, options = tree_species_droplist), # drop
+          itrdb_species_code = list(type = "dropdown", required = TRUE, options = itrdb_species_code_droplist),
           tree_label = list(type = "character", required = TRUE, min_length = 1, max_length = 64),
           plot_label = list(type = "character", required = TRUE, min_length = 1, max_length = 64),
           site_label = list(type = 'character', required = TRUE, min_length = 1, max_length = 5),
@@ -1826,8 +1834,8 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         organization_name = list(type = 'dropdown', required = TRUE, min_length = 1, max_length = 128, options = c("Picea abies (L.) Karst.", "Larix decidua Mill.")), # drop # calculated
         research_organization_registry = list(type = 'dropdown', required = TRUE, max_length = 64, options = c("Picea abies (L.) Karst.", "Larix decidua Mill.")), # drop # calculated
         organization_name_finder = NULL, # empty
-        department = list(type = 'character', min_length = 1, max_length = 64, regex_pattern = NULL),
-        street = list(type = 'character', min_length = 1, max_length = 64, regex_pattern = NULL),
+        department = list(type = 'character', min_length = 1, max_length = 64),
+        street = list(type = 'character', min_length = 1, max_length = 64),
         postal_code = list(type = 'character', min_length = 1, max_length = 64, regex_pattern = NULL),
         city = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = NULL),
         country = list(type = 'dropdown', required = TRUE, options = c("Picea abies (L.) Karst.", "Larix decidua Mill.")), # drop
@@ -1837,11 +1845,11 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       ),
 
       tbl7 = list(
-        first_author_last_name = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, unique = TRUE),
+        first_author_last_name = list(type = 'character', required = TRUE, min_length = 1, max_length = 64),
         title = list(type = 'character', required = TRUE, min_length = 1, max_length = NULL, regex_pattern = NULL),
         publication_year = list(type = 'numeric', required = TRUE, min_val = 1950, max_val = format(Sys.Date(), "%Y")),
         journal = list(type = 'character', required = TRUE, min_length = 1, max_length = 64),
-        doi = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = "^https?://.+")
+        doi = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, "^(10\\.\\d{4,9}/[-._;()/:A-Z0-9]+|10\\.1002/[^\\s]+)$", unique = TRUE)
       )
 
     )
@@ -1852,448 +1860,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       return(base_configs)
    })
     
-#     # TAB 3 old: ---------------------------------------------------------------------
-#     
-#     # check for mandatory cells
-#     checkMandatory <- function(data, column_name, value_column, condition_value = TRUE, color = "red") {
-#       data %>%
-#         DT::formatStyle(
-#           columns = column_name, 
-#           valueColumns = value_column, 
-#           backgroundColor = DT::styleEqual(
-#             levels = condition_value, 
-#             values = c(color)
-#           )
-#         )
-#     }
-#     
-#     # check for character length
-#     checkLength <- function(data, column_name, value_column, cuts, color_values = c("", "red")) {
-#       data %>%
-#         DT::formatStyle(
-#           columns = column_name,
-#           valueColumns = value_column,
-#           backgroundColor = DT::styleInterval(cuts = cuts, values = color_values)
-#         )
-#     }
-#     
-#     # check for character length
-#     checkFormatting <- function(data, column, validation_column, false_color = "red", true_color = "") {
-#       data %>%
-#         DT::formatStyle(
-#           columns = column,
-#           valueColumns = validation_column,
-#           backgroundColor = DT::styleEqual(
-#             levels = c(TRUE, FALSE),
-#             values = c(true_color, false_color)
-#           )
-#         )
-#     }
-#     
-#   # dinfo  #### 
-#     # Reactive dataset
-#     dinfo <- reactiveVal()
-#     
-#     observe({
-#       req(input$obs_file)  # Ensure file is uploaded
-#       
-#       # Read the dataset
-#       site_info <- openxlsx::readWorkbook(WB(), sheet = "obs_data_info", startRow = 6, colNames = FALSE) %>%
-#         dplyr::tibble() 
-#       obs_data <- openxlsx::readWorkbook(WB(), sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] %>% 
-#         dplyr::tibble() 
-#       
-#       # Check the number of columns
-#       if (ncol(site_info) == 3) {
-#         site_label <- unique(obs_data$site_label) %>% tibble() %>% filter(!is.na(.))  # Extract unique site labels
-#         site_info <- cbind(site_label, site_info)   # Add it as the first column
-#       } else if (ncol(site_info) != 4) {
-#         stop("⚠️ Error: Expected 3 or 4 columns in 'Xylo_obs_data'. Please check your data format.")
-#       }
-#       
-#       
-#       # Apply column names only if the check passes
-#       site_info <- setNames(site_info, c("site_label", "latitude", "longitude", "elevation")) 
-#       
-#       
-#       # Add validation columns
-#       site_info <- site_info %>%
-#         dplyr::mutate(
-#           valid_latitude = is.numeric(latitude) & !is.na(latitude) & latitude >= -90 & latitude <= 90,
-#           valid_longitude = is.numeric(longitude) & !is.na(longitude) & longitude >= -180 & longitude <= 180,
-#           valid_elevation = is.numeric(elevation) & !is.na(elevation) & elevation >= 0 & elevation <= 10000
-#         )
-#       
-#       dinfo(site_info)  # Store in reactive value
-#     })
-#     
-#     
-#     
-#     
-#     # Render the editable DT table obs_info
-#     output$obs_data_info  <- DT::renderDT({
-#       DT::datatable(dinfo(), 
-#                     rownames = FALSE,
-#                     editable = list(target = "cell", disable = list(columns = c())), # Disable editing for certain columns
-#                     options = list(
-#                       pageLength = 10,  # Limit the number of rows shown to 10
-#                       autoWidth = TRUE,  # Automatically adjust column widths
-#                       dom = 'Bfrtip',  # Use pagination controls
-#                       scrollX = TRUE,   # Enable horizontal scrolling
-#                       scrollY = FALSE,  # Disable vertical scrolling
-#                       buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),  # Add export buttons
-#                       initComplete = JS(
-#                         "function(settings, json) {",
-#                         "  var table = this.api();",
-#                         "  table.columns().every(function(index) {",
-#                         "    var column = table.column(index);",
-#                         "    var redFound = false;",
-#                         "    column.nodes().each(function(cell, i) {",
-#                         "      if ($(cell).css('background-color') == 'rgb(255, 0, 0)') {  // Detect red cell background color",
-#                         "        redFound = true;",
-#                         "      }",
-#                         "    });",
-#                         "    if (!redFound) {",
-#                         "      $(column.header()).css({'background-color': 'green', 'color': 'black'});",
-#                         "    }",
-#                         "  });",
-#                         "}"
-#                       ),
-#                       columnDefs = list(list(visible=FALSE, targets=c(4:(ncol(dinfo())-1))))
-#                     )) %>% 
-#         checkFormatting("latitude", "valid_latitude") %>% 
-#         checkFormatting("longitude", "valid_longitude") %>% 
-#         checkFormatting("elevation", "valid_elevation")
-#     })
-#     
-#     # Observe cell edits and save back into xlsx
-#     observeEvent(input$obs_data_info_cell_edit, {
-#       info <- input$obs_data_info_cell_edit
-#       
-#       df <- dinfo()  # Get current data
-#       
-#       # Update the specific cell
-#       df[info$row, info$col + 1] <- as.numeric(info$value)  # Ensure numeric conversion
-#       
-#       # Recalculate validations
-#       df <- df %>%
-#         dplyr::mutate(
-#           valid_latitude = is.numeric(latitude) & !is.na(latitude) & latitude >= -90 & latitude <= 90,
-#           valid_longitude = is.numeric(longitude) & !is.na(longitude) & longitude >= -180 & longitude <= 180,
-#           valid_elevation = is.numeric(elevation) & !is.na(elevation) & elevation >= 0 & elevation <= 10000
-#         )
-#       
-#       dinfo(df)  # Save updated data
-#       
-#       # Write updated data back to the workbook
-#       openxlsx::writeData(WB(), sheet = "obs_data_info", df, startRow = 5, colNames = TRUE)
-#       
-#       # Save the workbook
-#       openxlsx::saveWorkbook(WB(), file = input$obs_file$datapath, overwrite = TRUE)
-#     })    
-#     
-#     
-#     ######################## MN: new rhandsontable code starts here
-#     
-#     # DUPLICATE ENTRIES: custom JS code for rendering duplicate entries red
-#     custom_renderer_duplicates <- "
-#       function(instance, td, row, col, prop, value, cellProperties) {
-#         Handsontable.renderers.TextRenderer.apply(this, arguments);
-#         var data = instance.getDataAtCol(col);
-#         var duplicates = data.filter(function(val, index, arr) {
-#           return arr.indexOf(val) !== index && val === value;
-#         });
-#         if (duplicates.length > 0) {
-#           td.style.background = '#e74c3c';
-#         }
-#       }"
-#     
-#     output$obs_data_info2 <- rhandsontable::renderRHandsontable({
-#       rhandsontable::rhandsontable(
-#         dinfo() %>% dplyr::select(-valid_latitude, -valid_longitude, -valid_elevation),
-#         rowHeaders = FALSE,
-#         stretchH = "all",
-#         contextMenu = FALSE) %>%
-#         rhandsontable::hot_validate_numeric(col='latitude', min = -90, max = 90, allowInvalid = TRUE) %>%
-#         rhandsontable::hot_validate_numeric(col='longitude', min = -180, max = 180, allowInvalid = TRUE) %>%
-#         rhandsontable::hot_validate_numeric(col='elevation', min = 0, max = 10000, allowInvalid = TRUE) %>%
-#         rhandsontable::hot_col("site_label", renderer = custom_renderer_duplicates)
-#     })
-#     
-#     
-#     dinfo_edited <- reactive({
-#       req(input$obs_data_info2)
-#       rhandsontable::hot_to_r(input$obs_data_info2)
-#     })
-#     
-#     observe({
-#       req(dinfo_edited)
-#       # Update the dinfo reactive value with the edited data
-#       site_info <- dinfo_edited()
-#       
-#       # re evaluate
-#       site_info <- site_info %>%
-#         dplyr::mutate(
-#           valid_latitude = is.numeric(latitude) & !is.na(latitude) & latitude >= -90 & latitude <= 90,
-#           valid_longitude = is.numeric(longitude) & !is.na(longitude) & longitude >= -180 & longitude <= 180,
-#           valid_elevation = is.numeric(elevation) & !is.na(elevation) & elevation >= 0 & elevation <= 10000
-#         )
-#       
-#       # Identify invalid columns
-#       invalid_cols <- c()
-#       if (!all(site_info$valid_latitude)) invalid_cols <- c(invalid_cols, "latitude")
-#       if (!all(site_info$valid_longitude)) invalid_cols <- c(invalid_cols, "longitude")
-#       if (!all(site_info$valid_elevation)) invalid_cols <- c(invalid_cols, "elevation")
-#       
-#       # Send invalid column names to JS to update headers
-#       # session$sendCustomMessage("highlightHeaders", invalid_cols)
-#       session$sendCustomMessage("highlightNumericHeaders", list())
-#       
-#       # Validation checks for the entire dataset
-#       check_valid <- all(c(site_info$valid_latitude,site_info$valid_longitude,site_info$valid_elevation))
-#       check_unique_sitelabel <- length(unique(site_info$site_label)) == nrow(site_info)
-#       check_not_empty <- all(!is.na(site_info)) & all(site_info != "")
-#       
-#       # make the tab red
-#       shinyjs::toggleClass(
-#         id = "obs_panel_tab",
-#         class = "red-tab", condition = any(!check_valid, !check_unique_sitelabel, !check_not_empty))
-#       
-#       # disable the save button
-#       shinyjs::toggleState(id = 'save_obs_data_btn', condition = all(check_valid, check_unique_sitelabel, check_not_empty))
-#       
-#     })
-#     
-#     observe({
-#   req(dinfo_edited())  # Or use input$obs_data_info2 if that's more reactive
-#   session$sendCustomMessage("highlightNumericHeaders", list())
-# })
-#     
-#     output$testing <- renderPrint({
-#       paste('Data will be saved to: ', input$obs_file$datapath)
-#     })
-#     
-#     # Save data when button is clicked
-#     observeEvent(input$save_obs_data_btn, {
-#       req(dinfo_edited())
-#       # Get the edited data
-#       df_site <- dinfo_edited()
-#       
-#       # Write updated data back to the workbook
-#       openxlsx::writeData(WB(), sheet = "obs_data_info", df_site, startRow = 5, colNames = TRUE)
-#       
-#       # Save the workbook
-#       openxlsx::saveWorkbook(WB(), file = input$obs_file$datapath, overwrite = TRUE)
-#       
-#       # Show success message
-#       shinyjs::info("Data saved successfully!")
-#     })
-#     
-#     
-#     ########################### End of MN edits
-#     
-#     #### dobs   ####
-#     # Reactive dataset
-#     dobs <- reactiveVal()
-#     
-#     observe({
-#       req(input$obs_file)  # Ensure file is uploaded
-#       
-#       # Read data from Excel, skipping first 6 rows
-#       data <- openxlsx::readWorkbook(WB(), sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] %>% 
-#         dplyr::tibble()
-#       
-#       # Check if sample_date is numeric and convert to Date
-#       data <- data %>%
-#         dplyr::mutate(
-#           sample_date = case_when(
-#             !is.na(sample_date) & is.numeric(as.numeric(sample_date)) ~ as.Date(as.numeric(sample_date), origin = "1899-12-30"),
-#             !is.na(sample_date) & !is.numeric(as.numeric(sample_date)) ~ lubridate::parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy")),
-#             TRUE ~ dttr2::NA_Date_  # Set NA for any invalid date or missing values
-#           )
-#         )
-#       
-#       dobs(data)  # Store in reactive value
-#     })
-#     
-#     
-#     # Render the editable DT table observation
-#     output$observation <- DT::renderDT({
-#       # Get the data from the reactive expression
-#       data_to_render <- dobs()
-#       # data_to_render[is.na(data_to_render)] <- "NA"
-#       # data_to_render$site_label[1] <- NA
-#       # data_to_render$network_label[1] <- "LOT"
-#       
-#       species_list <- openxlsx::readWorkbook(WB(), sheet = "DropList") %>%  
-#         select(Tree_species) %>% pull() 
-#       
-#       data_to_render <- data_to_render %>%
-#         mutate(
-#           nchar_sample_id = nchar(sample_id),
-#           nchar_tree_species = nchar(tree_species),
-#           nchar_tree_label = nchar(tree_label),
-#           nchar_plot_label = nchar(plot_label),
-#           nchar_site_label = nchar(site_label),
-#           nchar_network_label = nchar(network_label),
-#           nchar_sample_label = nchar(sample_label),
-#           nchar_radial_file = nchar(radial_file),
-#           
-#           NA_sample_date = is.na(sample_date) | sample_date %in% c("", "NA"),
-#           NA_tree_species = is.na(tree_species) | tree_species %in% c("", "NA"),
-#           NA_tree_label = is.na(tree_label) | tree_label %in% c("", "NA"),
-#           NA_plot_label = is.na(plot_label) | plot_label %in% c("", "NA"),
-#           NA_site_label = is.na(site_label) | site_label %in% c("", "NA"),
-#           NA_radial_file = is.na(radial_file) | radial_file %in% c("", "NA"),
-#           # sample_date = as.character(sample_date),  # Ensure sample_date is a character
-#           # sample_date = ifelse(sample_date %in% c("", "NA"), NA, sample_date),  # Convert "NA" and empty strings to NA
-#           valid_sample_date = !is.na(lubridate::parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))) == FALSE,
-#           duplicate_sample_label = duplicated(sample_label) | duplicated(sample_label, fromLast = TRUE),
-#           # Indroplist check
-#           in_species_list = tree_species %in% species_list == FALSE
-#         )
-#       
-#       
-# 
-#       
-#       
-#       DT::datatable(data_to_render, 
-#                     rownames = FALSE,
-#                     editable = list(target = "cell", disable = list(columns = c())), # Disable editing for certain columns
-#                     options = list(
-#                       pageLength = 100,  # Limit the number of rows shown to 10
-#                       autoWidth = TRUE,  # Automatically adjust column widths
-#                       dom = 'Bfrtip',  # Use pagination controls
-#                       scrollX = TRUE,   # Enable horizontal scrolling
-#                       scrollY = FALSE,  # Disable vertical scrolling
-#                       buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),  # Add export buttons
-#                       initComplete = JS(
-#                         "function(settings, json) {",
-#                         "  var table = this.api();",
-#                         "  table.columns().every(function(index) {",
-#                         "    var column = table.column(index);",
-#                         "    var redFound = false;",
-#                         "    column.nodes().each(function(cell, i) {",
-#                         "      if ($(cell).css('background-color') == 'rgb(255, 0, 0)') {  // Detect red cell background color",
-#                         "        redFound = true;",
-#                         "      }",
-#                         "    });",
-#                         "    if (!redFound) {",
-#                         "      $(column.header()).css({'background-color': 'green', 'color': 'black'});",
-#                         "    }",
-#                         "  });",
-#                         "}"
-#                       ),
-#                       columnDefs = list(list(visible=FALSE, targets=c(15:(ncol(data_to_render)-1))))
-#                       
-#                     ))  %>%
-#         
-#         # Use the function checkLength
-#         checkLength("sample_id", "nchar_sample_id", cuts = 64, color_values = c("", "red")) %>%
-#         checkLength("tree_species", "nchar_tree_species", cuts = 64, color_values = c("", "red")) %>%
-#         checkLength("tree_label", "nchar_tree_label", cuts = 64, color_values = c("", "red")) %>%
-#         checkLength("plot_label", "nchar_plot_label", cuts = 64, color_values = c("", "red")) %>%
-#         checkLength("site_label", "nchar_site_label", cuts = 64, color_values = c("", "red")) %>%
-#         checkLength("network_label", "nchar_network_label", cuts = 64, color_values = c("", "red")) %>%
-#         checkLength("sample_label", "nchar_sample_label", cuts = 64, color_values = c("", "red")) %>%
-#         checkLength("radial_file", "nchar_radial_file", cuts = 6, color_values = c("", "red")) %>%
-#         
-#         # Use the function checkMandatory
-#         checkMandatory("sample_date", "NA_sample_date", color = "red") %>%
-#         checkMandatory("tree_species", "NA_tree_species", color = "red") %>%
-#         checkMandatory("tree_label", "NA_tree_label", color = "red") %>% 
-#         checkMandatory("plot_label", "NA_plot_label", color = "red") %>% 
-#         checkMandatory("site_label", "NA_site_label", color = "red") %>%
-#         checkMandatory("radial_file", "NA_radial_file", color = "red") %>% 
-#         
-#         # Use the function checkMandatory for droplist check
-#         checkMandatory("tree_species", "in_species_list", color = "red") %>% 
-#         # Use the function checkMandatory for uniqueness check
-#         checkMandatory("sample_label", "duplicate_sample_label", color = "red") %>% 
-#         # Use the function checkMandatory for date format validation
-#         checkMandatory("sample_date", "valid_sample_date", color = "red")
-#       
-#     })
-#     
-#     # Observe Cell Edits
-#     observeEvent(input$observation_cell_edit, {
-#       info <- input$observation_cell_edit
-#       
-#       data <- dobs()  # Get current data
-#       
-#       # Update the specific cell
-#       # data[info$row, info$col + 1] <- info$value
-#       
-#       col_name <- names(data)[info$col + 1]
-#       col_type <- class(data[[col_name]])
-#       
-#       # Safely coerce based on column type
-#       new_value <- switch(
-#         col_type[1],
-#         "numeric" = as.numeric(info$value),
-#         "integer" = as.integer(info$value),
-#         "Date" = as.Date(info$value),
-#         "POSIXct" = {
-#           parsed <- lubridate::parse_date_time(info$value, orders = c("ymd", "dmy", "mdy"))
-#           if (is.na(parsed)) {
-#             showNotification("Invalid date format", type = "error")
-#             return(NULL)
-#           } else {
-#             as.Date(parsed)  # << store only the date part
-#           }
-#         },
-#         info$value  # fallback
-#       )
-#       
-#       data[info$row, col_name] <- new_value
-#       
-#       # List of valid species
-#       species_list <- openxlsx::readWorkbook(WB(), sheet = "DropList") %>%  
-#         select(Tree_species) %>% pull() 
-#       
-#       
-#       # Recalculate validations
-#       data <- data %>%
-#         mutate(
-#           sample_date = case_when(
-#             is.numeric(sample_date) ~ as.Date(as.numeric(sample_date), origin = "1899-12-30"),
-#             TRUE ~ lubridate::parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))
-#           ),
-#           valid_sample_date = !is.na(lubridate::parse_date_time(as.character(sample_date), orders = c("ymd", "dmy", "mdy"))),
-#           # Update character length columns for the edited row
-#           nchar_sample_id = nchar(sample_id),
-#           nchar_tree_species = nchar(tree_species),
-#           nchar_tree_label = nchar(tree_label),
-#           nchar_plot_label = nchar(plot_label),
-#           nchar_site_label = nchar(site_label),
-#           nchar_network_label = nchar(network_label),
-#           nchar_sample_label = nchar(sample_label),
-#           nchar_radial_file = nchar(radial_file),
-#           # Mandatory checks
-#           NA_sample_date = is.na(sample_date) | sample_date %in% c("", "NA"),
-#           NA_tree_species = is.na(tree_species) | tree_species %in% c("", "NA"),
-#           NA_tree_label = is.na(tree_label) | tree_label %in% c("", "NA"),
-#           NA_plot_label = is.na(plot_label) | plot_label %in% c("", "NA"),
-#           NA_site_label = is.na(site_label) | site_label %in% c("", "NA"),
-#           NA_radial_file = is.na(radial_file) | radial_file %in% c("", "NA"),
-#           # sample_date = as.character(sample_date),  # Ensure sample_date is a character
-#           # sample_date = ifelse(sample_date %in% c("", "NA"), NA, sample_date),  # Convert "NA" and empty strings to NA
-#           valid_sample_date = !is.na(lubridate::parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))) == FALSE,
-#           duplicate_sample_label = duplicated(sample_label) | duplicated(sample_label, fromLast = TRUE),
-#           # Indroplist check
-#           in_species_list = tree_species %in% species_list == FALSE
-#         )
-#       
-#       dobs(data)  # Save updated data
-#       
-# 
-#       # Write updated data back to the workbook
-#       openxlsx::writeData(WB(), sheet = "Xylo_obs_data", data, startRow = 7, colNames = TRUE)
-#       
-#       # Save the workbook
-#       openxlsx::saveWorkbook(WB(), file = input$obs_file$datapath, overwrite = TRUE)
-#     })
-    
+
     # TAB 3 observations: ---------------------------------------------------------------------
 
     #### dinfo  #### 
@@ -2324,6 +1891,14 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       dinfo(site_info)  # Store in reactive value
     })
     
+    drop_species <- reactive({
+      req(WB())  # Ensure the workbook is available
+      drop_species <- openxlsx::readWorkbook(WB(), sheet = "DropList", colNames = TRUE) %>% 
+        dplyr::mutate(itrdb_species_code = ITRDB_species_code) %>% 
+        dplyr::select(tree_species, itrdb_species_code) %>%
+        dplyr::filter(!is.na(tree_species))
+    })
+    
     #### dobs ####
     dobs <- reactiveVal()
     
@@ -2332,7 +1907,9 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       
       # Read data from Excel, skipping first 6 rows
       data <- openxlsx::readWorkbook(WB(), sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] %>%
-        dplyr::tibble()
+        dplyr::tibble() %>% 
+        dplyr::left_join(drop_species(), by = "tree_species") %>%
+        dplyr::relocate(itrdb_species_code, .after = tree_species)
       
       # Check if sample_date is numeric and convert to Date
       data <- data %>%
@@ -2372,6 +1949,37 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         hot_col_wrapper('elevation', column_configs$tbl1$elevation)
     })
     
+    
+    # # Read the initial data for Species families
+    # observe({
+    #   req(WB_meta())
+    #   df <- openxlsx::readWorkbook(WB(), sheet = "DropList", colNames = TRUE) %>%
+    #     dplyr::select(tree_species,	itrdb_species_code,	wood_type,	leaf_habit,	tree_ring_structure) %>%
+    #     data.frame(stringsAsFactors = FALSE)
+    #   species_family(df)
+    # })
+    
+    # Function to synchronize Species data
+    sync_species_itrdb <- function(df, drop_species, remove_na = TRUE) {
+      if (remove_na) {
+        df <- df %>%
+          dplyr::filter(!is.na(tree_species) & tree_species != "")
+      }
+      
+      updated <- df %>%
+        dplyr::left_join(
+          drop_species,
+          by = "itrdb_species_code",
+          suffix = c("", "_from_list")
+        ) %>%
+        dplyr::mutate(
+          tree_species = tree_species_from_list
+        ) %>%
+        dplyr::select(-dplyr::ends_with("_from_list"))
+      
+      return(updated)
+    }
+    
     output$tbl2 <- rhandsontable::renderRHandsontable({
       req(data_in$tbl2)  # Ensure data is available
       column_configs <- column_configs()
@@ -2381,6 +1989,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         hot_col_wrapper('sample_date', column_configs$tbl2$sample_date) %>%
         hot_col_wrapper('sample_id', column_configs$tbl2$sample_id) %>%
         hot_col_wrapper('tree_species', column_configs$tbl2$tree_species) %>%
+        hot_col_wrapper('itrdb_species_code', column_configs$tbl2$itrdb_species_code) %>%
         hot_col_wrapper('tree_label', column_configs$tbl2$tree_label) %>%
         hot_col_wrapper('plot_label', column_configs$tbl2$plot_label) %>%
         hot_col_wrapper('site_label', column_configs$tbl2$site_label) %>%
@@ -2391,24 +2000,23 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         hot_cols(manualColumnResize = TRUE)
     })
 
-    # tbl2_reactive <- reactive({
-    #   input_tbl2 <- input$tbl2  # This is the rhandsontable input ID
-    #   if (!is.null(input_tbl2)) {
-    #     df <- rhandsontable::hot_to_r(input_tbl2)
-    #     validate(need(is.data.frame(df), "tbl2 is not a valid data.frame"))
-    #     df
-    #   } else {
-    #     data_in$tbl2  # fallback: initial data
-    #   }
-    # })
-    # 
-    output$testing1 <- renderPrint(
-      rhandsontable::hot_to_r(input$tbl1)
-    )
+    # Sync data on user input
+    observeEvent(input$tbl2, {
+      req(input$tbl2)
+      user_data <- hot_to_r(input$tbl2)
+      updated_data <- sync_species_itrdb(user_data, drop_species())
+      # Update the reactive data object
+      data_in$tbl2 <- updated_data
+    })
 
-    output$testing2 <- renderPrint(
-      rhandsontable::hot_to_r(input$tbl2)
-    )
+    
+    #     output$testing1 <- renderPrint(
+    #   rhandsontable::hot_to_r(input$tbl1)
+    # )
+    # 
+    # output$testing2 <- renderPrint(
+    #   rhandsontable::hot_to_r(input$tbl2)
+    # )
     
     # TAB 4 site: -------------------------------------------------------------------
 
@@ -2550,7 +2158,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
     # Species_family
     species_family <- reactiveVal()
     
-    # Read the initial data for Koppen families
+    # Read the initial data for Species families
     observe({
       req(WB_meta())
       df <- openxlsx::readWorkbook(WB_meta(), sheet = "DropList", colNames = TRUE) %>%
@@ -2559,7 +2167,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       species_family(df)
     })
     
-    # Function to synchronize Koppen climate data
+    # Function to synchronize Species data
     sync_species_code <- function(df, species_family, remove_na = TRUE) {
       if (remove_na) {
         df <- df %>%
@@ -2641,7 +2249,6 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       req(input$meta_file)  # Ensure file is uploaded
       
       # Read the dataset
-      dplyr::tibble()
       sample_meta_info <- openxlsx::readWorkbook(WB_meta(), sheet = "sample", startRow = 1, colNames = TRUE)[-(1:6), ] %>%
         dplyr::tibble()
       
@@ -2837,41 +2444,119 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
     
     # TAB 8 publication: -------------------------------------------------------------------
 
-    #### dpublication  ####
-    dpublication <- reactiveVal()
+    # Reactive values to store citation and metadata
+    data_meta <- reactiveValues(
+      last_doi_citation = NULL,
+      last_doi_metadata = NULL,
+      tbl7 = NULL
+    )
     
-    observe({
-      req(input$meta_file)  # Ensure file is uploaded
+    # On Search: Fetch citation and metadata
+    observeEvent(input$search_doi, {
+      req(input$doi_input)
+      doi_input <- URLencode(input$doi_input)
       
-      # Read the dataset
-      dplyr::tibble()
+      # Citation string (APA style)
+      citation_url <- sprintf("https://citation.doi.org/format?doi=%s&style=apa&lang=en-US", doi_input)
+      citation_res <- httr::GET(citation_url, httr::timeout(5))
+      
+      # Metadata JSON
+      metadata_url <- sprintf("https://citation.doi.org/metadata?doi=%s", doi_input)
+      metadata_res <- httr::GET(metadata_url, httr::timeout(5))
+      
+      output$doi_result <- renderText({
+        if (httr::status_code(citation_res) == 200) {
+          citation_text <- httr::content(citation_res, as = "text", encoding = "UTF-8")
+          data_meta$last_doi_citation <- citation_text
+          citation_text
+        } else {
+          paste0("Error while retrieving citation: ", httr::status_code(citation_res))
+        }
+      })
+      
+      # Store metadata silently
+      if (httr::status_code(metadata_res) == 200) {
+        meta_data <- tryCatch({
+          jsonlite::fromJSON(httr::content(metadata_res, as = "text", encoding = "UTF-8"))
+        }, error = function(e) NULL)
+        data_meta$last_doi_metadata <- meta_data
+      } else {
+        data_meta$last_doi_metadata <- NULL
+      }
+    })
+    
+    # Add publication using metadata
+    observeEvent(input$add_publication, {
+      meta <- data_meta$last_doi_metadata
+      req(meta)
+      
+      # Safe extraction with fallback to empty string
+      get_safe <- function(x, default = "") {
+        if (!is.null(x) && length(x) > 0) x else default
+      }
+      # str(meta)
+      # print(str(meta$author))
+      # str(meta$DOI)
+      # Only try extracting author if `meta` is a list and has `author`
+      author_last <- tryCatch({
+        if (is.list(meta) && !is.null(meta$author) && length(meta$author) > 0) {
+          get_safe(meta$author$family[[1]])
+        } else {
+          ""
+        }
+      }, error = function(e) "")
+      
+      new_pub <- data.frame(
+        first_author_last_name = author_last,
+        title = get_safe(meta$title),
+        publication_year = as.character(get_safe(meta$issued$`date-parts`[[1]][1])),
+        journal = get_safe(meta$`container-title`),
+        doi = as.character(get_safe(meta$DOI)),
+        stringsAsFactors = FALSE
+      )
+      
+      if (is.null(data_meta$tbl7)) {
+        data_meta$tbl7 <- new_pub
+      } else {
+        data_meta$tbl7 <- dplyr::bind_rows(data_meta$tbl7, new_pub)
+      }
+    })
+    
+    #### dpublication ####
+    dpublication <- reactiveVal()
+    data_meta <- reactiveValues(tbl7 = NULL, last_doi_citation = NULL)
+    
+    # Read and store publication metadata from uploaded Excel file
+    observe({
+      req(input$meta_file)
       publication_meta_info <- openxlsx::readWorkbook(WB_meta(), sheet = "publication", startRow = 1, colNames = TRUE)[-(1:6), ] %>%
         dplyr::tibble()
-      dpublication(publication_meta_info)  # Store in reactive value
+      dpublication(publication_meta_info)
     })
     
-    # # INITALIZE REACTIVE INPUT DATA
-    # data_meta <- reactiveValues()
-    
-    # Reactive context to store initial data and ensure it's updated in a proper context
-    observe({
-      data_meta$tbl7 <- dpublication()  # Access dinfo in a valid reactive context
+    # Sync dpublication into data_meta
+    observeEvent(dpublication(), {
+      data_meta$tbl7 <- dpublication()
     })
     
-    # RENDER TABLES
+
+    # Render editable publication table
     output$tbl7 <- rhandsontable::renderRHandsontable({
-      req(data_meta$tbl7)  # Ensure data is available
-      req(column_configs)
+      req(data_meta$tbl7, column_configs)
       column_configs <- column_configs()
+      
       rhandsontable::rhandsontable(
         data_meta$tbl7,
-        rowHeaders = NULL, contextMenu = FALSE, stretchH = 'all') %>%
+        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all'
+      ) %>%
         hot_col_wrapper('first_author_last_name', column_configs$tbl7$first_author_last_name) %>%
         hot_col_wrapper('title', column_configs$tbl7$title) %>%
         hot_col_wrapper('publication_year', column_configs$tbl7$publication_year) %>%
         hot_col_wrapper('journal', column_configs$tbl7$journal) %>%
         hot_col_wrapper('doi', column_configs$tbl7$doi)
-    }) 
+    })
+    
+    
     
     
     
