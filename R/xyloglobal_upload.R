@@ -594,57 +594,92 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       
       # TAB 7: View Author -----------------------------------------------
       nav_panel(
-        title = div(id="meta_author", "Author"),
+        title = div(id = "meta_author", "Author"),
         value = "Author",
-        bslib::card(
-          class = "bg-light-green p-3 border-end",
-          max_height = 400,
-          bslib::card_header('ROR search tool'),
-          bslib::layout_columns(
-            bslib::card(
-              shiny::selectInput("country_code", "Select country:",
-                                 choices = c(Choose='', get_country_codes()),
-                                 selectize = TRUE),
-              shiny::textInput("search_string", "Enter search string:"),
-              shiny::actionButton("search_ror", "Search for ROR", class = "btn btn-primary")
-              #shiny::selectizeInput("result_choice", "Select Result:", choices = NULL)
-            ),
-            bslib::card(
-              h4('ROR search results:'),
-              DT::DTOutput("ror_results")
-            ),
-            col_widths = c(3,9)
-          )
-        ),
-        bslib::card(
-          bslib::card_header('Provide Authors'),
-          p("Please list all authors (data owners) of the dataset. Note that
-           the order provided here will be used as the order of authorship."),
-          card_body(
-            fillable = FALSE,
-            actionButton("add_author_btn", "Add author", style = "width: 100px",
-                         class = "btn btn-primary"),
-            actionButton("del_author_btn", "Delete author", style = "width: 100px",
-                         class = "btn btn-danger")
+        
+        fluidRow(
+          # Left column - Save button
+          column(1, class = "bg-light p-2 border-end", style = "height: 100%;",
+                 bslib::card(
+                   bslib::card_body(
+                     actionButton('save_authors', 'Submit author info', icon = icon('save'))
+                   )
+                 )
           ),
-          # First author input
-          author_input(1),
           
-          # the dynamic author inputs
-          uiOutput("author_inputs"),
-          
-          # dynamic contact person
-          h5('Contact person'),
-          uiOutput('contact_person')
-          
-        ),
-        bslib::card(
-          class="border border-0",
-          bslib::card_body(
-            fillable = FALSE,
-            shiny::actionButton('save_authors', 'Submit author info', icon = icon('angle-double-right')))
+          # Right column - Main content
+          column(11, style = "height: 100%;",
+                 
+                 ## Add/Delete Authors + Input Fields
+                 bslib::card(
+                   bslib::card_header('Provide Authors'),
+                   p("Please list all authors (data owners) of the dataset. 
+                Note that the order provided here will be used as the order of authorship."),
+                   card_body(
+                     fillable = FALSE,
+                     actionButton("add_author_btn", "Add author", class = "btn btn-primary", style = "width: 100px"),
+                     actionButton("del_author_btn", "Delete author", class = "btn btn-danger", style = "width: 100px")
+                   ),
+                   # First static author input
+                   author_input(1),
+                   # Dynamic UI placeholders
+                   uiOutput("author_inputs"),
+                   h5("Contact person"),
+                   uiOutput("contact_person")
+                 ),
+                 
+                 ## ROR Search Tool
+                 bslib::card(
+                   bslib::card_header("ROR search tool"),
+                   bslib::layout_columns(
+                     bslib::card(
+                       shiny::selectInput("country_code", "Select country:",
+                                          choices = c(Choose = '', get_country_codes()),
+                                          selectize = TRUE),
+                       shiny::textInput("search_string", "Enter search string:"),
+                       shiny::actionButton("search_ror", "Search for ROR", class = "btn btn-info")
+                     ),
+                     bslib::card(
+                       h4("ROR search results:"),
+                       DT::DTOutput("ror_results")
+                     ),
+                     col_widths = c(3, 9)
+                   )
+                 ),
+                 
+                 ## ORCID Search Tool
+                 # ORCID Search Tool Card
+                 bslib::card(
+                   bslib::card_header("ORCID Search Tool"),
+                   bslib::layout_columns(
+                     # First column for the search by name input
+                     bslib::card(
+                       shiny::textInput("search_orcid_name", "Enter name to search ORCID:"),
+                       shiny::actionButton("search_name", "Search by Name", class = "btn btn-info"),
+                       shiny::textInput("search_orcid_id", "Enter ORCID ID:"),
+                       shiny::actionButton("search_orcid", "Search by ORCID ID", class = "btn btn-success")
+                     ),
+                     # Second column for the ORCID search results
+                     bslib::card(
+                       h4("ORCID Search Results:"),
+                       DT::DTOutput("orcid_results")
+                     ),
+                     col_widths = c(3, 9) # Adjust columns for better spacing
+                   )
+                 ),
+                 
+                 
+                 ## Handsontable for metadata
+                 bslib::card(
+                   bslib::card_header("Authors Metadata"),
+                   bslib::card_body(
+                     div(rhandsontable::rHandsontableOutput("tbl6"))
+                   )
+                 )
+          )
         )
-      ),
+      )
+      ,
       
       # TAB 8: View publication -----------------------------------------------
       nav_panel(
@@ -2307,14 +2342,21 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         # TAB 7 person: -------------------------------------------------------------------
     
     # toggle: only enable in case we have a country and search string
-    shiny::observe({
+    observe({
       shinyjs::toggleState(id = "search_ror", 
-                           condition = !((input$search_string=="") && 
-                                          (input$search_country=="")))
+                           condition = (input$search_string != "") || (input$search_country != ""))
     })
     
+    orcid_data <- reactiveValues(results = NULL)
+    ror_data <- reactiveValues(results = NULL)
+    selected_tbl6_row <- reactiveVal() 
+    
     # run the search via ROR API
-    shiny::observeEvent(input$search_ror, {
+    observeEvent(input$tbl6_select$select$r, {
+      selected_tbl6_row(input$tbl6_select$select$r)
+    })
+    
+    observeEvent(input$search_ror, {
       req(input$country_code)
       req(input$search_string)
 
@@ -2326,32 +2368,34 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       ror_res <- httr::GET(search_url, httr::timeout(5))
 
       if (httr::status_code(ror_res) == 200) {
-        ror_data <- jsonlite::fromJSON(rawToChar(ror_res$content))
-
-        if (ror_data$number_of_results > 0) {
-
-          # get the names (assuming that there is always exactly one ror_display name)
-          res_names <- ror_data$items$names %>%
+        json <- jsonlite::fromJSON(rawToChar(ror_res$content))
+        
+        if (json$number_of_results > 0) {
+          res_names <- json$items$names %>%
             dplyr::bind_rows() %>%
             filter(grepl('ror_display', types)) %>%
             dplyr::pull(value)
-        
-          # get the locations
-          res_locs <- ror_data$items$locations %>% 
+          
+          res_locs <- json$items$locations %>% 
             dplyr::bind_rows() %>% 
             dplyr::pull(geonames_details) %>% 
             tidyr::unite(col = 'address', name, country_name, sep = ', ') %>% 
             dplyr::pull(address)
           
-          # a dataframe of res_locs, res_names and res_ror_ids
-          res_df <- data.frame(ROR = ror_data$items$id, Name = res_names, 
-                               Location = res_locs)
+          res_df <- data.frame(
+            ROR = json$items$id, 
+            Name = res_names, 
+            Location = res_locs
+          )
           
-          #updateSelectizeInput(session, "result_choice", choices = res_names)
+          # STORE into the reactiveValues object
+          ror_data$results <- res_df
+          
           output$ror_results <- DT::renderDT({
             DT::datatable(res_df, rownames = FALSE)
           })
-        } else {
+        }
+        else {
           showNotification("No ROR results found. Try again.", type = "message")
         }
       } else {
@@ -2359,7 +2403,180 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       }
 
     })
-
+    
+    # Handle row selection from ROR results
+    observeEvent(input$ror_results_rows_selected, {
+      req(input$ror_results_rows_selected)
+      sel <- input$ror_results_rows_selected
+      ror_df <- ror_data$results
+      ror_row <- ror_df[sel, ]
+      
+      tbl <- data_meta$tbl6
+      selected_row <- selected_tbl6_row()
+      
+      tbl[selected_row, "organization_name"] <- ror_row$Name
+      tbl[selected_row, "research_organization_registry"] <- ror_row$ROR
+      tbl[selected_row, "organization_name_finder"] <- "ROR"
+      
+      # If location is valid (contains ", "), extract city and country
+      loc_parts <- strsplit(ror_row$Location, ", ")[[1]]
+      tbl[selected_row, "city"] <- if (length(loc_parts) >= 1) loc_parts[1] else ""
+      tbl[selected_row, "country"] <- if (length(loc_parts) >= 2) loc_parts[2] else ""
+      
+      data_meta$tbl6 <- tbl
+    })
+    
+    ## ORCID
+    # ORCID ID Search
+    observeEvent(input$search_orcid, {
+      req(input$search_orcid_id)
+      
+      input_val <- trimws(input$search_orcid_id)
+      cat("Search ORCID ID:", input_val, "\n")  # Debugging: print input value
+      
+      # Validate ORCID ID format more robustly (allowing 4 digits followed by hyphen)
+      is_orcid_id <- grepl("^\\d{4}-\\d{4}-\\d{4}-\\d{4}$", input_val)  # Updated regex for a valid ORCID ID
+      cat("Is ORCID ID format valid:", is_orcid_id, "\n")  # Debugging: check if ORCID ID is valid
+      
+      if (is_orcid_id) {
+        # ORCID ID: Direct person endpoint
+        url <- paste0("https://pub.orcid.org/v3.0/", input_val, "/person")
+        cat("Requesting URL:", url, "\n")  # Debugging: print request URL
+        res <- httr::GET(url, httr::add_headers(Accept = "application/json"))
+        
+        if (httr::status_code(res) == 200) {
+          cat("ORCID ID response status: 200 OK\n")  # Debugging: check response status
+          person <- jsonlite::fromJSON(httr::content(res, as = "text", encoding = "UTF-8"))
+          
+          # Convert parsed ORCID response to a pretty JSON string for readable output
+          cat("Parsed ORCID response:\n", jsonlite::toJSON(person, pretty = TRUE), "\n")  # Debugging: print parsed response
+          
+          given <- person$name$`given-names`$value %||% ""
+          family <- person$name$`family-name`$value %||% ""
+          print("str(person$emails)")
+          str(person$emails)
+          # Extract email from the response, if available
+          email <- if (!is.null(person$emails$email) && length(person$emails$email) > 0) person$emails$email$email %||% "" else ""
+          
+          results <- tibble::tibble(
+            ORCID = input_val,
+            Name = paste(given, family),
+            Email = email,
+            Organization = NULL
+          )
+          
+          # Store results for selection
+          orcid_data$results <- results
+          cat("Search results:\n", jsonlite::toJSON(results, pretty = TRUE), "\n")  # Debugging: print results
+          
+          # Render results in table
+          output$orcid_results <- DT::renderDT({
+            DT::datatable(results, rownames = FALSE, selection = 'single')
+          })
+        } else {
+          showNotification("ORCID ID not found or unreachable.", type = "error")
+          cat("Error: ORCID ID not found or unreachable. Status:", httr::status_code(res), "\n")  # Debugging: status code
+        }
+      } else {
+        showNotification("Invalid ORCID ID format.", type = "error")
+        cat("Error: Invalid ORCID ID format.\n")  # Debugging: invalid ID format
+      }
+    })
+    
+    # Search by Name
+    observeEvent(input$search_name, {
+      req(input$search_orcid_name)
+      
+      input_val <- trimws(input$search_orcid_name)
+      cat("Search Name:", input_val, "\n")  # Debugging: print input value
+      
+      # Expand the search query to split the name into first and last names
+      parts <- strsplit(input_val, " +")[[1]]
+      given <- parts[1]
+      family <- if (length(parts) > 1) parts[length(parts)] else ""
+      cat("Given name:", given, "Family name:", family, "\n")  # Debugging: check split names
+      
+      # Make sure the query is correctly URL-encoded
+      query_name <- URLencode(paste0("given-names:", given, " AND family-name:", family))
+      search_url <- sprintf("https://pub.orcid.org/v3.0/expanded-search?q=%s", query_name)
+      cat("Searching with query:", query_name, "\n")  # Debugging: print search query
+      
+      res <- httr::GET(search_url, httr::add_headers(Accept = "application/json"))
+      
+      if (httr::status_code(res) == 200) {
+        cat("Name search response status: 200 OK\n")  # Debugging: check response status
+        parsed <- jsonlite::fromJSON(rawToChar(res$content))
+        cat("Parsed name search response:\n", jsonlite::toJSON(parsed, pretty = TRUE), "\n")  # Debugging: print parsed response
+        str(parsed$`expanded-result`)  # Debugging: check structure of the result
+        
+        # Check if expanded-result exists and has at least one record
+        if (!is.null(parsed$`expanded-result`) && nrow(parsed$`expanded-result`) > 0) {
+          # Extract results from expanded-result directly
+          results <- tibble::tibble(
+            ORCID = parsed$`expanded-result`$`orcid-id`,
+            Name = paste(parsed$`expanded-result`$`given-names`, parsed$`expanded-result`$`family-names`),
+            Email = if (!is.null(parsed$`expanded-result`$email) && length(parsed$`expanded-result`$email) > 0) paste(parsed$`expanded-result`$email[[1]], collapse = ", ") else "",
+            Organization = if (!is.null(parsed$`expanded-result`$`institution-name`) && length(parsed$`expanded-result`$`institution-name`) > 0) paste(parsed$`expanded-result`$`institution-name`[[1]], collapse = ", ") else "",
+          )
+          
+          # Store results for selection
+          orcid_data$results <- results
+          cat("Name search results:\n", paste(capture.output(print(results)), collapse = "\n"), "\n")  # Debugging: print results as text
+          
+          # Render results in table
+          output$orcid_results <- DT::renderDT({
+            DT::datatable(results, rownames = FALSE, selection = 'single')
+          })
+        } else {
+          showNotification("No ORCID results found.", type = "message")
+          cat("Error: No ORCID results found.\n")  # Debugging: no results found
+        }
+      } else {
+        showNotification("ORCID API request failed.", type = "error")
+        cat("Error: ORCID API request failed. Status:", httr::status_code(res), "\n")  # Debugging: API request failed
+      }
+    })
+    
+    # Handle row selection from ORCID results
+    observeEvent(input$orcid_results_rows_selected, {
+      req(input$orcid_results_rows_selected)
+      sel <- input$orcid_results_rows_selected
+      cat("Selected row index:", sel, "\n")  # Debugging: selected row index
+      
+      # Ensure results are stored from previous search
+      if (exists("orcid_data") && !is.null(orcid_data$results) && length(orcid_data$results) > 0) {
+        orcid_row <- orcid_data$results[sel, ]
+        cat("Selected ORCID row:\n") 
+        print(orcid_row)  # Use print() instead of cat() for complex structures like tibble
+      } else {
+        showNotification("No results to select from.", type = "error")
+        cat("Error: No results to select from.\n")  # Debugging: no results available
+        return()
+      }
+      
+      # Proceed to update the selected row in the data table
+      tbl <- data_meta$tbl6
+      
+      # Assuming that the selected row is passed in as `sel`
+      selected_row <- sel
+      
+      tbl[selected_row, "orcid"] <- orcid_row$ORCID
+      tbl[selected_row, "first_name"] <- strsplit(orcid_row$Name, " ")[[1]][1]
+      tbl[selected_row, "last_name"] <- strsplit(orcid_row$Name, " ")[[1]][2]
+      
+      # Check for email in ORCID row and update if available
+      if (!is.null(orcid_row$Email) && orcid_row$Email != "") {
+        tbl[selected_row, "email"] <- orcid_row$Email
+      } else {
+        tbl[selected_row, "email"] <- "Not Available"  # Handle cases where email is not available
+      }
+      
+      # Update the data_meta object with the modified table
+      data_meta$tbl6 <- tbl
+      cat("Updated table:\n")
+      print(tbl)  # Use print() instead of cat() for displaying complex data structures
+    })
+    
     # Keep track of the number of authors
     author_count <- shiny::reactiveVal(1)
     
@@ -2397,23 +2614,20 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
     
     #### dperson  ####
     dperson <- reactiveVal()
-
+    data_meta <- reactiveValues(tbl6 = NULL)
+    
     observe({
-      req(input$meta_file)  # Ensure file is uploaded
-      
-      # Read the dataset
-      dplyr::tibble()
+      req(input$meta_file)
       person_meta_info <- openxlsx::readWorkbook(WB_meta(), sheet = "person", startRow = 1, colNames = TRUE)[-(1:6), ] %>%
-        dplyr::tibble()
+        dplyr::tibble() %>%
+        dplyr::rename(organization_name_finder = `organization_name.(finder)`)
       dperson(person_meta_info)  # Store in reactive value
     })
     
-    # # INITALIZE REACTIVE INPUT DATA
-    # data_meta <- reactiveValues()
-    
-    # Reactive context to store initial data and ensure it's updated in a proper context
+     # Reactive context to store initial data and ensure it's updated in a proper context
     observe({
-      data_meta$tbl6 <- dperson()  # Access dinfo in a valid reactive context
+      req(dperson())
+      data_meta$tbl6 <- dperson()
     })
     
     # RENDER TABLES
@@ -2422,7 +2636,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       column_configs <- column_configs()
       rhandsontable::rhandsontable(
         data_meta$tbl6,
-        rowHeaders = NULL, contextMenu = FALSE, stretchH = 'all') %>%
+        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all') %>%
         hot_col_wrapper('person_role', column_configs$tbl6$person_role) %>%
         hot_col_wrapper('person_order', column_configs$tbl6$person_order) %>%
         hot_col_wrapper('last_name', column_configs$tbl6$last_name) %>%
@@ -2431,7 +2645,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         hot_col_wrapper('orcid', column_configs$tbl6$orcid) %>%
         hot_col_wrapper('organization_name', column_configs$tbl6$organization_name) %>%
         hot_col_wrapper('research_organization_registry', column_configs$tbl6$research_organization_registry) %>%
-        hot_col_wrapper('organization_name_finder', column_configs$tbl6$organization_name_finder) %>%
+        # hot_col_wrapper('organization_name_finder', column_configs$tbl6$organization_name_finder) %>%
         hot_col_wrapper('department', column_configs$tbl6$department) %>%
         hot_col_wrapper('street', column_configs$tbl6$street) %>%
         hot_col_wrapper('postal_code', column_configs$tbl6$postal_code) %>%
@@ -2441,6 +2655,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         hot_col_wrapper('webpage', column_configs$tbl6$webpage) %>%
         hot_col_wrapper('phone_number', column_configs$tbl6$phone_number)
     }) 
+    
     
     # TAB 8 publication: -------------------------------------------------------------------
 
