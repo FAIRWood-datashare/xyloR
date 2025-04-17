@@ -1,4 +1,4 @@
-`%||%` <- function(a, b) if (!is.null(a)) a else b
+
 
 utils::globalVariables(c(
   "path_out", "Network", "Site_code", "Tree_label", "Number.of.samples",
@@ -21,20 +21,6 @@ utils::globalVariables(c(
   "Mandatory", "Domain", "toggleState", "parent", "value", "label", "head", "obs_file", "Date_measure", 
   "Observation_measure", "Precision_date_measure", "address", "country_name", "geonames_details", "name", "sampling_date", "types"
 ))
-
-# hot_col_wrapper <- function(ht, col, col_config, tbl_ref_data = NULL, ref_col_name = NULL) {
-#   readOnly <- ifelse(is.null(col_config$readOnly), FALSE, col_config$readOnly)
-# 
-#   # for column validation based on reference table data
-#   if (!is.null(tbl_ref_data) && !is.null(ref_col_name) && col == ref_col_name) {
-#     renderer_js <- renderer_unique_column(tbl_ref_data, ref_col_name)  # Ensure tbl2$site_code is valid
-#     ht <- ht %>%
-#       rhandsontable::hot_col(
-#         col,
-#         renderer = renderer_js,
-#         readOnly = readOnly
-#       )
-#   } else if (col_config$type == 'character') {  # for char cols
 
 
 hot_col_wrapper <- function(ht, col, col_config) {
@@ -179,7 +165,7 @@ renderer_char <- function(required = NULL, min_length = NULL, max_length = NULL,
       }
       
       if (!cellProperties.readOnly) {
-        td.style.color = '#e91e63';
+        td.style.color = '#FFFF00';
       } else {
         td.style.color = '';
       }
@@ -192,7 +178,8 @@ renderer_char <- function(required = NULL, min_length = NULL, max_length = NULL,
 
 renderer_drop <- function(required = NULL, options, readOnly = FALSE){
   check_required <- ifelse(is.null(required), "false", ifelse(required, "true", "false"))
-  options_js <- paste0("[", paste0(sprintf("'%s'", options), collapse = ", "), "]")
+  #options_js <- paste0("[", paste0(sprintf("'%s'", options), collapse = ", "), "]")
+  options_js <- jsonlite::toJSON(options, auto_unbox = TRUE)
   
   renderer_type <- if (readOnly) "TextRenderer" else "DropdownRenderer"
   
@@ -223,7 +210,7 @@ renderer_drop <- function(required = NULL, options, readOnly = FALSE){
       }
       
       if (!cellProperties.readOnly) {
-        td.style.color = '#e91e63';
+        td.style.color = '#FFFF00';
       } else {
         td.style.color = '';
       }
@@ -283,7 +270,7 @@ renderer_num <- function(required = NULL, min_val = NULL, max_val = NULL){
       }
       
       if (!cellProperties.readOnly) {
-        td.style.color = '#e91e63';
+        td.style.color = '#FFFF00';
       } else {
         td.style.color = '';
       }
@@ -333,7 +320,7 @@ renderer_check <- function(required = NULL, min_checks = NULL, max_checks = NULL
     }
       
       if (!cellProperties.readOnly) {
-        td.style.color = '#e91e63';
+        td.style.color = '#FFFF00';
       } else {
         td.style.color = '';
       }
@@ -378,7 +365,7 @@ renderer_date <- function(required = NULL){
       }
       
       if (!cellProperties.readOnly) {
-        td.style.color = '#e91e63';
+        td.style.color = '#FFFF00';
       } else {
         td.style.color = '';
       }
@@ -389,4 +376,16 @@ renderer_date <- function(required = NULL){
 }
 
 
+#' Get country codes
+#' 
+#' @export
+#' 
+get_country_codes <- function(){
+  file_path <- system.file("extdata", "country_ISO3166-1-alpha-2_20241205.csv", package = "xyloR")
+  iso_countries <- read.csv(file_path, stringsAsFactors = FALSE, na.strings=c(""))
+  country_list <- setNames(iso_countries$Code, 
+                           paste(iso_countries$Name, "  (", 
+                                 iso_countries$Code, ")", sep = ""))
+  return(country_list)
+}
 

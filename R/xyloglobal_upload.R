@@ -620,10 +620,13 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
                    bslib::card_body(
                      rHandsontableOutput("tbl6"),
                      br(),
-                     actionButton("show_add_author", "Add New Author"),
-                     actionButton("update_author", "Update an Author"),
-                     actionButton("delete_author", "Delete Selected Author", icon = icon("trash")),
-                     actionButton("apply_order", "Apply Author Order")
+                     div(
+                       style = "display: flex; gap: 10px; flex-wrap: wrap;",
+                       actionButton("show_add_author", "Add New Author"),
+                       actionButton("update_author", "Update an Author"),
+                       actionButton("delete_author", "Delete Selected Author", icon = icon("trash")),
+                       actionButton("apply_order", "Apply Author Order")
+                     )
                    )
                  ),
                  
@@ -689,7 +692,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
                          column(6, textInput("research_organization_registry", "ROR ID"))
                        ),
                        fluidRow(
-                         column(6, textInput("organization_finder", "Organization (Finder)")),
+                         column(6, textInput("organization_name_finder", "Organization (Finder)")),
                          column(6, textInput("department", "Department"))
                        ),
                        fluidRow(
@@ -1793,6 +1796,8 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       sample_observation_method_droplist <- droplist2 %>% select(sample_observation_method) %>% filter(!is.na(sample_observation_method)) %>% pull()
       # tbl6
       person_role_droplist <- droplist2 %>% select(person_role) %>% filter(!is.na(person_role)) %>% pull()
+      country_code_droplist <- droplist2 %>% select(country_code) %>% filter(!is.na(country_code)) %>% pull()
+      country_droplist <- droplist2 %>% select(country) %>% filter(!is.na(country)) %>% pull()
       # organization_name_droplist <- droplist2 %>% select(organization_name) %>% filter(!is.na(organization_name)) %>% pull()
 
 
@@ -1893,26 +1898,28 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         sample_comment	= list(type = 'character', min_length = 1, max_length = NULL)
       ),
 
+      # Person table
       tbl6 = list(
         person_role = list(type = 'dropdown', required = TRUE, options = person_role_droplist),
-        person_order = list(type = 'numeric', required = TRUE, min_val = 0, max_val = NULL),
+        person_order = list(type = 'numeric', required = TRUE, min_val = 1, max_val = NULL),
         last_name = list(type = 'character', required = TRUE, min_length = 1, max_length = 64),
         first_name = list(type = 'character', required = TRUE, min_length = 1, max_length = 64),
-        email = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = "^\\S+@\\S+\\.\\S+$"),
-        orcid = list(type = 'character', required = TRUE, min_length = 1, max_length = 19, regex_pattern = "^\\d{4}-\\d{4}-\\d{4}-\\d{4}$"),
-        organization_name = list(type = 'dropdown', required = TRUE, min_length = 1, max_length = 128, options = c("Picea abies (L.) Karst.", "Larix decidua Mill.")), # drop # calculated
-        research_organization_registry = list(type = 'dropdown', required = TRUE, max_length = 64, options = c("Picea abies (L.) Karst.", "Larix decidua Mill.")), # drop # calculated
+        email = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = "/^[a-zA-Z0-9. _%+-]+@[a-zA-Z0-9"),
+        orcid = list(type = 'character', required = TRUE, min_length = 1, max_length = 19),# , regex_pattern = "^\\d{4}-\\d{4}-\\d{4}-\\d{3}[0-9X]{1}$"
+        organization_name = list(type = 'character', required = TRUE, min_length = 1, max_length = 128), # drop # calculated
+        research_organization_registry = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, "^\\+?[0-9 ()-]{7,20}$"), # drop # calculated
         organization_name_finder = NULL, # empty
         department = list(type = 'character', min_length = 1, max_length = 64),
         street = list(type = 'character', min_length = 1, max_length = 64),
-        postal_code = list(type = 'character', min_length = 1, max_length = 64, regex_pattern = NULL),
-        city = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = NULL),
-        country = list(type = 'dropdown', required = TRUE, options = c("Picea abies (L.) Karst.", "Larix decidua Mill.")), # drop
-        person_country_code = list(type = 'character', required = TRUE, min_length = 1, max_length = 2, regex_pattern = NULL), # calculated
+        postal_code = list(type = 'character', min_length = 1, max_length = 64),
+        city = list(type = 'character', required = TRUE, min_length = 1, max_length = 64),
+        country = list(type = 'dropdown', required = TRUE, options = country_droplist), # drop
+        person_country_code = list(type = 'dropdown', required = TRUE, options = country_code_droplist), # calculated
         webpage = list(type = 'character', min_length = 1, max_length = 64, regex_pattern = "^https?://.+"),
         phone_number = list(type = 'character', min_length = 1, max_length = 15, regex_pattern = "^\\+?[0-9 ()-]{7,20}$")
       ),
 
+      # Publication table
       tbl7 = list(
         first_author_last_name = list(type = 'character', required = TRUE, min_length = 1, max_length = 64),
         title = list(type = 'character', required = TRUE, min_length = 1, max_length = NULL, regex_pattern = NULL),
@@ -2375,282 +2382,68 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
     
         # TAB 7 person: -------------------------------------------------------------------
     
-    ## ROR
-    # toggle: only enable in case we have a country and search string
+    clear_author_fields <- function(session) {
+      updateSelectInput(session, "person_role", selected = "")
+      updateNumericInput(session, "person_order", value = NA)
+      updateTextInput(session, "last_name", value = "")
+      updateTextInput(session, "first_name", value = "")
+      updateTextInput(session, "email", value = "")
+      updateTextInput(session, "orcid", value = "")
+      updateTextInput(session, "organization_name", value = "")
+      updateTextInput(session, "research_organization_registry", value = "")
+      updateTextInput(session, "organization_name_finder", value = "")
+      updateTextInput(session, "department", value = "")
+      updateTextInput(session, "street", value = "")
+      updateTextInput(session, "postal_code", value = "")
+      updateTextInput(session, "city", value = "")
+      updateTextInput(session, "country", value = "")
+      updateTextInput(session, "person_country_code", value = "")
+      updateTextInput(session, "webpage", value = "")
+      updateTextInput(session, "phone_number", value = "")
+      
+      # Also clear the ORCID search fields
+      updateTextInput(session, "first_name_search", value = "")
+      updateTextInput(session, "last_name_search", value = "")
+      updateTextInput(session, "orcid_search", value = "")
+      
+      # Clear the ROR search fields
+      updateTextInput(session, "ror_search", value = "")
+      updateTextInput(session, "ror_name_search", value = "")
+      updateTextInput(session, "ror_id_search", value = "")
+    }
+    
+    form_visible <- reactiveVal(FALSE)
+    edit_mode <- reactiveVal(FALSE)
+    selected_row <- reactiveVal(NULL)
+    
+    
+    # Show form when Insert new Author is clicked
+    observeEvent(input$show_add_author, {
+      form_visible(TRUE)
+    })
+    
+    output$form_visible <- renderText({
+      as.character(form_visible())
+    })
+    
+    outputOptions(output, "form_visible", suspendWhenHidden = FALSE)
+    
+    # Color field red or green
     observe({
-      shinyjs::toggleState(id = "search_ror", 
-                           condition = (input$search_string != "") || (input$search_country != ""))
-    })
-    
-    ror_data <- reactiveValues(results = NULL)
-    selected_tbl6_row <- reactiveVal() 
-    
-    # run the search via ROR API
-    observeEvent(input$tbl6_select$select$r, {
-      selected_tbl6_row(input$tbl6_select$select$r)
-    })
-    
-    observeEvent(input$search_ror, {
-      req(input$country_code)
-      req(input$search_string)
-
-      search_url <- sprintf(
-        'https://api.ror.org/v2/organizations?query=%s&filter=country.country_code:%s',
-        URLencode(input$search_string),
-        input$country_code)
-
-      ror_res <- httr::GET(search_url, httr::timeout(5))
-
-      if (httr::status_code(ror_res) == 200) {
-        json <- jsonlite::fromJSON(rawToChar(ror_res$content))
-        
-        if (json$number_of_results > 0) {
-          res_names <- json$items$names %>%
-            dplyr::bind_rows() %>%
-            filter(grepl('ror_display', types)) %>%
-            dplyr::pull(value)
-          
-          res_locs <- json$items$locations %>% 
-            dplyr::bind_rows() %>% 
-            dplyr::pull(geonames_details) %>% 
-            tidyr::unite(col = 'address', name, country_name, sep = ', ') %>% 
-            dplyr::pull(address)
-          
-          res_df <- data.frame(
-            ROR = json$items$id, 
-            Name = res_names, 
-            Location = res_locs
-          )
-          
-          # STORE into the reactiveValues object
-          ror_data$results <- res_df
-          
-          output$ror_results <- DT::renderDT({
-            DT::datatable(res_df, rownames = FALSE)
-          })
+      fields <- c("person_role", "last_name", "first_name", "email", "orcid", 
+                  "organization_name", "research_organization_registry", 
+                  "organization_name_finder", "department", "street", 
+                  "postal_code", "city", "country", "person_country_code", 
+                  "webpage", "phone_number")
+      
+      lapply(fields, function(field) {
+        # Proceed only if input[[field]] exists and is not NULL
+        if (!is.null(input[[field]]) && is.character(input[[field]])) {
+          border_color <- if (input[[field]] == "") "red" else "green"
+          shinyjs::runjs(sprintf('$("#%s").css("border", "2px solid %s");', field, border_color))
         }
-        else {
-          showNotification("No ROR results found. Try again.", type = "message")
-        }
-      } else {
-        showNotification("ROR API request failed. Try again.", type = "error")
-      }
-
+      })
     })
-    
-    # Handle row selection from ROR results
-    observeEvent(input$ror_results_rows_selected, {
-      req(input$ror_results_rows_selected)
-      sel <- input$ror_results_rows_selected
-      ror_df <- ror_data$results
-      ror_row <- ror_df[sel, ]
-      
-      tbl <- data_meta$tbl6
-      selected_row <- selected_tbl6_row()
-      
-      tbl[selected_row, "organization_name"] <- ror_row$Name
-      tbl[selected_row, "research_organization_registry"] <- ror_row$ROR
-      tbl[selected_row, "organization_name_finder"] <- "ROR"
-      
-      # If location is valid (contains ", "), extract city and country
-      loc_parts <- strsplit(ror_row$Location, ", ")[[1]]
-      tbl[selected_row, "city"] <- if (length(loc_parts) >= 1) loc_parts[1] else ""
-      tbl[selected_row, "country"] <- if (length(loc_parts) >= 2) loc_parts[2] else ""
-      
-      data_meta$tbl6 <- tbl
-    })
-    
-    ## ORCID
-    # ORCID ID Search
-    orcid_data <- reactiveValues(results = NULL)
-    
-    observeEvent(input$search_orcid, {
-      req(input$search_orcid_id)
-      
-      input_val <- trimws(input$search_orcid_id)
-      cat("Search ORCID ID:", input_val, "\n")  # Debugging: print input value
-      
-      # Validate ORCID ID format more robustly (allowing 4 digits followed by hyphen)
-      is_orcid_id <- grepl("^\\d{4}-\\d{4}-\\d{4}-\\d{4}$", input_val)  # Updated regex for a valid ORCID ID
-      cat("Is ORCID ID format valid:", is_orcid_id, "\n")  # Debugging: check if ORCID ID is valid
-      
-      if (is_orcid_id) {
-        # ORCID ID: Direct person endpoint
-        url <- paste0("https://pub.orcid.org/v3.0/", input_val, "/person")
-        cat("Requesting URL:", url, "\n")  # Debugging: print request URL
-        res <- httr::GET(url, httr::add_headers(Accept = "application/json"))
-        
-        if (httr::status_code(res) == 200) {
-          cat("ORCID ID response status: 200 OK\n")  # Debugging: check response status
-          person <- jsonlite::fromJSON(httr::content(res, as = "text", encoding = "UTF-8"))
-          
-          # Convert parsed ORCID response to a pretty JSON string for readable output
-          cat("Parsed ORCID response:\n", jsonlite::toJSON(person, pretty = TRUE), "\n")  # Debugging: print parsed response
-          
-          given <- person$name$`given-names`$value %||% ""
-          family <- person$name$`family-name`$value %||% ""
-          print("str(person$emails)")
-          str(person$emails)
-          # Extract email from the response, if available
-          email <- if (!is.null(person$emails$email) && length(person$emails$email) > 0) person$emails$email$email %||% "" else ""
-          
-          results <- tibble::tibble(
-            ORCID = input_val,
-            Name = paste(given, family),
-            Email = email,
-            Organization = NULL
-          )
-          
-          # Store results for selection
-          orcid_data$results <- results
-          cat("Search results:\n", jsonlite::toJSON(results, pretty = TRUE), "\n")  # Debugging: print results
-          
-          # Render results in table
-          output$orcid_results <- DT::renderDT({
-            DT::datatable(results, rownames = FALSE, selection = 'single')
-          })
-        } else {
-          showNotification("ORCID ID not found or unreachable.", type = "error")
-          cat("Error: ORCID ID not found or unreachable. Status:", httr::status_code(res), "\n")  # Debugging: status code
-        }
-      } else {
-        showNotification("Invalid ORCID ID format.", type = "error")
-        cat("Error: Invalid ORCID ID format.\n")  # Debugging: invalid ID format
-      }
-    })
-    
-    # Search by Name
-    observeEvent(input$search_name, {
-      req(input$search_orcid_name)
-      
-      input_val <- trimws(input$search_orcid_name)
-      cat("Search Name:", input_val, "\n")  # Debugging: print input value
-      
-      # Expand the search query to split the name into first and last names
-      parts <- strsplit(input_val, " +")[[1]]
-      given <- parts[1]
-      family <- if (length(parts) > 1) parts[length(parts)] else ""
-      cat("Given name:", given, "Family name:", family, "\n")  # Debugging: check split names
-      
-      # Make sure the query is correctly URL-encoded
-      query_name <- URLencode(paste0("given-names:", given, " AND family-name:", family))
-      search_url <- sprintf("https://pub.orcid.org/v3.0/expanded-search?q=%s", query_name)
-      cat("Searching with query:", query_name, "\n")  # Debugging: print search query
-      
-      res <- httr::GET(search_url, httr::add_headers(Accept = "application/json"))
-      
-      if (httr::status_code(res) == 200) {
-        cat("Name search response status: 200 OK\n")  # Debugging: check response status
-        parsed <- jsonlite::fromJSON(rawToChar(res$content))
-        cat("Parsed name search response:\n", jsonlite::toJSON(parsed, pretty = TRUE), "\n")  # Debugging: print parsed response
-        str(parsed$`expanded-result`)  # Debugging: check structure of the result
-        
-        # Check if expanded-result exists and has at least one record
-        if (!is.null(parsed$`expanded-result`) && nrow(parsed$`expanded-result`) > 0) {
-          # Extract results from expanded-result directly
-          results <- tibble::tibble(
-            ORCID = parsed$`expanded-result`$`orcid-id`,
-            Name = paste(parsed$`expanded-result`$`given-names`, parsed$`expanded-result`$`family-names`),
-            Email = if (!is.null(parsed$`expanded-result`$email) && length(parsed$`expanded-result`$email) > 0) paste(parsed$`expanded-result`$email[[1]], collapse = ", ") else "",
-            Organization = if (!is.null(parsed$`expanded-result`$`institution-name`) && length(parsed$`expanded-result`$`institution-name`) > 0) paste(parsed$`expanded-result`$`institution-name`[[1]], collapse = ", ") else "",
-          )
-          
-          # Store results for selection
-          orcid_data$results <- results
-          cat("Name search results:\n", paste(capture.output(print(results)), collapse = "\n"), "\n")  # Debugging: print results as text
-          
-          # Render results in table
-          output$orcid_results <- DT::renderDT({
-            DT::datatable(results, rownames = FALSE, selection = 'single')
-          })
-        } else {
-          showNotification("No ORCID results found.", type = "message")
-          cat("Error: No ORCID results found.\n")  # Debugging: no results found
-        }
-      } else {
-        showNotification("ORCID API request failed.", type = "error")
-        cat("Error: ORCID API request failed. Status:", httr::status_code(res), "\n")  # Debugging: API request failed
-      }
-    })
-    
-    # Handle row selection from ORCID results
-    observeEvent(input$orcid_results_rows_selected, {
-      req(input$orcid_results_rows_selected)
-      sel <- input$orcid_results_rows_selected
-      cat("Selected row index:", sel, "\n")  # Debugging: selected row index
-      
-      # Ensure results are stored from previous search
-      if (exists("orcid_data") && !is.null(orcid_data$results) && length(orcid_data$results) > 0) {
-        orcid_row <- orcid_data$results[sel, ]
-        cat("Selected ORCID row:\n") 
-        print(orcid_row)  # Use print() instead of cat() for complex structures like tibble
-      } else {
-        showNotification("No results to select from.", type = "error")
-        cat("Error: No results to select from.\n")  # Debugging: no results available
-        return()
-      }
-      
-      # Proceed to update the selected row in the data table
-      tbl <- data_meta$tbl6
-      
-      # Assuming that the selected row is passed in as `sel`
-      selected_row <- sel
-      
-      tbl[selected_row, "orcid"] <- orcid_row$ORCID
-      tbl[selected_row, "first_name"] <- strsplit(orcid_row$Name, " ")[[1]][1]
-      tbl[selected_row, "last_name"] <- strsplit(orcid_row$Name, " ")[[1]][2]
-      
-      # Check for email in ORCID row and update if available
-      if (!is.null(orcid_row$Email) && orcid_row$Email != "") {
-        tbl[selected_row, "email"] <- orcid_row$Email
-      } else {
-        tbl[selected_row, "email"] <- "Not Available"  # Handle cases where email is not available
-      }
-      
-      # Update the data_meta object with the modified table
-      data_meta$tbl6 <- tbl
-      cat("Updated table:\n")
-      print(tbl)  # Use print() instead of cat() for displaying complex data structures
-    })
-    
-    # Keep track of the number of authors
-    author_count <- shiny::reactiveVal(1)
-    
-    # Enable delete button only if there are more than 1 authors
-    shiny::observe({
-      shinyjs::toggleState(id = "del_author_btn", condition = author_count() > 1)
-    })
-    
-    # Add author input if button is clicked
-    shiny::observeEvent(input$add_author_btn, {
-      author_count(author_count() + 1)
-      author_id <- paste0('aut', author_count())
-      shiny::insertUI(
-        selector = "#author_inputs",
-        where = "beforeBegin",
-        ui = div(id = author_id,
-                 author_input(author_count()))
-      )
-      #iv_gen$add_rule(paste0('autname_',author_count()), sv_required())
-    })
-    
-    # Delete author input
-    shiny::observeEvent(input$del_author_btn, {
-      shiny::removeUI(selector = paste0("#aut", author_count()))
-      #iv_gen$remove_rules(paste0('autname_',author_count()))
-      author_count(author_count() - 1)
-      
-    })
-    
-    # Dynamic selection of contact person
-    output$contact_person <- shiny::renderUI({
-      shiny::radioButtons("contact_person", NULL,
-                   choices = paste("Author", 1:author_count()))
-    })
-    
-    
-    
-    
     
     #### dperson  ####
     dperson <- reactiveVal()
@@ -2673,10 +2466,11 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
     # RENDER TABLES
     output$tbl6 <- rhandsontable::renderRHandsontable({
       req(data_meta$tbl6)  # Ensure data is available
+      data_meta$tbl6$person_order <- seq_len(nrow(data_meta$tbl6))
       column_configs <- column_configs()
       rhandsontable::rhandsontable(
         data_meta$tbl6,
-        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all') %>%
+        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all', selectCallback = TRUE) %>%
         hot_col_wrapper('person_role', column_configs$tbl6$person_role) %>%
         hot_col_wrapper('person_order', column_configs$tbl6$person_order) %>%
         hot_col_wrapper('last_name', column_configs$tbl6$last_name) %>%
@@ -2695,6 +2489,253 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         hot_col_wrapper('webpage', column_configs$tbl6$webpage) %>%
         hot_col_wrapper('phone_number', column_configs$tbl6$phone_number)
     }) 
+    
+    observeEvent(input$tbl6_select$select$r, {
+      selected_row(input$tbl6_select$select$r)
+    })
+    
+    observeEvent(input$update_author, {
+      req(selected_row())
+      
+      row <- selected_row()
+      form_visible(TRUE)
+      edit_mode(TRUE)
+      
+      isolate({
+        fields <- c("person_role", "last_name", "first_name", "email", "orcid", 
+                    "organization_name", "research_organization_registry", 
+                    "organization_name_finder", "department", "street", 
+                    "postal_code", "city", "country", "person_country_code", 
+                    "webpage", "phone_number")
+        
+        for (field in fields) {
+          value <- data_meta$tbl6[[field]][row]
+          
+          # Defensive conversion if needed
+          if (is.na(value) || is.null(value)) value <- ""
+          if (!is.character(value)) value <- as.character(value)
+          
+          updateTextInput(session, field, value = value)
+        }
+      })
+    })
+    
+    observeEvent(input$add_author, {
+      new_entry <- data.frame(
+        person_role = as.character(input$person_role),
+        person_order = input$person_order,
+        last_name = as.character(input$last_name),
+        first_name = as.character(input$first_name),
+        email = as.character(input$email),
+        orcid = as.character(input$orcid),
+        organization_name = as.character(input$organization_name),
+        research_organization_registry = as.character(input$research_organization_registry),
+        organization_name_finder = as.character(input$organization_name_finder),
+        department = as.character(input$department),
+        street = as.character(input$street),
+        postal_code = as.character(input$postal_code),
+        city = as.character(input$city),
+        country = as.character(input$country),
+        person_country_code = as.character(input$person_country_code),
+        webpage = as.character(input$webpage),
+        phone_number = as.character(input$phone_number),
+        stringsAsFactors = FALSE
+      )
+      
+      if (edit_mode() && !is.null(selected_row())) {
+        data_meta$tbl6[selected_row(), names(new_entry)] <- as.list(new_entry[1, ])
+      } else {
+        data_meta$tbl6 <- rbind(data_meta$tbl6, new_entry)
+      }
+      
+      clear_author_fields(session)
+      form_visible(FALSE)
+      updateActionButton(session, "show_add_author", label = "Insert new Author")
+      
+      edit_mode(FALSE)
+      selected_row(NULL)
+    })
+    
+    observeEvent(input$delete_author, {
+      row <- selected_row()
+      
+      if (!is.null(row) && row <= nrow(data_meta$tbl6)) {
+        data_meta$tbl6 <- data_meta$tbl6[-row, ]
+        selected_row(NULL)
+        
+        showNotification("Author deleted.", type = "message")
+      } else {
+        showNotification("Please select a row to delete.", type = "warning")
+      }
+      
+      data_meta$tbl6$person_order <- seq_len(nrow(data_meta$tbl6))
+      
+      clear_author_fields(session)
+      form_visible(FALSE)
+      edit_mode(FALSE)
+    })
+    
+    observe({
+      shinyjs::toggleState("update_author", condition = !is.null(selected_row()))
+      shinyjs::toggleState("delete_author", condition = !is.null(selected_row()))
+    })
+    
+    observeEvent(input$apply_order, {
+      req(input$tbl6)
+      if (!is.null(input$tbl6)) {
+        ordered_data <- hot_to_r(input$tbl6)
+        ordered_data$person_order <- as.numeric(ordered_data$person_order)
+        data_meta$tbl6 <- ordered_data[order(ordered_data$person_order), ]
+      }
+    })
+    
+    # ORCID Search
+    orcid_data <- reactiveValues(results = NULL)
+    
+    # Search via Orcid
+    observeEvent(input$search_orcid, {
+      # If ORCID ID is provided, use that
+      if (nzchar(input$orcid_search)) {
+        orcid_id <- gsub("https?://orcid.org/", "", trimws(input$orcid_search))
+        orcid_url <- paste0("https://pub.orcid.org/v3.0/", orcid_id)
+        
+        res <- httr::GET(orcid_url, httr::add_headers(Accept = "application/json"))
+        
+        if (httr::status_code(res) == 200) {
+          parsed <- jsonlite::fromJSON(rawToChar(res$content))
+          
+          updateTextInput(session, "orcid", value = orcid_id)
+          updateTextInput(session, "last_name", value = parsed$`person`$`name`$`family-name`$value)
+          updateTextInput(session, "first_name", value = parsed$`person`$`name`$`given-names`$value)
+          
+          email_val <- tryCatch(parsed$`person`$emails$email[[1]]$email, error = function(e) "")
+          updateTextInput(session, "email", value = email_val)
+          
+          if (!is.null(parsed$`activities-summary`$`employments`$`employment-summary`)) {
+            org_name <- parsed$`activities-summary`$`employments`$`employment-summary`[[1]]$`organization`$`name`
+            updateTextInput(session, "organization_name", value = org_name)
+          }
+          
+        } else {
+          showNotification("Failed to retrieve data for provided ORCID ID.", type = "error")
+        }
+        
+        # Else if names are provided, do a name-based search
+      } else if (nzchar(input$first_name_search) && nzchar(input$last_name_search)) {
+        given <- trimws(input$first_name_search)
+        family <- trimws(input$last_name_search)
+        query_name <- URLencode(paste0("given-names:", given, " AND family-name:", family))
+        search_url <- sprintf("https://pub.orcid.org/v3.0/expanded-search?q=%s", query_name)
+        
+        res <- httr::GET(search_url, httr::add_headers(Accept = "application/json"))
+        
+        if (httr::status_code(res) == 200) {
+          parsed <- jsonlite::fromJSON(rawToChar(res$content))
+          if (!is.null(parsed$`expanded-result`) && nrow(parsed$`expanded-result`) > 0) {
+            results <- tibble::tibble(
+              ORCID = parsed$`expanded-result`$`orcid-id`,
+              LastName = parsed$`expanded-result`$`family-names`,
+              FirstName = parsed$`expanded-result`$`given-names`,
+              Email = if (!is.null(parsed$`expanded-result`$email) && length(parsed$`expanded-result`$email) > 0) paste(parsed$`expanded-result`$email[[1]], collapse = ", ") else "",
+              Organization = if (!is.null(parsed$`expanded-result`$`institution-name`) && length(parsed$`expanded-result`$`institution-name`) > 0) paste(parsed$`expanded-result`$`institution-name`[[1]], collapse = ", ") else ""
+            )
+            
+            updateTextInput(session, "orcid", value = results$ORCID[1])
+            updateTextInput(session, "last_name", value = results$LastName[1])
+            updateTextInput(session, "first_name", value = results$FirstName[1])
+            updateTextInput(session, "email", value = results$Email[1])
+            updateTextInput(session, "organization_name", value = results$Organization[1])
+            
+            orcid_data$results <- results
+          } else {
+            showNotification("No ORCID results found for that name.", type = "message")
+          }
+        } else {
+          showNotification("ORCID name search failed.", type = "error")
+        }
+        
+      } else {
+        showNotification("Please provide either an ORCID ID or both first and last name.", type = "warning")
+      }
+    })
+    
+    # ROR Search
+    ror_data <- reactiveValues(results = NULL)
+    
+    observeEvent(input$search_ror, {
+      req(input$country_code)
+      req(input$search_string)
+      
+      search_url <- sprintf(
+        'https://api.ror.org/v2/organizations?query=%s&filter=country.country_code:%s',
+        URLencode(input$search_string),
+        input$country_code)
+      
+      ror_res <- httr::GET(search_url, httr::timeout(5))
+      
+      if (httr::status_code(ror_res) == 200) {
+        json <- jsonlite::fromJSON(rawToChar(ror_res$content))
+        
+        if (json$number_of_results > 0) {
+          res_names <- json$items$names %>%
+            dplyr::bind_rows() %>%
+            filter(grepl('ror_display', types)) %>%
+            dplyr::pull(value)
+          
+          res_locs <- json$items$locations %>% 
+            dplyr::bind_rows() %>% 
+            dplyr::pull(geonames_details) %>% 
+            tidyr::unite(col = 'address', name, country_name, sep = ', ') %>% 
+            dplyr::pull(address)
+
+          
+          res_web <- json$items$links %>%
+            map_dfr(bind_rows) %>%
+            filter(type == "website") %>%
+            pull(value)
+          
+          res_df <- data.frame(
+            ROR = json$items$id, 
+            Name = res_names, 
+            Location = res_locs,
+            Website = res_web
+          )
+          
+          # STORE into the reactiveValues object
+          ror_data$results <- res_df |>
+            tidyr::separate(Location, into = c("city", "country"), sep = ", ", remove = FALSE)
+
+          
+          output$ror_results <- DT::renderDT({
+            DT::datatable(res_df, rownames = FALSE)
+          })
+        }
+        else {
+          showNotification("No ROR results found. Try again.", type = "message")
+        }
+      } else {
+        showNotification("ROR API request failed. Try again.", type = "error")
+      }
+      
+    })
+    
+    # Handle row selection from ROR results
+    observeEvent(input$ror_results_rows_selected, {
+      req(input$ror_results_rows_selected)
+      sel <- input$ror_results_rows_selected
+      ror_df <- ror_data$results
+      ror_row <- ror_df[sel, ]
+      
+      # insert results into their corresponding fields
+      updateTextInput(session, "organization_name", value = ror_row$Name[1])
+      updateTextInput(session, "research_organization_registry", value = ror_row$ROR[1])
+      updateTextInput(session, "city", value = ror_row$Location[1])
+      updateTextInput(session, "country", value = ror_row$Location[1])
+      updateTextInput(session, "person_country_code", value = countrycode::countrycode(ror_row$Location[1], origin = "country.name", destination = "iso2c"))
+      updateTextInput(session, "webpage", value = ror_row$Website[1])
+      
+      
+    })
     
     
     # TAB 8 publication: -------------------------------------------------------------------
