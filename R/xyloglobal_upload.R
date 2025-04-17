@@ -593,12 +593,13 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       ),
       
       # TAB 7: View Author -----------------------------------------------
+      # TAB 7: View Author -----------------------------------------------
       nav_panel(
         title = div(id = "meta_author", "Author"),
         value = "Author",
         
         fluidRow(
-          # Left column - Save button
+          # Left Sidebar - Save Button
           column(1, class = "bg-light p-2 border-end", style = "height: 100%;",
                  bslib::card(
                    bslib::card_body(
@@ -607,73 +608,106 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
                  )
           ),
           
-          # Right column - Main content
+          # Right Column - Main Content
           column(11, style = "height: 100%;",
                  
-                 ## Add/Delete Authors + Input Fields
-                 bslib::card(
-                   bslib::card_header('Provide Authors'),
-                   p("Please list all authors (data owners) of the dataset. 
-                Note that the order provided here will be used as the order of authorship."),
-                   card_body(
-                     fillable = FALSE,
-                     actionButton("add_author_btn", "Add author", class = "btn btn-primary", style = "width: 100px"),
-                     actionButton("del_author_btn", "Delete author", class = "btn btn-danger", style = "width: 100px")
-                   ),
-                   # First static author input
-                   author_input(1),
-                   # Dynamic UI placeholders
-                   uiOutput("author_inputs"),
-                   h5("Contact person"),
-                   uiOutput("contact_person")
-                 ),
+                 shinyjs::useShinyjs(),
+                 shinyjs::hidden(verbatimTextOutput("form_visible", placeholder = TRUE)),
                  
-                 ## ROR Search Tool
+                 ## Author Metadata Table and Action Buttons
                  bslib::card(
-                   bslib::card_header("ROR search tool"),
-                   bslib::layout_columns(
-                     bslib::card(
-                       shiny::selectInput("country_code", "Select country:",
-                                          choices = c(Choose = '', get_country_codes()),
-                                          selectize = TRUE),
-                       shiny::textInput("search_string", "Enter search string:"),
-                       shiny::actionButton("search_ror", "Search for ROR", class = "btn btn-info")
-                     ),
-                     bslib::card(
-                       h4("ROR search results:"),
-                       DT::DTOutput("ror_results")
-                     ),
-                     col_widths = c(3, 9)
-                   )
-                 ),
-                 
-                 ## ORCID Search Tool
-                 # ORCID Search Tool Card
-                 bslib::card(
-                   bslib::card_header("ORCID Search Tool"),
-                   bslib::layout_columns(
-                     # First column for the search by name input
-                     bslib::card(
-                       shiny::textInput("search_orcid_name", "Enter name to search ORCID:"),
-                       shiny::actionButton("search_name", "Search by Name", class = "btn btn-info"),
-                       shiny::textInput("search_orcid_id", "Enter ORCID ID:"),
-                       shiny::actionButton("search_orcid", "Search by ORCID ID", class = "btn btn-success")
-                     ),
-                     # Second column for the ORCID search results
-                     bslib::card(
-                       h4("ORCID Search Results:"),
-                       DT::DTOutput("orcid_results")
-                     ),
-                     col_widths = c(3, 9) # Adjust columns for better spacing
-                   )
-                 ),
-                 
-                 
-                 ## Handsontable for metadata
-                 bslib::card(
-                   bslib::card_header("Authors Metadata"),
+                   bslib::card_header("Authors Table"),
                    bslib::card_body(
-                     div(rhandsontable::rHandsontableOutput("tbl6"))
+                     rHandsontableOutput("tbl6"),
+                     br(),
+                     actionButton("show_add_author", "Add New Author"),
+                     actionButton("update_author", "Update an Author"),
+                     actionButton("delete_author", "Delete Selected Author", icon = icon("trash")),
+                     actionButton("apply_order", "Apply Author Order")
+                   )
+                 ),
+                 
+                 ## Conditional Panel - Show Form When Active
+                 conditionalPanel(
+                   condition = "output.form_visible == 'TRUE'",
+                   
+                   # ORCID Search Card
+                   bslib::card(
+                     bslib::card_header("ORCID Search"),
+                     bslib::card_body(
+                       fluidRow(
+                         column(6, actionButton("search_orcid", "Search ORCID")),
+                         column(6,
+                                textInput("first_name_search", "First Name", placeholder = "First Name"),
+                                textInput("last_name_search", "Last Name", placeholder = "Last Name"),
+                                textInput("orcid_search", "ORCID ID", placeholder = "e.g. 0000-0002-1825-0097")
+                         )
+                       )
+                     )
+                   ),
+                   
+                   # ROR Search Card
+                   bslib::card(
+                     bslib::card_header("ROR Search"),
+                     bslib::card_body(
+                       fluidRow(
+                         column(6, actionButton("search_ror", "Search ROR")),
+                         column(6,
+                                selectInput("country_code", "Select country:",
+                                            choices = c(Choose = '', get_country_codes()),
+                                            selectize = TRUE),
+                                textInput("search_string", "Search ROR", placeholder = "e.g. University of Oxford")
+                         )
+                       ),
+                       fluidRow(
+                         column(12,
+                                h4("ROR Search Results:"),
+                                DT::DTOutput("ror_results")
+                         )
+                       )
+                     )
+                   ),
+                   
+                   # Author Metadata Entry Card
+                   bslib::card(
+                     bslib::card_header("Author Metadata"),
+                     bslib::card_body(
+                       fluidRow(
+                         column(4, selectInput("person_role", "Person Role",
+                                               choices = c("Contact and Data owner", "Data owner", "Contact", "Contributor"),
+                                               selected = NULL)),
+                         column(2, numericInput("person_order", "Order", value = 1, min = 1)),
+                         column(3, textInput("last_name", "Last Name")),
+                         column(3, textInput("first_name", "First Name"))
+                       ),
+                       fluidRow(
+                         column(6, textInput("email", "Email")),
+                         column(6, textInput("orcid", "ORCID (ID format or use search below)"))
+                       ),
+                       fluidRow(
+                         column(6, textInput("organization_name", "Organization")),
+                         column(6, textInput("research_organization_registry", "ROR ID"))
+                       ),
+                       fluidRow(
+                         column(6, textInput("organization_finder", "Organization (Finder)")),
+                         column(6, textInput("department", "Department"))
+                       ),
+                       fluidRow(
+                         column(4, textInput("street", "Street")),
+                         column(2, textInput("postal_code", "Postal Code")),
+                         column(3, textInput("city", "City")),
+                         column(3, textInput("country", "Country"))
+                       ),
+                       fluidRow(
+                         column(6, textInput("person_country_code", "Country Code")),
+                         column(6, textInput("webpage", "Webpage"))
+                       ),
+                       fluidRow(
+                         column(6, textInput("phone_number", "Phone Number"))
+                       ),
+                       br(),
+                       actionButton("add_author", "Add Author", class = "btn-success")
+                     )
                    )
                  )
           )
@@ -1807,7 +1841,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         # plot_label = list(type = "dropdown", required = TRUE, options = unique(na.omit(data_in$tbl2$plot_label)), unique = TRUE, readOnly = TRUE), # calculated
         plot_label = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = NULL, readOnly = TRUE), # calculated
         plot_code = list(type = 'character', required = TRUE, min_length = 1, max_length = 10, regex_pattern = NULL, readOnly = TRUE), # calculated
-        tree_species = list(type = 'dropdown', required = TRUE, options = c("Picea abies (L.) Karst.", "Larix decidua Mill."), readOnly = TRUE), # drop
+        tree_species = list(type = 'dropdown', required = TRUE, options = tree_species_droplist, readOnly = TRUE), # drop
         itrdb_species_code = list(type = 'dropdown', required = TRUE, options = c("PIAB", "LADE"), readOnly = TRUE),
         wood_type = list(type = 'dropdown', required = TRUE, options = wood_type_droplist,  readOnly = TRUE),
         leaf_habit = list(type = 'dropdown', required = TRUE, options = leaf_habit_droplist,  readOnly = TRUE),
@@ -2341,13 +2375,13 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
     
         # TAB 7 person: -------------------------------------------------------------------
     
+    ## ROR
     # toggle: only enable in case we have a country and search string
     observe({
       shinyjs::toggleState(id = "search_ror", 
                            condition = (input$search_string != "") || (input$search_country != ""))
     })
     
-    orcid_data <- reactiveValues(results = NULL)
     ror_data <- reactiveValues(results = NULL)
     selected_tbl6_row <- reactiveVal() 
     
@@ -2428,6 +2462,8 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
     
     ## ORCID
     # ORCID ID Search
+    orcid_data <- reactiveValues(results = NULL)
+    
     observeEvent(input$search_orcid, {
       req(input$search_orcid_id)
       
@@ -2611,6 +2647,10 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       shiny::radioButtons("contact_person", NULL,
                    choices = paste("Author", 1:author_count()))
     })
+    
+    
+    
+    
     
     #### dperson  ####
     dperson <- reactiveVal()
