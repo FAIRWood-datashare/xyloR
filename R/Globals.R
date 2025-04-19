@@ -32,7 +32,8 @@ hot_col_wrapper <- function(ht, col, col_config) {
       min_length = col_config$min_length,
       max_length = col_config$max_length,
       regex_pattern = col_config$regex_pattern,
-      unique = col_config$unique
+      unique = col_config$unique,
+      unique.comp = col_config$unique.comp
     )
     ht %>%
       rhandsontable::hot_col(
@@ -109,17 +110,19 @@ hot_col_wrapper <- function(ht, col, col_config) {
   }
 }
 
-renderer_char <- function(required = NULL, min_length = NULL, max_length = NULL, regex_pattern = NULL, unique = NULL){
+renderer_char <- function(required = NULL, min_length = NULL, max_length = NULL, regex_pattern = NULL, unique = FALSE, unique.comp = FALSE) {
+  if (isTRUE(unique.comp)) {unique <- FALSE}
   check_required <- ifelse(is.null(required), "false", ifelse(required, "true", "false"))
   minl <- ifelse(is.null(min_length), -1, min_length)
   maxl <- ifelse(is.null(max_length), 10000, max_length)
   regp <- ifelse(is.null(regex_pattern), "", regex_pattern)
-  check_regex <- ifelse(is.null(regex_pattern), "false", 'true')
-  check_unique <- ifelse(is.null(unique), "false", ifelse(unique, "true", "false"))
+  check_regex <- ifelse(is.null(regex_pattern), "false", "true")
+  check_unique <- ifelse(isTRUE(unique), "true", "false")
+  check_unique_comp <- ifelse(isTRUE(unique.comp), "true", "false")
+  
   
   htmlwidgets::JS(htmltools::HTML(sprintf("
     function(instance, td, row, col, prop, value, cellProperties) {
-      // remove old tippy if necessary
       if(td.hasOwnProperty('_tippy')) {
         td._tippy.destroy();
       }
@@ -127,43 +130,69 @@ renderer_char <- function(required = NULL, min_length = NULL, max_length = NULL,
       var isValid = true;
       var message = '';
 
-      // check if value is empty
       if (value === null || value === '') {
-        if (%s) {
-          isValid = false;
-          message = 'required field';
-        }
-      // check char length
-      } else if (value.length < %s || value.length > %s) {
-        isValid = false;
-        message = 'invalid length';
-      // check regex pattern
-      } else if (%s) {
-        var regex = new RegExp('%s');
-        if (!regex.test(value)) {
-          isValid = false;
-          message = 'invalid format';
-        }
-      // check uniqueness
-      } else if (%s) {
-        var data = instance.getDataAtCol(col);
-        var duplicates = data.filter(function(val, index, arr) {
-          return arr.indexOf(val) !== index && val === value;
-        });
-        if (duplicates.length > 0) {
-          isValid = false;
-          message = 'duplicate values';
-        }
-      }
+  if (%s) {
+    isValid = false;
+    message = 'required field';
+  }
+}
+
+if (value && (value.length < %s || value.length > %s)) {
+  isValid = false;
+  message = 'invalid length';
+}
+
+if (%s && value) {
+  var regex = new RegExp('%s');
+  if (!regex.test(value)) {
+    isValid = false;
+    message = 'invalid format';
+  }
+}
+
+if (%s && value) {
+  var data = instance.getDataAtCol(col);
+  var duplicates = data.filter(function(val, index, arr) {
+    return arr.indexOf(val) !== index && val === value;
+  });
+  if (duplicates.length > 0) {
+    isValid = false;
+    message = 'duplicate values';
+  }
+}
+
+if (%s) {
+  var data = instance.getData();
+  console.log('Full data:', data);
+
+  var composites = data.map(function(r) {
+    return r[0] + '_' + r[3] + '_' + r[1];
+  });
+
+  var currentComposite = composites[row];
+  console.log('Composite keys:', composites);
+  console.log('Current row composite:', currentComposite);
+
+  var duplicates = composites.filter(function(val, i) {
+    return i !== row && val === currentComposite;
+  });
+
+  console.log('Duplicate entries for current:', duplicates);
+
+  if (duplicates.length > 0) {
+    isValid = false;
+    message = 'duplicate tree if grouped by site and plot';
+  }
+}
+
 
       if (!isValid) {
-        // set background color and tooltip
         td.style.background = '#ff4c42';
         tippy(td, { content: message });
       } else {
         td.style.background = '';
       }
-      
+
       if (!cellProperties.readOnly) {
         td.style.color = '#FFFF00';
       } else {
@@ -171,9 +200,8 @@ renderer_char <- function(required = NULL, min_length = NULL, max_length = NULL,
       }
 
       Handsontable.renderers.TextRenderer.apply(this, arguments);
-
       return td;
-    }", check_required, minl, maxl, check_regex, regp, check_unique)))
+    }", check_required, minl, maxl, check_regex, regp, check_unique, check_unique_comp)))
 }
 
 renderer_drop <- function(required = NULL, options, readOnly = FALSE){

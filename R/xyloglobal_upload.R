@@ -200,8 +200,30 @@ xyloglobal_upload <- function() {
       .handsontable.listbox tr td.current {
         background: green;
       }
-    ")),
-    
+      /* When accordion is closed */
+      .accordion-button.collapsed {
+        background-color: #444444 !important;
+        color: #ffffff !important;
+      }
+      
+      /* When accordion is open */
+      .accordion-button:not(.collapsed) {
+        background-color: #444444 !important;
+        color: #ffffff !important;
+      }
+    ")), 
+    tags$script(HTML("
+  $(document).on('click', '#show_add_author, #update_author', function() {
+    setTimeout(function() {
+      $('.accordion-button').each(function() {
+        if ($(this).hasClass('collapsed')) {
+          $(this).click();
+        }
+      });
+    }, 200);  // slight delay to ensure accordion is rendered
+  });
+")),
+
     shinyjs::useShinyjs(),
     
 
@@ -593,17 +615,19 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       ),
       
       # TAB 7: View Author -----------------------------------------------
-      # TAB 7: View Author -----------------------------------------------
       nav_panel(
         title = div(id = "meta_author", "Author"),
         value = "Author",
         
         fluidRow(
+          
           # Left Sidebar - Save Button
           column(1, class = "bg-light p-2 border-end", style = "height: 100%;",
                  bslib::card(
                    bslib::card_body(
-                     actionButton('save_authors', 'Submit author info', icon = icon('save'))
+                     actionButton('save_authors',
+                                  label = tagList(bsicons::bs_icon("save"), 'Submit Author Info'),
+                                  class = "btn-primary")
                    )
                  )
           ),
@@ -614,18 +638,46 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
                  shinyjs::useShinyjs(),
                  shinyjs::hidden(verbatimTextOutput("form_visible", placeholder = TRUE)),
                  
-                 ## Author Metadata Table and Action Buttons
+                 # Author Metadata Table and Action Buttons
                  bslib::card(
-                   bslib::card_header("Authors Table"),
+                   tooltip(
+                     bslib::card_header("Authors Table"),
+                     bsicons::bs_icon("question-circle"),
+                     HTML(
+                       "This is the author metadata table. You can view, add, update, delete, and reorder authors using the buttons below.<br><br>
+           Cells with <b>yellow text</b> are editable.<br>
+           Cells highlighted in <b>red</b> indicate validation issues and require correction.<br>
+           Hover over a red cell to see a tooltip explaining the issue."
+                     ), placement = "right"
+                   ),
                    bslib::card_body(
                      rHandsontableOutput("tbl6"),
                      br(),
-                     div(
-                       style = "display: flex; gap: 10px; flex-wrap: wrap;",
-                       actionButton("show_add_author", "Add New Author"),
-                       actionButton("update_author", "Update an Author"),
-                       actionButton("delete_author", "Delete Selected Author", icon = icon("trash")),
-                       actionButton("apply_order", "Apply Author Order")
+                     div(style = "display: flex; gap: 10px; flex-wrap: wrap; align-items: center;",
+                         
+                         tooltip(
+                           actionButton("show_add_author", label = tagList(bsicons::bs_icon("person-plus"), "Add New Author"), class = "btn-success"),
+                           "Add a new author to the table. This opens the metadata form to help guide data entry.",
+                           placement = "right"
+                         ),
+                         
+                         tooltip(
+                           actionButton("update_author", label = tagList(bsicons::bs_icon("pencil-square"), "Update Author"), class = "btn-warning"),
+                           "Edit metadata of a selected author. Choose an author in the table to activate this button.",
+                           placement = "right"
+                         ),
+                         
+                         tooltip(
+                           actionButton("delete_author", label = tagList(bsicons::bs_icon("trash"), "Delete Author"), class = "btn-danger"),
+                           "Delete the selected author from the table. You must first select a row.",
+                           placement = "right"
+                         ),
+                         
+                         tooltip(
+                           actionButton("apply_order", label = tagList(bsicons::bs_icon("sort-down"), "Apply Author Order")),
+                           "Reorder authors in the table according to the values in the 'person_order' column. Edit that column and click this button to sort accordingly.",
+                           placement = "right"
+                         )
                      )
                    )
                  ),
@@ -634,31 +686,61 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
                  conditionalPanel(
                    condition = "output.form_visible == 'TRUE'",
                    
-                   # ORCID Search Card
-                   bslib::card(
-                     bslib::card_header("ORCID Search"),
-                     bslib::card_body(
+                   # Accordion for ORCID and ROR Search
+                   bslib::accordion(
+                     bslib::accordion_panel(
+                       title = "ORCID Search",
+                       id = "card_header_orcid",
+                       tooltip(
+                         bsicons::bs_icon("question-circle"),
+                         "Use this tool to search for a person’s ORCID ID using their name or an existing ORCID. Retrieved info will populate the form below.",
+                         placement = "right"
+                       ),
                        fluidRow(
-                         column(6, actionButton("search_orcid", "Search ORCID")),
-                         column(6,
-                                textInput("first_name_search", "First Name", placeholder = "First Name"),
-                                textInput("last_name_search", "Last Name", placeholder = "Last Name"),
+                         column(3,
+                                tooltip(
+                                  actionButton("search_orcid", label = tagList(bsicons::bs_icon("search"), "Retrieve from ORCID DB")),
+                                  "Search the ORCID database with the provided first and last name, or ORCID ID. First, enter the values on the right, then click the button. This will fill the form below with the retrieved data.",
+                                  placement = "right"
+                                )
+                         ),
+                         column(3,
+                                textInput("first_name_search", "First Name", placeholder = "First Name")
+                         ),
+                         column(3,
+                                textInput("last_name_search", "Last Name", placeholder = "Last Name")
+                         ),
+                         column(3,
                                 textInput("orcid_search", "ORCID ID", placeholder = "e.g. 0000-0002-1825-0097")
                          )
                        )
-                     )
-                   ),
-                   
-                   # ROR Search Card
-                   bslib::card(
-                     bslib::card_header("ROR Search"),
-                     bslib::card_body(
+                     ),
+                     
+                     bslib::accordion_panel(
+                       title = "ROR Search",
+                       id = "card_header_ror",
+                       tooltip(
+                         bsicons::bs_icon("question-circle"),
+                         HTML(
+                           "<b>Search for a Research Organization Registry (ROR) ID.</b><br>
+               This helps standardize institution names and identifiers.<br><br>
+               <ol style='padding-left: 18px; margin: 0;'>
+                 <li>Select the country from the <b>Select country</b> dropdown.</li>
+                 <li>Enter a meaningful search term in the <b>Search ROR</b> field.</li>
+                 <li>A table of matching organizations will appear.</li>
+                 <li>Click on an entry to populate the fields below automatically.</li>
+               </ol>"), placement = "right"
+                       ),
                        fluidRow(
-                         column(6, actionButton("search_ror", "Search ROR")),
-                         column(6,
+                         column(3,
+                                actionButton("search_ror", label = tagList(bsicons::bs_icon("search"), "Retrieve from ROR DB"))
+                         ),
+                         column(3,
                                 selectInput("country_code", "Select country:",
                                             choices = c(Choose = '', get_country_codes()),
-                                            selectize = TRUE),
+                                            selectize = TRUE)
+                         ),
+                         column(3,
                                 textInput("search_string", "Search ROR", placeholder = "e.g. University of Oxford")
                          )
                        ),
@@ -668,48 +750,48 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
                                 DT::DTOutput("ror_results")
                          )
                        )
-                     )
-                   ),
-                   
-                   # Author Metadata Entry Card
-                   bslib::card(
-                     bslib::card_header("Author Metadata"),
-                     bslib::card_body(
+                     ),
+                     
+                     bslib::accordion_panel(
+                       title = "Author Metadata",
+                       id = "card_header_metadata",
+                       tooltip(
+                         bsicons::bs_icon("question-circle"),
+                         "Fill in or edit the metadata of an author. Use ORCID and ROR tools to auto-complete relevant fields.",
+                         placement = "right"
+                       ),
                        fluidRow(
-                         column(4, selectInput("person_role", "Person Role",
+                         column(3, selectInput("person_role", HTML("Person Role <span style='color:red;'>*</span>"),
                                                choices = c("Contact and Data owner", "Data owner", "Contact", "Contributor"),
                                                selected = NULL)),
-                         column(2, numericInput("person_order", "Order", value = 1, min = 1)),
-                         column(3, textInput("last_name", "Last Name")),
-                         column(3, textInput("first_name", "First Name"))
+                         column(3, numericInput("person_order", HTML("Order <span style='color:red;'>*</span>"), value = 1, min = 1)),
+                         column(3, textInput("last_name", HTML("Last Name <span style='color:red;'>*</span>"))),
+                         column(3, textInput("first_name", HTML("First Name <span style='color:red;'>*</span>")))
                        ),
                        fluidRow(
-                         column(6, textInput("email", "Email")),
-                         column(6, textInput("orcid", "ORCID (ID format or use search below)"))
+                         column(3, textInput("email", HTML("Email <span style='color:red;'>*</span>"))),
+                         column(3, textInput("orcid", HTML("ORCID ID <span style='color:red;'>*</span>"))),
+                         column(3, textInput("organization_name", HTML("Organization <span style='color:red;'>*</span>"))),
+                         column(3, textInput("research_organization_registry", HTML("ROR ID <span style='color:red;'>*</span>")))
                        ),
                        fluidRow(
-                         column(6, textInput("organization_name", "Organization")),
-                         column(6, textInput("research_organization_registry", "ROR ID"))
+                         column(3, textInput("department", "Department")),
+                         column(3, textInput("street", "Street")),
+                         column(3, textInput("postal_code", "Postal Code")),
+                         column(3, textInput("city", HTML("City <span style='color:red;'>*</span>")))
                        ),
                        fluidRow(
-                         column(6, textInput("organization_name_finder", "Organization (Finder)")),
-                         column(6, textInput("department", "Department"))
-                       ),
-                       fluidRow(
-                         column(4, textInput("street", "Street")),
-                         column(2, textInput("postal_code", "Postal Code")),
-                         column(3, textInput("city", "City")),
-                         column(3, textInput("country", "Country"))
-                       ),
-                       fluidRow(
-                         column(6, textInput("person_country_code", "Country Code")),
-                         column(6, textInput("webpage", "Webpage"))
-                       ),
-                       fluidRow(
-                         column(6, textInput("phone_number", "Phone Number"))
+                         column(3, textInput("country", HTML("Country <span style='color:red;'>*</span>"))),
+                         column(3, textInput("person_country_code", HTML("Country Code <span style='color:red;'>*</span>"))),
+                         column(3, textInput("webpage", "Webpage")),
+                         column(3, textInput("phone_number", "Phone Number"))
                        ),
                        br(),
-                       actionButton("add_author", "Add Author", class = "btn-success")
+                       tooltip(
+                         actionButton("add_author", label = tagList(bsicons::bs_icon("person-fill-add"), "Add Author"), class = "btn-success"),
+                         "Click to add the current author metadata to the authors table above. All required fields must be filled.",
+                         placement = "right"
+                       )
                      )
                    )
                  )
@@ -717,6 +799,8 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         )
       )
       ,
+      
+      
       
       # TAB 8: View publication -----------------------------------------------
       nav_panel(
@@ -1349,7 +1433,10 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         shiny::setProgress(value = 0.2, detail = "Loading file...")
         
         # Run the metadata validation
-        tbl_validation <- meta_format_validation(input$meta_file$datapath)
+        tbl_validation <- rbind(
+          xylo_format_validation(input$obs_file$datapath),
+          meta_format_validation(input$meta_file$datapath)
+          )
         
         # Store the results
         validation_results(tbl_validation)
@@ -1767,7 +1854,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
 
       # tbl3 Site
       country_code_droplist <- droplist2 %>% select(country_code) %>% filter(!is.na(country_code)) %>% pull()
-      koppen_climate_value_droplist <- droplist2 %>% select(koppen_climate_value) %>% filter(!is.na(koppen_climate_value)) %>% pull()
+      koppen_climate_value_droplist <- droplist2 %>% select(koppen_climate_value) %>% filter(!is.na(koppen_climate_value)) %>% pull() %>% as.character()
       koppen_climate_code_droplist <- droplist2 %>% select(koppen_climate_code) %>% filter(!is.na(koppen_climate_code)) %>% pull()
       koppen_climate_classification_droplist <- droplist2 %>% select(koppen_climate_classification) %>% filter(!is.na(koppen_climate_classification)) %>% pull()
       site_topography_droplist <- droplist2 %>% select(site_topography) %>% filter(!is.na(site_topography)) %>% pull()
@@ -1796,7 +1883,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       sample_observation_method_droplist <- droplist2 %>% select(sample_observation_method) %>% filter(!is.na(sample_observation_method)) %>% pull()
       # tbl6
       person_role_droplist <- droplist2 %>% select(person_role) %>% filter(!is.na(person_role)) %>% pull()
-      country_code_droplist <- droplist2 %>% select(country_code) %>% filter(!is.na(country_code)) %>% pull()
+      #country_code_droplist <- droplist2 %>% select(country_code) %>% filter(!is.na(country_code)) %>% pull()
       country_droplist <- droplist2 %>% select(country) %>% filter(!is.na(country)) %>% pull()
       # organization_name_droplist <- droplist2 %>% select(organization_name) %>% filter(!is.na(organization_name)) %>% pull()
 
@@ -1825,7 +1912,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         forest_stand_type = list(type = 'dropdown', options = forest_stand_type_droplist),
         forest_stand_structure = list(type = 'dropdown', options = forest_stand_structure_droplist),
         forest_stand_age = list(type = 'dropdown', options = forest_stand_age_droplist),
-        forest_stand_main_species_composition = list(type = 'character', min_length = 1, max_length = 128, regex_pattern = NULL, unique = TRUE), # %in% ITRDB
+        forest_stand_main_species_composition = list(type = 'character', min_length = 1, max_length = 128, regex_pattern = NULL), # %in% ITRDB
         forest_stand_management_intensity = list(type = 'dropdown', options = forest_stand_management_intensity),
         in_stand_dendrometer_data = list(type = 'checkbox'),
         in_stand_sapflux_data = list(type = 'checkbox'),
@@ -1841,8 +1928,8 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         # site_label = list(type = "dropdown", required = TRUE, options = unique(na.omit(data_in$tbl2$site_label)), unique = TRUE, readOnly = TRUE),
         site_label = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = NULL, readOnly = TRUE), # calculated
         # tree_label = list(type = "dropdown", required = TRUE, options = unique(na.omit(data_in$tbl2$tree_label)), unique = TRUE, readOnly = TRUE),
-        tree_label = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = NULL, unique = TRUE, readOnly = TRUE), # calculated
-        tree_code = list(type = 'character', required = TRUE, min_length = 1, max_length = 10, regex_pattern = NULL, unique = TRUE, readOnly = TRUE), # calculated
+        tree_label = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = NULL, unique = FALSE, unique.comp = TRUE, readOnly = TRUE), # THERE IS A HARDCORE SELECTION OF WHAT IS UNIQUE.COMP in RENDERER_CHAR!!!
+        tree_code = list(type = 'character', required = TRUE, min_length = 1, max_length = 10, regex_pattern = NULL, unique = FALSE, unique.comp = TRUE, readOnly = TRUE), # calculated
         # plot_label = list(type = "dropdown", required = TRUE, options = unique(na.omit(data_in$tbl2$plot_label)), unique = TRUE, readOnly = TRUE), # calculated
         plot_label = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = NULL, readOnly = TRUE), # calculated
         plot_code = list(type = 'character', required = TRUE, min_length = 1, max_length = 10, regex_pattern = NULL, readOnly = TRUE), # calculated
@@ -1904,19 +1991,21 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         person_order = list(type = 'numeric', required = TRUE, min_val = 1, max_val = NULL),
         last_name = list(type = 'character', required = TRUE, min_length = 1, max_length = 64),
         first_name = list(type = 'character', required = TRUE, min_length = 1, max_length = 64),
-        email = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = "/^[a-zA-Z0-9. _%+-]+@[a-zA-Z0-9"),
+        email = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"),
         orcid = list(type = 'character', required = TRUE, min_length = 1, max_length = 19),# , regex_pattern = "^\\d{4}-\\d{4}-\\d{4}-\\d{3}[0-9X]{1}$"
         organization_name = list(type = 'character', required = TRUE, min_length = 1, max_length = 128), # drop # calculated
-        research_organization_registry = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, "^\\+?[0-9 ()-]{7,20}$"), # drop # calculated
+        research_organization_registry = list(type = 'character', required = TRUE, min_length = 1, max_length = 64), # drop # calculated , regex_pattern = "^\\+?[0-9 ()-]{7,20}$"
         organization_name_finder = NULL, # empty
         department = list(type = 'character', min_length = 1, max_length = 64),
         street = list(type = 'character', min_length = 1, max_length = 64),
         postal_code = list(type = 'character', min_length = 1, max_length = 64),
         city = list(type = 'character', required = TRUE, min_length = 1, max_length = 64),
-        country = list(type = 'dropdown', required = TRUE, options = country_droplist), # drop
-        person_country_code = list(type = 'dropdown', required = TRUE, options = country_code_droplist), # calculated
+        #country = list(type = 'dropdown', required = TRUE, options = country_droplist), # drop
+        #person_country_code = list(type = 'dropdown', required = TRUE, options = country_code_droplist), # calculated
+        country = list(type = 'character', required = TRUE, min_length = 1, max_length = 64), # drop
+        person_country_code = list(type = 'character', required = TRUE, min_length = 1, max_length = 64), # calculated
         webpage = list(type = 'character', min_length = 1, max_length = 64, regex_pattern = "^https?://.+"),
-        phone_number = list(type = 'character', min_length = 1, max_length = 15, regex_pattern = "^\\+?[0-9 ()-]{7,20}$")
+        phone_number = list(type = 'character', min_length = 1, max_length = 128, regex_pattern = "^\\+?[0-9 ()-]{7,20}$")
       ),
 
       # Publication table
@@ -2018,7 +2107,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       column_configs <- column_configs()
       rhandsontable::rhandsontable(
         data_in$tbl1,
-        rowHeaders = NULL, contextMenu = FALSE, stretchH = 'all') %>% # , overflow = 'visible'
+        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all') %>% # , overflow = 'visible'
         hot_col_wrapper('site_label', column_configs$tbl1$site_label) %>%
         hot_col_wrapper('latitude', column_configs$tbl1$latitude) %>%
         hot_col_wrapper('longitude', column_configs$tbl1$longitude) %>%
@@ -2061,7 +2150,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       column_configs <- column_configs()
       rhandsontable::rhandsontable(
         data_in$tbl2,
-        rowHeaders = NULL, contextMenu = FALSE, stretchH = 'all', height = '300px') %>% # overflow = 'visible', 
+        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all', height = '300px') %>% # overflow = 'visible', 
         hot_col_wrapper('sample_date', column_configs$tbl2$sample_date) %>%
         hot_col_wrapper('sample_id', column_configs$tbl2$sample_id) %>%
         hot_col_wrapper('tree_species', column_configs$tbl2$tree_species) %>%
@@ -2085,14 +2174,6 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       data_in$tbl2 <- updated_data
     })
 
-    
-    #     output$testing1 <- renderPrint(
-    #   rhandsontable::hot_to_r(input$tbl1)
-    # )
-    # 
-    # output$testing2 <- renderPrint(
-    #   rhandsontable::hot_to_r(input$tbl2)
-    # )
     
     # TAB 4 site: -------------------------------------------------------------------
 
@@ -2165,7 +2246,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       
       rhandsontable::rhandsontable(
         data_meta$tbl3, 
-        rowHeaders = NULL, contextMenu = FALSE, stretchH = 'all') %>%
+        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all') %>%
         hot_col_wrapper('network_label', column_configs$tbl3$network_label) %>%
         hot_col_wrapper('network_code', column_configs$tbl3$network_code) %>%
         hot_col_wrapper('country_code', column_configs$tbl3$country_code) %>%
@@ -2218,7 +2299,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
 
       # Read the dataset
       tree_meta_info <- openxlsx::readWorkbook(WB_meta(), sheet = "tree", startRow = 1, colNames = TRUE)[-(1:6), ] %>%
-         dplyr::tibble()
+         dplyr::tibble() 
       dtree(tree_meta_info)  # Store in reactive value
     })
 
@@ -2274,7 +2355,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       column_configs <- column_configs()
       rhandsontable::rhandsontable(
         data_meta$tbl4,
-        rowHeaders = NULL, contextMenu = FALSE, stretchH = 'all') %>%
+        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all') %>%
         hot_col_wrapper('site_label', column_configs$tbl4$site_label) %>%
         hot_col_wrapper('tree_label', column_configs$tbl4$tree_label) %>%
         hot_col_wrapper('tree_code', column_configs$tbl4$tree_code) %>%
@@ -2359,7 +2440,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       column_configs <- column_configs()
       rhandsontable::rhandsontable(
         data_meta$tbl5,
-        rowHeaders = NULL, contextMenu = FALSE, stretchH = 'all') %>%
+        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all') %>%
         hot_col_wrapper('tree_label', column_configs$tbl5$tree_label) %>%
         hot_col_wrapper('sample_id', column_configs$tbl5$sample_id) %>%
         hot_col_wrapper('sample_date', column_configs$tbl5$sample_date) %>%
@@ -2391,7 +2472,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       updateTextInput(session, "orcid", value = "")
       updateTextInput(session, "organization_name", value = "")
       updateTextInput(session, "research_organization_registry", value = "")
-      updateTextInput(session, "organization_name_finder", value = "")
+      # updateTextInput(session, "organization_name_finder", value = "")
       updateTextInput(session, "department", value = "")
       updateTextInput(session, "street", value = "")
       updateTextInput(session, "postal_code", value = "")
@@ -2432,15 +2513,27 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
     observe({
       fields <- c("person_role", "last_name", "first_name", "email", "orcid", 
                   "organization_name", "research_organization_registry", 
-                  "organization_name_finder", "department", "street", 
+                   "department", "street", 
                   "postal_code", "city", "country", "person_country_code", 
                   "webpage", "phone_number")
       
       lapply(fields, function(field) {
-        # Proceed only if input[[field]] exists and is not NULL
-        if (!is.null(input[[field]]) && is.character(input[[field]])) {
-          border_color <- if (input[[field]] == "") "red" else "green"
-          shinyjs::runjs(sprintf('$("#%s").css("border", "2px solid %s");', field, border_color))
+        if (!is.null(input[[field]])) {
+          border_color <- if (isTruthy(input[[field]])) "green" else "red"
+          
+          # Attempt both normal and selectize style (textInput / selectInput)
+          shinyjs::runjs(sprintf('
+        var el = $("#%s");
+        if (el.length) {
+          el.css("border", "2px solid %s");
+        } else {
+          var selectizeEl = $("#%s .selectize-input");
+          if (selectizeEl.length) {
+            selectizeEl.css("border", "2px solid %s");
+          }
+        }',
+                                 field, border_color, field, border_color
+          ))
         }
       })
     })
@@ -2468,6 +2561,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       req(data_meta$tbl6)  # Ensure data is available
       data_meta$tbl6$person_order <- seq_len(nrow(data_meta$tbl6))
       column_configs <- column_configs()
+      
       rhandsontable::rhandsontable(
         data_meta$tbl6,
         rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all', selectCallback = TRUE) %>%
@@ -2488,7 +2582,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         hot_col_wrapper('person_country_code', column_configs$tbl6$person_country_code) %>%
         hot_col_wrapper('webpage', column_configs$tbl6$webpage) %>%
         hot_col_wrapper('phone_number', column_configs$tbl6$phone_number)
-    }) 
+    })
     
     observeEvent(input$tbl6_select$select$r, {
       selected_row(input$tbl6_select$select$r)
@@ -2504,7 +2598,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       isolate({
         fields <- c("person_role", "last_name", "first_name", "email", "orcid", 
                     "organization_name", "research_organization_registry", 
-                    "organization_name_finder", "department", "street", 
+                     "department", "street", 
                     "postal_code", "city", "country", "person_country_code", 
                     "webpage", "phone_number")
         
@@ -2530,7 +2624,8 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         orcid = as.character(input$orcid),
         organization_name = as.character(input$organization_name),
         research_organization_registry = as.character(input$research_organization_registry),
-        organization_name_finder = as.character(input$organization_name_finder),
+        # organization_name_finder = as.character(input$organization_name_finder),
+        organization_name_finder = NA_character_,
         department = as.character(input$department),
         street = as.character(input$street),
         postal_code = as.character(input$postal_code),
@@ -2541,7 +2636,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         phone_number = as.character(input$phone_number),
         stringsAsFactors = FALSE
       )
-      
+
       if (edit_mode() && !is.null(selected_row())) {
         data_meta$tbl6[selected_row(), names(new_entry)] <- as.list(new_entry[1, ])
       } else {
@@ -2550,7 +2645,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       
       clear_author_fields(session)
       form_visible(FALSE)
-      updateActionButton(session, "show_add_author", label = "Insert new Author")
+      updateActionButton(session, "show_add_author", label = , label = tagList(bsicons::bs_icon("person-plus"), "Add New Author"), class = "btn-success")
       
       edit_mode(FALSE)
       selected_row(NULL)
@@ -2790,9 +2885,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       get_safe <- function(x, default = "") {
         if (!is.null(x) && length(x) > 0) x else default
       }
-      # str(meta)
-      # print(str(meta$author))
-      # str(meta$DOI)
+
       # Only try extracting author if `meta` is a list and has `author`
       author_last <- tryCatch({
         if (is.list(meta) && !is.null(meta$author) && length(meta$author) > 0) {

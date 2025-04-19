@@ -1,13 +1,13 @@
-#' Metadata Format Validation
+#' Xylodata Format Validation
 #'
-#' @param meta_file Path to the metadata Excel file.
-#' @return A tibble containing validation issues for each sheet and column in the metadata.
+#' @param xylo_file Path to the metadata Excel file.
+#' @return A tibble containing validation issues for each sheet and column in the xylo data.
 #' @export
 #' 
 #' @examples
 #' \dontrun{
-#' meta_file <- system.file("extdata", "Ltal.2007_xylo_meta_2025-03-08.xlsx", package = "xyloR")
-#' report <- meta_format_validation(meta_file)
+#' xylo_file <- system.file("extdata", "Ltal.2007_xylo_data_2025-03-06_test.xlsx", package = "xyloR")
+#' report <- xylo_format_validation(xylo_file)
 #' }
 #' 
 #' @import readxl dplyr purrr stringr tibble utils magrittr
@@ -21,13 +21,14 @@
 #' @importFrom readxl excel_sheets read_excel
 #' @importFrom stats na.omit
 #' 
-meta_format_validation <- function(meta_file) {
+#' # xylo_file <- "~/Desktop/Ltal.2007_xylo_data_2025-03-06_test.xlsx"
+xylo_format_validation <- function(xylo_file) {
   
   # Load sheets excluding instructions and lookup tables
-  sheet_names <- setdiff(readxl::excel_sheets(meta_file), c("instructions", "DropList", "ListOfVariables"))
-  sheet_data <- setNames(lapply(sheet_names, function(sheet) readxl::read_excel(meta_file, sheet = sheet)), sheet_names)
-  sheet_listvariables <- readxl::read_excel(meta_file, sheet = "ListOfVariables")
-  sheet_droplist <- readxl::read_excel(meta_file, sheet = "DropList")
+  sheet_names <- setdiff(readxl::excel_sheets(xylo_file), c("instructions", "DropList", "ListOfVariables"))
+  sheet_data <- setNames(lapply(sheet_names, function(sheet) readxl::read_excel(xylo_file, sheet = sheet)), sheet_names)
+  sheet_listvariables <- readxl::read_excel(xylo_file, sheet = "ListOfVariables")
+  sheet_droplist <- readxl::read_excel(xylo_file, sheet = "DropList")
   
   # Extract column constraints
   col_constraints <- sheet_listvariables %>% dplyr::select(Table, Name, `cell constraints`, Mandatory, Domain, `data origin`)
@@ -36,7 +37,10 @@ meta_format_validation <- function(meta_file) {
   report <- list()
   
   for (sheet in sheet_names) {
-    data <- sheet_data[[sheet]][-1:-6,]  # Extract data from row 8 onward
+    ifelse(sheet == "Xylo_obs_data", 
+          data <- sheet_data[[sheet]][-1:-6,],  
+          data <- sheet_data[[sheet]][-1:-4,] %>% setNames(c("site_label", "latitude", "longitude", "elevation") ) 
+          ) 
     constraints <- col_constraints %>% dplyr::filter(Table == sheet)
     
     for (col in colnames(data)) {
@@ -115,29 +119,27 @@ meta_format_validation <- function(meta_file) {
   }
   
   # additional ad-hoc checks 
-
-  # 1. check plot_label in tree are unique
-  meta_tree_plot_label <- unique(na.omit(sheet_data[["tree"]][-1:-6, "plot_label"])) %>% pull()
-  if (any(duplicated(meta_tree_plot_label))) {
-    report[["tree"]][["plot_label"]] <- "Plot label in tree are not unique"
+  # 1. check site_label match 
+  obs_info_labels <- sheet_data[["obs_data_info"]][-1:-4,] %>%
+    setNames(c("site_label", "latitude", "longitude", "elevation")) %>%
+    pull(site_label)
+  
+  xylo_obs_labels <- unique(na.omit(sheet_data[["Xylo_obs_data"]][-1:-6, "site_label"])) %>% pull()
+  identical(sort(obs_info_labels), sort(xylo_obs_labels))
+  if (!identical(sort(obs_info_labels), sort(xylo_obs_labels))) {
+    report[["obs_data_info"]][["site_label"]] <- "Site labels in obs_data_info do not match those in Xylo_obs_data"
   }
   
-  # 2. check tree_label grouped by site and plot in tree are unique
-  meta_tree_tree_label_in_plot <- na.omit(sheet_data[["tree"]][-1:-6, c("site_label", "plot_label", "tree_label")])
-  is_unique <- meta_tree_tree_label_in_plot %>%
-    count(site_label, plot_label, tree_label) %>%
-    summarise(all_unique = all(n == 1)) %>%
-    pull(all_unique)
-  if (!is_unique) {
-    report[["tree"]][["plot_label"]] <- "Tree_label by plot_label and site_label in tree are not unique"
+  # 2. check site_label in obs_data_info are unique
+  if (any(duplicated(obs_info_labels))) {
+    report[["obs_data_info"]][["site_label"]] <- "Site labels in obs_data_info are not unique"
   }
-  
-  # 3. check doi in publication are unique
-  meta_publication_doi <- na.omit(sheet_data[["publication"]][-1:-6, "doi"]) %>% pull()
-  if (any(duplicated(meta_publication_doi))) {
-    report[["publication"]][["doi"]] <- "doi in publication are not unique"
-  }  
+ 
+  # 3. check sample_label in Xylo_obs_data are unique
+  xylo_obs_sample_labels <- na.omit(sheet_data[["Xylo_obs_data"]][-1:-6, "sample_label"]) %>% pull()
+  if (any(duplicated(xylo_obs_sample_labels))) {
+    report[["Xylo_obs_data"]][["sample_label"]] <- "Sample labels in Xylo_obs_data are not unique"
+  }
+   
   return(convert_report_to_tibble(report))
 }
-
-

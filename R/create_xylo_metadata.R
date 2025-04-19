@@ -87,12 +87,25 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
   # Read Header and Observation Data
   xylo_header <- openxlsx::readWorkbook(xylo_workbook, sheet = "obs_data_info", rows = 1:3, colNames = FALSE)
   xylo_obs <- openxlsx::readWorkbook(xylo_workbook, sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] %>% 
-    dplyr::tibble() %>%
-    # dplyr::mutate(sample_date = as.Date(as.numeric(sample_date), origin = "1899-12-30")) %>%
-    dplyr::mutate(sample_date = lubridate::parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))) %>% 
-    dplyr::filter(!is.na(sample_date))
+    dplyr::tibble() 
+  
+    # Check if sample_date is numeric (Excel date format)
+  if (!is.numeric(xylo_obs$sample_date)) {
+    xylo_obs <- xylo_obs %>%
+      dplyr::mutate(sample_date = as.Date(as.numeric(sample_date), origin = "1899-12-30")) %>% 
+      dplyr::filter(!is.na(sample_date))
+  } else {
+    # If not numeric, assume it's in character format and parse using lubridate
+    xylo_obs <- xylo_obs %>%
+      dplyr::mutate(sample_date = lubridate::parse_date_time(sample_date, orders = c("ymd", "dmy", "mdy"))) %>% 
+      dplyr::filter(!is.na(sample_date))
+  }
+  
   obs_data_info <- openxlsx::readWorkbook(xylo_workbook, sheet = "obs_data_info", startRow = 6, colNames = FALSE) %>% setNames(c("site_label", "latitude", "longitude", "elevation"))
 
+  
+  
+  
   # Prepare Person Tab
   person_role <- if_else(xylo_header[3, 2] == xylo_header[3, 4], "Contact and Data owner", "Data owner")
   
@@ -123,6 +136,7 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
   # Prepare Site Tab
   metadata_site <- xylo_obs %>%
     dplyr::count(network_label, site_label, name = "number_of_samples") %>% 
+    dplyr::arrange(network_label, site_label) %>%
     dplyr::left_join(., obs_data_info, by = c("site_label")) %>% 
     dplyr::transmute(
       network_label,
@@ -161,6 +175,7 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
   # Prepare Tree Tab
   metadata_tree <- xylo_obs %>%
     dplyr::count(site_label, plot_label, tree_label, tree_species, name = "number_of_samples") %>%
+    dplyr::arrange(site_label, plot_label, tree_label, tree_species) %>%
     dplyr::mutate(itrdb_species_code = tbl_droplist$itrdb_species_code[match(tree_species, tbl_droplist$tree_species)],
                   wood_type = tbl_droplist$tree_ring_structure[match(tree_species, tbl_droplist$tree_species)],
                   leaf_habit = tbl_droplist$leaf_habit[match(tree_species, tbl_droplist$tree_species)],
@@ -202,6 +217,7 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
   metadata_sample <- xylo_obs %>%
     dplyr::group_by(network_label, site_label, tree_label, sample_id, sample_label, sample_date) %>%
     dplyr::summarise(number_of_samples = dplyr::n(), .groups = "drop") %>%
+    dplyr::arrange(network_label, site_label, tree_label, sample_id, sample_date) %>%
     dplyr::transmute(tree_label,
                      sample_id,
                      sample_date,
