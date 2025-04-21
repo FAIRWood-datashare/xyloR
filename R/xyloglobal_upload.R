@@ -625,7 +625,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
           column(1, class = "bg-light p-2 border-end", style = "height: 100%;",
                  bslib::card(
                    bslib::card_body(
-                     actionButton('save_authors',
+                     actionButton('save_person',
                                   label = tagList(bsicons::bs_icon("save"), 'Submit Author Info'),
                                   class = "btn-primary")
                    )
@@ -888,6 +888,53 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
     })
     
 
+    save_and_validate <- function(data_reactive, sheet_name, wb_reactive, meta_file_input, obs_file_input, update_validation) {
+      req(data_reactive)
+      req(wb_reactive())
+      
+      # Read data and workbook
+      data <- data_reactive
+      wb <- wb_reactive()
+      
+      # Debug print
+      print(head(data))
+      print("wb")
+      print(wb)
+      
+      # Write to the specified sheet starting from row 8
+      openxlsx::writeData(
+        wb,
+        sheet = sheet_name,
+        x = data,
+        startCol = 1,
+        startRow = 8,
+        colNames = FALSE,
+        rowNames = FALSE
+      )
+      
+      # Save workbook back to the same path
+      openxlsx::saveWorkbook(wb, meta_file_input$datapath, overwrite = TRUE)
+      saved_file_path <- meta_file_input$datapath
+      
+      # Notify
+      showNotification(
+        paste0("Data written to sheet '", sheet_name, "' of ", meta_file_input$name,
+               " located at ", saved_file_path),
+        type = "message"
+      )
+      
+      # Debug path
+      print(paste("File saved at: ", saved_file_path))
+      
+      # Re-run validations
+      tbl_validation <- rbind(
+        xylo_format_validation(obs_file_input$datapath),
+        meta_format_validation(saved_file_path)
+      )
+      
+      # Store in validation reactiveVal
+      update_validation(tbl_validation)
+    }
     
     
     
@@ -1655,6 +1702,9 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
     output$validation_table <- DT::renderDataTable({
       shiny::req(validation_results(), nrow(validation_results()) > 0)
       
+      print(str(validation_results()))
+      print(head(validation_results()))
+      
       DT::datatable(
         validation_results(),
         options = list(
@@ -1907,6 +1957,8 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         site_aspect = list(type = 'numeric', min_val = 0, max_val = 360, regex_pattern = NULL, unique = TRUE), # integer
         site_slope = list(type = 'numeric', min_val = 0, max_val = NULL, regex_pattern = NULL, unique = TRUE), # integer
         site_topography = list(type = 'dropdown', options = site_topography_droplist),
+        temp = list(type = 'numeric', required = TRUE, min_val = -50, max_val = 50),
+        precip = list(type = 'numeric', required = TRUE, min_val = 0, max_val = NULL),
         soil_depth = list(type = 'dropdown', options = soil_depth_droplist),
         soil_water_holding_capacity = list(type = 'dropdown', options = soil_water_holding_capacity_droplist),
         forest_stand_type = list(type = 'dropdown', options = forest_stand_type_droplist),
@@ -2005,7 +2057,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         country = list(type = 'character', required = TRUE, min_length = 1, max_length = 64), # drop
         person_country_code = list(type = 'character', required = TRUE, min_length = 1, max_length = 64), # calculated
         webpage = list(type = 'character', min_length = 1, max_length = 64, regex_pattern = "^https?://.+"),
-        phone_number = list(type = 'character', min_length = 1, max_length = 128, regex_pattern = "^\\+?[0-9 ()-]{7,20}$")
+        phone_number = list(type = 'character', min_length = 1, max_length = 128, regex_pattern = "^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$")
       ),
 
       # Publication table
@@ -2286,7 +2338,16 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       data_meta$tbl3 <- updated_data
     })
     
-    
+    observeEvent(input$save_site, {
+      save_and_validate(
+        data_reactive = data_meta$tbl3,
+        sheet_name = "site",
+        wb_reactive = WB_meta,
+        meta_file_input = input$meta_file,
+        obs_file_input = input$obs_file,
+        update_validation = validation_results
+      )
+    })
     
     
      # TAB 5 tree: -------------------------------------------------------------------
@@ -2396,7 +2457,20 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       data_meta$tbl4 <- updated_data
     })
     
+    observeEvent(input$save_tree, {
+      save_and_validate(
+        data_reactive = data_meta$tbl4,
+        sheet_name = "tree",
+        wb_reactive = WB_meta,
+        meta_file_input = input$meta_file,
+        obs_file_input = input$obs_file,
+        update_validation = validation_results
+      )
+    })
     
+    
+  
+  
     # TAB 6 sample: -------------------------------------------------------------------
     
     #### dsample  ####
@@ -2460,6 +2534,17 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         hot_col_wrapper('on_section_anatomical_data', column_configs$tbl5$on_section_anatomical_data) %>%
         hot_col_wrapper('sample_comment', column_configs$tbl5$sample_comment)
     }) 
+    
+    observeEvent(input$save_sample, {
+      save_and_validate(
+        data_reactive = data_meta$tbl5,
+        sheet_name = "sample",
+        wb_reactive = WB_meta,
+        meta_file_input = input$meta_file,
+        obs_file_input = input$obs_file,
+        update_validation = validation_results
+      )
+    })
     
         # TAB 7 person: -------------------------------------------------------------------
     
@@ -2538,6 +2623,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       })
     })
     
+   
     #### dperson  ####
     dperson <- reactiveVal()
     data_meta <- reactiveValues(tbl6 = NULL)
@@ -2561,6 +2647,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       req(data_meta$tbl6)  # Ensure data is available
       data_meta$tbl6$person_order <- seq_len(nrow(data_meta$tbl6))
       column_configs <- column_configs()
+      print(head(data_meta$tbl6))
       
       rhandsontable::rhandsontable(
         data_meta$tbl6,
@@ -2588,6 +2675,43 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       selected_row(input$tbl6_select$select$r)
     })
     
+    observeEvent(input$add_author, {
+      new_entry <- data.frame(
+        person_role = as.character(input$person_role),
+        person_order = input$person_order,
+        last_name = as.character(input$last_name),
+        first_name = as.character(input$first_name),
+        email = as.character(input$email),
+        orcid = as.character(input$orcid),
+        organization_name = as.character(input$organization_name),
+        research_organization_registry = as.character(input$research_organization_registry),
+        # organization_name_finder = as.character(input$organization_name_finder),
+        organization_name_finder = NA_character_,
+        department = as.character(input$department),
+        street = as.character(input$street),
+        postal_code = as.character(input$postal_code),
+        city = as.character(input$city),
+        country = as.character(input$country),
+        person_country_code = as.character(input$person_country_code),
+        webpage = as.character(input$webpage),
+        phone_number = as.character(input$phone_number),
+        stringsAsFactors = FALSE
+      )
+      
+      if (edit_mode() && !is.null(selected_row())) {
+        data_meta$tbl6[selected_row(), names(new_entry)] <- as.list(new_entry[1, ])
+      } else {
+        data_meta$tbl6 <- rbind(data_meta$tbl6, new_entry)
+      }
+      
+      clear_author_fields(session)
+      form_visible(FALSE)
+      updateActionButton(session, "show_add_author", label = tagList(bsicons::bs_icon("person-plus"), "Add New Author"))
+      
+      edit_mode(FALSE)
+      selected_row(NULL)
+    })
+
     observeEvent(input$update_author, {
       req(selected_row())
       
@@ -2612,43 +2736,6 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
           updateTextInput(session, field, value = value)
         }
       })
-    })
-    
-    observeEvent(input$add_author, {
-      new_entry <- data.frame(
-        person_role = as.character(input$person_role),
-        person_order = input$person_order,
-        last_name = as.character(input$last_name),
-        first_name = as.character(input$first_name),
-        email = as.character(input$email),
-        orcid = as.character(input$orcid),
-        organization_name = as.character(input$organization_name),
-        research_organization_registry = as.character(input$research_organization_registry),
-        # organization_name_finder = as.character(input$organization_name_finder),
-        organization_name_finder = NA_character_,
-        department = as.character(input$department),
-        street = as.character(input$street),
-        postal_code = as.character(input$postal_code),
-        city = as.character(input$city),
-        country = as.character(input$country),
-        person_country_code = as.character(input$person_country_code),
-        webpage = as.character(input$webpage),
-        phone_number = as.character(input$phone_number),
-        stringsAsFactors = FALSE
-      )
-
-      if (edit_mode() && !is.null(selected_row())) {
-        data_meta$tbl6[selected_row(), names(new_entry)] <- as.list(new_entry[1, ])
-      } else {
-        data_meta$tbl6 <- rbind(data_meta$tbl6, new_entry)
-      }
-      
-      clear_author_fields(session)
-      form_visible(FALSE)
-      updateActionButton(session, "show_add_author", label = , label = tagList(bsicons::bs_icon("person-plus"), "Add New Author"), class = "btn-success")
-      
-      edit_mode(FALSE)
-      selected_row(NULL)
     })
     
     observeEvent(input$delete_author, {
@@ -2832,6 +2919,17 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       
     })
     
+    observeEvent(input$save_person, {
+      save_and_validate(
+        data_reactive = data_meta$tbl6,
+        sheet_name = "person",
+        wb_reactive = WB_meta,
+        meta_file_input = input$meta_file,
+        obs_file_input = input$obs_file,
+        update_validation = validation_results
+      )
+    })
+    
     
     # TAB 8 publication: -------------------------------------------------------------------
 
@@ -2946,6 +3044,16 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
     })
     
     
+    observeEvent(input$save_publication, {
+      save_and_validate(
+        data_reactive = data_meta$tbl7,
+        sheet_name = "publication",
+        wb_reactive = WB_meta,
+        meta_file_input = input$meta_file,
+        obs_file_input = input$obs_file,
+        update_validation = validation_results
+      )
+    })
     
     
     

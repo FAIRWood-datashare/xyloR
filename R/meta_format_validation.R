@@ -22,7 +22,7 @@
 #' @importFrom stats na.omit
 #' 
 meta_format_validation <- function(meta_file) {
-  
+  req(meta_file)
   # Load sheets excluding instructions and lookup tables
   sheet_names <- setdiff(readxl::excel_sheets(meta_file), c("instructions", "DropList", "ListOfVariables"))
   sheet_data <- setNames(lapply(sheet_names, function(sheet) readxl::read_excel(meta_file, sheet = sheet)), sheet_names)
@@ -38,6 +38,7 @@ meta_format_validation <- function(meta_file) {
   for (sheet in sheet_names) {
     data <- sheet_data[[sheet]][-1:-6,]  # Extract data from row 8 onward
     constraints <- col_constraints %>% dplyr::filter(Table == sheet)
+    
     
     for (col in colnames(data)) {
       constraint_row <- constraints %>% dplyr::filter(Name == col)
@@ -113,8 +114,6 @@ meta_format_validation <- function(meta_file) {
       tibble(Sheet = sheet, Column = names(report_list[[sheet]]), Issue = unlist(report_list[[sheet]]))
     })
   }
-  
-  # additional ad-hoc checks 
 
   # 1. check plot_label in tree are unique
   meta_tree_plot_label <- unique(na.omit(sheet_data[["tree"]][-1:-6, "plot_label"])) %>% pull()
