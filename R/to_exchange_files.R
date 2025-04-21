@@ -42,7 +42,7 @@ to_exchange_files <- function(obs_file_path, meta_file_path, dir = tempdir(), da
 # OBSERVATIONS DATA
 # obs_file <- openxlsx::loadWorkbook(input$obs_file$datapath)  # Load the workbook
 # obs_file <- system.file("extdata", "Ltal.2007_xylo_data_2025-03-06.xlsx", package = "xyloR")
-obs_sheet_names <- setdiff(readxl::excel_sheets(obs_file_path), c("Instructions", "DropList", "ListOfVariables"))
+obs_sheet_names <- setdiff(readxl::excel_sheets(obs_file_path), c("instructions", "DropList", "ListOfVariables"))
 obs_sheet_data <- setNames(lapply(obs_sheet_names, function(sheet) readxl::read_excel(obs_file_path, sheet = sheet)), obs_sheet_names)
 obs_sheet_data[[1]] <- obs_sheet_data[[1]][-1:-6, ]  # Remove first 6 rows for the first sheet
 colnames(obs_sheet_data[[2]]) <- as.character(obs_sheet_data[[2]][3, ])

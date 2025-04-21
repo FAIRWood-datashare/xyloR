@@ -1073,10 +1073,8 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       wb <- openxlsx::loadWorkbook(input$obs_file$datapath)  # Load the workbook
       
       # Save a copy in temp folder
-      obs_file_saved <- file.path(reactive_temp_folder(), basename(input$obs_file$name))
+      obs_file_saved <- file.path(reactive_temp_folder(), input$obs_file$name)
       openxlsx::saveWorkbook(wb, obs_file_saved, overwrite = TRUE)
-      
-      # print(list.files(reactive_temp_folder()))
       
       # Read site information from the "obs_data_info" sheet
       site_info <- openxlsx::readWorkbook(wb, sheet = "obs_data_info", startRow = 6, colNames = FALSE)
@@ -1475,14 +1473,14 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
     shiny::observeEvent(input$meta_file, {
       shiny::req(input$meta_file)  # Ensure the metadata file is uploaded before proceeding
       
-      # Define the save path for the metadata file
-      meta_file_saved <- file.path(reactive_temp_folder(), basename(input$meta_file$name))
+      # wb <- openxlsx::loadWorkbook(input$obs_file$datapath)  # Load the workbook
       
-      # print(list.files(reactive_temp_folder()))
+      # Define the save path for the metadata file
+      meta_file_saved <- file.path(reactive_temp_folder(), input$meta_file$name)
       
   # Save a copy in temp folder
       file.copy(input$meta_file$datapath, meta_file_saved, overwrite = TRUE)
-       
+      
       # Show progress bar for validation
       shiny::withProgress(message = 'Validating metadata...', value = 0, {
         shiny::setProgress(value = 0.2, detail = "Loading file...")
@@ -1812,6 +1810,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         paste(input$dataset_name, "_Exchange_Files_", Sys.Date(), ".zip", sep = "")
       },
       
+      
       content = function(file) {
         
         # Ensure the user has uploaded both files
@@ -1821,21 +1820,29 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
 
         # Get the paths to the uploaded final files
         req(input$obs_file, input$meta_file)
-        # obs_file_path <- input$obs_file$name
-        # meta_file_path <- input$meta_file$name
         # Define paths to the saved files in the reactive temp folder
-        obs_file_saved <- file.path(reactive_temp_folder(), basename(input$obs_file$name))
-        meta_file_saved <- file.path(reactive_temp_folder(), basename(input$meta_file$name))
+        # obs_file_saved <- file.path(reactive_temp_folder(), input$obs_file$name)
+        obs_file_saved <- list.files(
+          reactive_temp_folder(),
+          pattern = "xylo_data.*\\.xlsx$",   # regex for file with 'xylo_data' and '.xlsx'
+          full.names = TRUE
+        )[1]  # Take the first match
         
+        meta_file_saved <- list.files(
+          reactive_temp_folder(),
+          pattern = "xylo_meta.*\\.xlsx$",
+          full.names = TRUE
+        )[1]
         
         # Call the function to process and save the exchange files
         result <- tryCatch({
-          to_exchange_files(obs_file_saved, meta_file_saved, dir = reactive_temp_folder(), dataset_name = dataset_name_reactive())  # Process the files
+          to_exchange_files(obs_file_saved, meta_file_saved, dir = reactive_temp_folder(), dataset_name = dataset_name_reactive())
         }, error = function(e) {
-          stop(paste("Error: ", e$message))
+          print("Error in to_exchange_files:")
+          print(conditionMessage(e))     # More concise
+          print(traceback())             # Optional: gets traceback if interactive
+          stop(e)                        # Re-throw the real error
         })
-        
-        # print(list.files(reactive_temp_folder()))
         
         # List all files inside the folder without the parent directory
         files_to_zip <- list.files(reactive_temp_folder(), full.names = TRUE, recursive = TRUE)
