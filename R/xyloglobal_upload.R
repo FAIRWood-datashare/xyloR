@@ -891,15 +891,10 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
     save_and_validate <- function(data_reactive, sheet_name, wb_reactive, meta_file_input, obs_file_input, update_validation) {
       req(data_reactive)
       req(wb_reactive())
-      
+
       # Read data and workbook
       data <- data_reactive
       wb <- wb_reactive()
-      
-      # Debug print
-      print(head(data))
-      print("wb")
-      print(wb)
       
       # Write to the specified sheet starting from row 8
       openxlsx::writeData(
@@ -907,30 +902,43 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         sheet = sheet_name,
         x = data,
         startCol = 1,
-        startRow = 8,
+        startRow = ifelse(sheet_name == "obs_data_info", 6, 8),
         colNames = FALSE,
         rowNames = FALSE
       )
       
       # Save workbook back to the same path
-      openxlsx::saveWorkbook(wb, meta_file_input$datapath, overwrite = TRUE)
-      saved_file_path <- meta_file_input$datapath
+      if (identical(wb_reactive(), WB_meta())) {
+        # Save to meta file
+        openxlsx::saveWorkbook(wb, meta_file_input$datapath, overwrite = TRUE)
+        saved_file_path <- meta_file_input$datapath
+      } else {
+        # Save to obs file
+        openxlsx::saveWorkbook(wb, obs_file_input$datapath, overwrite = TRUE)
+        saved_file_path <- obs_file_input$datapath
+      }
       
       # Notify
       showNotification(
-        paste0("Data written to sheet '", sheet_name, "' of ", meta_file_input$name,
+        paste0("Data written to sheet '", sheet_name, "' of ", ifelse(identical(wb_reactive(), WB_meta()), meta_file_input$name, obs_file_input$datapath),
                " located at ", saved_file_path),
         type = "message"
       )
       
       # Debug path
       print(paste("File saved at: ", saved_file_path))
-      
+     
       # Re-run validations
-      tbl_validation <- rbind(
+      if (identical(wb_reactive(), WB_meta())) {
+        tbl_validation <- rbind(
         xylo_format_validation(obs_file_input$datapath),
         meta_format_validation(saved_file_path)
-      )
+        ) }
+      else {
+        tbl_validation <- rbind(
+          xylo_format_validation(saved_file_path),
+          meta_format_validation(meta_file_input$datapath)
+        ) }
       
       # Store in validation reactiveVal
       update_validation(tbl_validation)
@@ -1702,9 +1710,6 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
     output$validation_table <- DT::renderDataTable({
       shiny::req(validation_results(), nrow(validation_results()) > 0)
       
-      print(str(validation_results()))
-      print(head(validation_results()))
-      
       DT::datatable(
         validation_results(),
         options = list(
@@ -2057,7 +2062,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         country = list(type = 'character', required = TRUE, min_length = 1, max_length = 64), # drop
         person_country_code = list(type = 'character', required = TRUE, min_length = 1, max_length = 64), # calculated
         webpage = list(type = 'character', min_length = 1, max_length = 64, regex_pattern = "^https?://.+"),
-        phone_number = list(type = 'character', min_length = 1, max_length = 128, regex_pattern = "^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$")
+        phone_number = list(type = 'character', min_length = 1, max_length = 128, regex_pattern = NULL)
       ),
 
       # Publication table
@@ -2217,7 +2222,15 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         hot_cols(manualColumnResize = TRUE)
     })
 
-    # Sync data on user input
+    # Sync tbl1 data on user input
+    observeEvent(input$tbl1, {
+      req(input$tbl1)
+      user_data <- hot_to_r(input$tbl1)
+      # Update the reactive data object
+      data_in$tbl1 <- user_data
+    })
+    
+    # Sync tbl2 data on user input
     observeEvent(input$tbl2, {
       req(input$tbl2)
       user_data <- hot_to_r(input$tbl2)
@@ -2225,6 +2238,26 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       # Update the reactive data object
       data_in$tbl2 <- updated_data
     })
+    
+    observeEvent(input$save_obs, {
+      save_and_validate(
+        data_reactive = data_in$tbl1,
+        sheet_name = "obs_data_info",
+        wb_reactive = WB,
+        meta_file_input = input$meta_file,
+        obs_file_input = input$obs_file,
+        update_validation = validation_results
+      )
+      save_and_validate(
+        data_reactive = data_in$tbl2 %>% dplyr::select(-itrdb_species_code),
+        sheet_name = "Xylo_obs_data",
+        wb_reactive = WB,
+        meta_file_input = input$meta_file,
+        obs_file_input = input$obs_file,
+        update_validation = validation_results
+      )
+    })
+    
 
     
     # TAB 4 site: -------------------------------------------------------------------
@@ -2339,7 +2372,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
     })
     
     observeEvent(input$save_site, {
-      save_and_validate(
+     save_and_validate(
         data_reactive = data_meta$tbl3,
         sheet_name = "site",
         wb_reactive = WB_meta,
@@ -2647,7 +2680,6 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       req(data_meta$tbl6)  # Ensure data is available
       data_meta$tbl6$person_order <- seq_len(nrow(data_meta$tbl6))
       column_configs <- column_configs()
-      print(head(data_meta$tbl6))
       
       rhandsontable::rhandsontable(
         data_meta$tbl6,
