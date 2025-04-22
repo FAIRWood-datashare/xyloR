@@ -213,7 +213,7 @@ xyloglobal_upload <- function() {
       }
     ")), 
     tags$script(HTML("
-  $(document).on('click', '#show_add_author, #update_author', function() {
+  $(document).on('click', '#show_add_author, #update_author, #show_add_publication, #update_publication', function() {
     setTimeout(function() {
       $('.accordion-button').each(function() {
         if ($(this).hasClass('collapsed')) {
@@ -802,43 +802,169 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       
       
       
-      # TAB 8: View publication -----------------------------------------------
+      # # TAB 8: View publication -----------------------------------------------
+      # nav_panel(
+      #     title = div(id = "meta_publication", "Publication"),
+      #     value = "Publication",
+      #     
+      #     fluidRow(
+      #       column(1, class = "bg-light p-2 border-end", style = "height: 100%;",
+      #              bslib::card(
+      #                bslib::card_body(
+      #                  actionButton('save_publication', "Save publication", icon = icon('save'))
+      #                )
+      #              )
+      #       ),
+      #       
+      #       column(11, style = "height: 100%;",
+      #              bslib::card(
+      #                textInput("doi_input", "Enter DOI:"),
+      #                actionButton("search_doi", "Search for DOI", class = "btn btn-info"),
+      #                actionButton("add_publication", "Add Publication")
+      #              ),
+      #              bslib::card(
+      #                h6('DOI search result:'),
+      #                textOutput("doi_result"),
+      #                verbatimTextOutput("testing")
+      #              ),
+      #              bslib::card(
+      #                bslib::card_header("Publication Metadata"),
+      #                bslib::card_body(
+      #                  div(rhandsontable::rHandsontableOutput("tbl7"))
+      #                )
+      #              )
+      #       )
+      #     )
+      #   )
+      # ,
+      #      
+      
+      # TAB 9: View Publication -----------------------------------------------
       nav_panel(
-          title = div(id = "meta_publication", "Publication"),
-          value = "Publication",
+        title = div(id = "meta_publication", "Publication"),
+        value = "Publication",
+        
+        fluidRow(
+          # Left Sidebar - Save Button
+          column(1, class = "bg-light p-2 border-end", style = "height: 100%;",
+                 bslib::card(
+                   bslib::card_body(
+                     actionButton('save_publication', 
+                                  label = tagList(bsicons::bs_icon("save"), 'Submit Publication Info'),
+                                  class = "btn-primary")
+                   )
+                 )
+          ),
           
-          fluidRow(
-            column(1, class = "bg-light p-2 border-end", style = "height: 100%;",
-                   bslib::card(
-                     bslib::card_body(
-                       actionButton('save_publication', "Save publication", icon = icon('save'))
+          # Right Column - Main Content
+          column(11, style = "height: 100%;",
+                 
+                 shinyjs::useShinyjs(),
+                 shinyjs::hidden(verbatimTextOutput("publication_form_visible", placeholder = TRUE)),
+                 
+                 # Publication Metadata Table and Action Buttons
+                 bslib::card(
+                   tooltip(
+                     bslib::card_header("Publication Table"),
+                     bsicons::bs_icon("question-circle"),
+                     HTML(
+                       "This is the publication metadata table. You can view, add, update, delete, and reorder publications using the buttons below.<br><br>
+         Cells with <b>yellow text</b> are editable.<br>
+         Cells highlighted in <b>red</b> indicate validation issues and require correction.<br>
+         Hover over a red cell to see a tooltip explaining the issue."
+                     ), placement = "right"
+                   ),
+                   bslib::card_body(
+                     rHandsontableOutput("tbl7"),
+                     br(),
+                     div(style = "display: flex; gap: 10px; flex-wrap: wrap; align-items: center;",
+                         
+                         tooltip(
+                           actionButton("show_add_publication", label = tagList(bsicons::bs_icon("book"), "Add New Publication"), class = "btn-success"),
+                           "Add a new publication to the table. This opens the metadata form to help guide data entry.",
+                           placement = "right"
+                         ),
+                         
+                         tooltip(
+                           actionButton("update_publication", label = tagList(bsicons::bs_icon("pencil-square"), "Update Publication"), class = "btn-warning"),
+                           "Edit metadata of a selected publication. Choose a publication in the table to activate this button.",
+                           placement = "right"
+                         ),
+                         
+                         tooltip(
+                           actionButton("delete_publication", label = tagList(bsicons::bs_icon("trash"), "Delete Publication"), class = "btn-danger"),
+                           "Delete the selected publication from the table. You must first select a row.",
+                           placement = "right"
+                         ),
+                         
+                         tooltip(
+                           actionButton("apply_publication_order", label = tagList(bsicons::bs_icon("sort-down"), "Apply Publication Order")),
+                           "Reorder publications in the table according to the values in the 'publication_order' column. Edit that column and click this button to sort accordingly.",
+                           placement = "right"
+                         )
                      )
                    )
-            ),
-            
-            column(11, style = "height: 100%;",
-                   bslib::card(
-                     textInput("doi_input", "Enter DOI:"),
-                     actionButton("search_doi", "Search for DOI", class = "btn btn-info"),
-                     actionButton("add_publication", "Add Publication")
-                   ),
-                   bslib::card(
-                     h6('DOI search result:'),
-                     textOutput("doi_result"),
-                     verbatimTextOutput("testing")
-                   ),
-                   bslib::card(
-                     bslib::card_header("Publication Metadata"),
-                     bslib::card_body(
-                       div(rhandsontable::rHandsontableOutput("tbl7"))
+                 ),
+                 
+                 ## Conditional Panel - Show Form When Active
+                 conditionalPanel(
+                   condition = "output.publication_form_visible == 'TRUE'",
+                   
+                   # Accordion for DOI Search and Metadata Entry
+                   bslib::accordion(
+                     bslib::accordion_panel(
+                       title = "DOI Search",
+                       id = "card_header_doi",
+                       tooltip(
+                         bsicons::bs_icon("question-circle"),
+                         "Use this tool to search for a publication using its DOI. Retrieved info will populate the form below.",
+                         placement = "right"
+                       ),
+                       fluidRow(
+                         column(3,
+                                tooltip(
+                                  actionButton("search_doi", label = tagList(bsicons::bs_icon("search"), "Retrieve from DOI DB")),
+                                  "Search the DOI database with the provided DOI. This will fill the form below with the retrieved data.",
+                                  placement = "right"
+                                )
+                         ),
+                         column(3,
+                                textInput("doi_input", "Enter DOI:", placeholder = "e.g. 10.1111/j.1469-8137.2005.00492.x")
+                         )
+                       ),
+                       verbatimTextOutput("doi_result")
+                     ),
+                     
+                     bslib::accordion_panel(
+                       title = "Publication Metadata",
+                       id = "card_header_metadata",
+                       tooltip(
+                         bsicons::bs_icon("question-circle"),
+                         "Fill in or edit the metadata of a publication. Use DOI search to auto-complete relevant fields.",
+                         placement = "right"
+                       ),
+                       fluidRow(
+                         column(3, textInput("first_author_last_name", HTML("First Author <span style='color:red;'>*</span>"))),
+                         column(9, textInput("title", HTML("Title <span style='color:red;'>*</span>")))
+                         
+                       ),
+                       fluidRow(
+                         column(4, textInput("publication_year", HTML("Year <span style='color:red;'>*</span>"))),
+                         column(4, textInput("journal", HTML("Journal <span style='color:red;'>*</span>"))),
+                         column(4, textInput("doi", HTML("DOI <span style='color:red;'>*</span>")))
+                       ),
+                       br(),
+                       tooltip(
+                         actionButton("add_publication_data", label = tagList(bsicons::bs_icon("book-fill"), "Add Publication"), class = "btn-success"),
+                         "Click to add the current publication metadata to the publication table above. All required fields must be filled.",
+                         placement = "right"
+                       )
                      )
                    )
-            )
+                 )
           )
         )
-      ,
-                    
-      
+      )
      # -----------------------------------------------
     )
   )
@@ -2745,7 +2871,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       
       clear_author_fields(session)
       form_visible(FALSE)
-      updateActionButton(session, "show_add_author", label = tagList(bsicons::bs_icon("person-plus"), "Add New Author"))
+      # updateActionButton(session, "show_add_author", label = tagList(bsicons::bs_icon("person-plus"), "Add New Author"))
       
       edit_mode(FALSE)
       selected_row(NULL)
@@ -2970,118 +3096,360 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
     })
     
     
-    # TAB 8 publication: -------------------------------------------------------------------
-
-    # Reactive values to store citation and metadata
-    data_meta <- reactiveValues(
-      last_doi_citation = NULL,
-      last_doi_metadata = NULL,
-      tbl7 = NULL
-    )
     
-    # On Search: Fetch citation and metadata
+    
+    
+    # # TAB 8 publication: -------------------------------------------------------------------
+    # 
+    # # Reactive values to store citation and metadata
+    # data_meta <- reactiveValues(
+    #   last_doi_citation = NULL,
+    #   last_doi_metadata = NULL,
+    #   tbl7 = NULL
+    # )
+    # 
+    # # On Search: Fetch citation and metadata
+    # observeEvent(input$search_doi, {
+    #   req(input$doi_input)
+    #   doi_input <- URLencode(input$doi_input)
+    #   
+    #   # Citation string (APA style)
+    #   citation_url <- sprintf("https://citation.doi.org/format?doi=%s&style=apa&lang=en-US", doi_input)
+    #   citation_res <- httr::GET(citation_url, httr::timeout(5))
+    #   
+    #   # Metadata JSON
+    #   metadata_url <- sprintf("https://citation.doi.org/metadata?doi=%s", doi_input)
+    #   metadata_res <- httr::GET(metadata_url, httr::timeout(5))
+    #   
+    #   output$doi_result <- renderText({
+    #     if (httr::status_code(citation_res) == 200) {
+    #       citation_text <- httr::content(citation_res, as = "text", encoding = "UTF-8")
+    #       data_meta$last_doi_citation <- citation_text
+    #       citation_text
+    #     } else {
+    #       paste0("Error while retrieving citation: ", httr::status_code(citation_res))
+    #     }
+    #   })
+    #   
+    #   # Store metadata silently
+    #   if (httr::status_code(metadata_res) == 200) {
+    #     meta_data <- tryCatch({
+    #       jsonlite::fromJSON(httr::content(metadata_res, as = "text", encoding = "UTF-8"))
+    #     }, error = function(e) NULL)
+    #     data_meta$last_doi_metadata <- meta_data
+    #   } else {
+    #     data_meta$last_doi_metadata <- NULL
+    #   }
+    # })
+    # 
+    # # Add publication using metadata
+    # observeEvent(input$add_publication, {
+    #   meta <- data_meta$last_doi_metadata
+    #   req(meta)
+    #   
+    #   # Safe extraction with fallback to empty string
+    #   get_safe <- function(x, default = "") {
+    #     if (!is.null(x) && length(x) > 0) x else default
+    #   }
+    # 
+    #   # Only try extracting author if `meta` is a list and has `author`
+    #   author_last <- tryCatch({
+    #     if (is.list(meta) && !is.null(meta$author) && length(meta$author) > 0) {
+    #       get_safe(meta$author$family[[1]])
+    #     } else {
+    #       ""
+    #     }
+    #   }, error = function(e) "")
+    #   
+    #   new_pub <- data.frame(
+    #     first_author_last_name = author_last,
+    #     title = get_safe(meta$title),
+    #     publication_year = as.character(get_safe(meta$issued$`date-parts`[[1]][1])),
+    #     journal = get_safe(meta$`container-title`),
+    #     doi = as.character(get_safe(meta$DOI)),
+    #     stringsAsFactors = FALSE
+    #   )
+    #   
+    #   if (is.null(data_meta$tbl7)) {
+    #     data_meta$tbl7 <- new_pub
+    #   } else {
+    #     data_meta$tbl7 <- dplyr::bind_rows(data_meta$tbl7, new_pub)
+    #   }
+    # })
+    # 
+    # #### dpublication ####
+    # dpublication <- reactiveVal()
+    # data_meta <- reactiveValues(tbl7 = NULL, last_doi_citation = NULL)
+    # 
+    # # Read and store publication metadata from uploaded Excel file
+    # observe({
+    #   req(input$meta_file)
+    #   publication_meta_info <- openxlsx::readWorkbook(WB_meta(), sheet = "publication", startRow = 1, colNames = TRUE)[-(1:6), ] %>%
+    #     dplyr::tibble()
+    #   dpublication(publication_meta_info)
+    # })
+    # 
+    # # Sync dpublication into data_meta
+    # observeEvent(dpublication(), {
+    #   data_meta$tbl7 <- dpublication()
+    # })
+    # 
+    # 
+    # # Render editable publication table
+    # output$tbl7 <- rhandsontable::renderRHandsontable({
+    #   req(data_meta$tbl7, column_configs)
+    #   column_configs <- column_configs()
+    #   
+    #   rhandsontable::rhandsontable(
+    #     data_meta$tbl7,
+    #     rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all'
+    #   ) %>%
+    #     hot_col_wrapper('first_author_last_name', column_configs$tbl7$first_author_last_name) %>%
+    #     hot_col_wrapper('title', column_configs$tbl7$title) %>%
+    #     hot_col_wrapper('publication_year', column_configs$tbl7$publication_year) %>%
+    #     hot_col_wrapper('journal', column_configs$tbl7$journal) %>%
+    #     hot_col_wrapper('doi', column_configs$tbl7$doi)
+    # })
+    # 
+    # 
+    # observeEvent(input$save_publication, {
+    #   save_and_validate(
+    #     data_reactive = data_meta$tbl7,
+    #     sheet_name = "publication",
+    #     wb_reactive = WB_meta,
+    #     meta_file_input = input$meta_file,
+    #     obs_file_input = input$obs_file,
+    #     update_validation = validation_results
+    #   )
+    # })
+    # 
+    # 
+    # 
+    # 
+    
+    
+    # TAB 9: -------------------------------------------------------------------
+    # Clear publication fields
+    clear_publication_fields <- function(session) {
+      updateTextInput(session, "first_author_last_name", value = "")
+      updateTextInput(session, "title", value = "")
+      updateTextInput(session, "publication_year", value = "")
+      updateTextInput(session, "journal", value = "")
+      updateTextInput(session, "doi", value = "")
+      updateTextInput(session, "doi_input", value = "")
+    }
+    
+    publication_form_visible <- reactiveVal(FALSE)
+    publication_edit_mode <- reactiveVal(FALSE)
+    publication_selected_row <- reactiveVal(NULL)
+    
+    # Show form when Add Publication is clicked
+    observeEvent(input$show_add_publication, {
+      publication_form_visible(TRUE)
+      publication_edit_mode(FALSE)
+      clear_publication_fields(session)
+    })
+    
+    output$publication_form_visible <- renderText({
+      as.character(publication_form_visible())
+    })
+    outputOptions(output, "publication_form_visible", suspendWhenHidden = FALSE)
+    
+    #### dpublication ####
+    dpublication <- reactiveVal()
+    data_meta <- reactiveValues(tbl7 = NULL, last_doi_citation = NULL, last_doi_metadata = NULL)
+    
+    # Load from file
+    observe({
+      req(input$meta_file)
+      publication_meta_info <- openxlsx::readWorkbook(WB_meta(), sheet = "publication", startRow = 1, colNames = TRUE)[-(1:6), ] %>%
+        tibble::tibble()
+      dpublication(publication_meta_info)
+    })
+    
+    # Sync to table
+    observeEvent(dpublication(), {
+      data_meta$tbl7 <- dpublication()
+    })
+    
+    # Render publication table
+    output$tbl7 <- rhandsontable::renderRHandsontable({
+      req(data_meta$tbl7, column_configs)
+      rhandsontable(
+        data_meta$tbl7,
+        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all', selectCallback = TRUE
+      ) %>%
+        hot_col_wrapper('first_author_last_name', column_configs()$tbl7$first_author_last_name) %>%
+        hot_col_wrapper('title', column_configs()$tbl7$title) %>%
+        hot_col_wrapper('publication_year', column_configs()$tbl7$publication_year) %>%
+        hot_col_wrapper('journal', column_configs()$tbl7$journal) %>%
+        hot_col_wrapper('doi', column_configs()$tbl7$doi)
+    })
+    
+    observeEvent(input$tbl7_select$select$r, {
+      selected_row <- input$tbl7_select$select$r
+      publication_selected_row(selected_row)  # Store the selected row
+      
+      # Enable buttons when a row is selected
+      if (!is.null(selected_row) && length(selected_row) > 0) {
+        shinyjs::enable("update_publication")
+        shinyjs::enable("delete_publication")
+      } else {
+        shinyjs::disable("update_publication")
+        shinyjs::disable("delete_publication")
+      }
+    })
+    
+    
+    # Add or Edit
+    observeEvent(input$add_publication_data, {
+      req(input$first_author_last_name)
+      req(input$title)
+      req(input$publication_year)
+      req(input$journal)
+      req(input$doi)
+      
+      new_row <- data.frame(
+        first_author_last_name = input$first_author_last_name,
+        title = input$title,
+        publication_year = as.numeric(input$publication_year),
+        journal = input$journal,
+        doi = input$doi,
+        stringsAsFactors = FALSE
+      )
+      
+      if (publication_edit_mode() && !is.null(publication_selected_row())) {
+        data_meta$tbl7[publication_selected_row(), names(new_row)] <- as.list(new_row[1, ])
+      } else {
+        data_meta$tbl7 <- rbind(data_meta$tbl7, new_row)
+      }
+      
+      clear_publication_fields(session)
+      publication_form_visible(FALSE)
+      # updateActionButton(session, "show_add_publication", label = tagList(bsicons::bs_icon("book"), "Add New Publication"))
+      publication_edit_mode(FALSE)
+      publication_selected_row(NULL)
+    })
+    
+    
+    # Edit
+    observeEvent(input$update_publication, {
+      req(publication_selected_row())
+      row <- publication_selected_row()
+      publication_form_visible(TRUE)
+      publication_edit_mode(TRUE)
+      
+      updateTextInput(session, "first_author_last_name", value = data_meta$tbl7$first_author_last_name[row])
+      updateTextInput(session, "title", value = data_meta$tbl7$title[row])
+      updateTextInput(session, "publication_year", value = as.character(data_meta$tbl7$publication_year[row]))
+      updateTextInput(session, "journal", value = data_meta$tbl7$journal[row])
+      updateTextInput(session, "doi", value = data_meta$tbl7$doi[row])
+    })
+    
+    # Delete
+    observeEvent(input$delete_publication, {
+      row <- publication_selected_row()
+      if (!is.null(row) && row <= nrow(data_meta$tbl7)) {
+        data_meta$tbl7 <- data_meta$tbl7[-row, ]
+        publication_selected_row(NULL)
+        showNotification("Publication deleted.", type = "message")
+      } else {
+        showNotification("Please select a row to delete.", type = "warning")
+      }
+      clear_publication_fields(session)
+      publication_form_visible(FALSE)
+      publication_edit_mode(FALSE)
+    })
+    
+    # Toggle button state
+    observe({
+      shinyjs::toggleState("update_publication", condition = !is.null(publication_selected_row()))
+      shinyjs::toggleState("delete_publication", condition = !is.null(publication_selected_row()))
+    })
+    
+    observeEvent(input$apply_publication_order, {
+      req(input$tbl7)
+      if (!is.null(input$tbl7)) {
+        ordered_data <- hot_to_r(input$tbl7)
+        ordered_data$publication_year <- as.numeric(ordered_data$publication_year)
+        data_meta$tbl7 <- ordered_data[order(ordered_data$publication_year), ]
+        data_meta$tbl7$publication_year <- as.character(data_meta$tbl7$publication_year)
+      }
+    })
+    
+    
+    # DOI Search - Ensuring valid metadata retrieval
     observeEvent(input$search_doi, {
       req(input$doi_input)
       doi_input <- URLencode(input$doi_input)
       
-      # Citation string (APA style)
       citation_url <- sprintf("https://citation.doi.org/format?doi=%s&style=apa&lang=en-US", doi_input)
-      citation_res <- httr::GET(citation_url, httr::timeout(5))
-      
-      # Metadata JSON
       metadata_url <- sprintf("https://citation.doi.org/metadata?doi=%s", doi_input)
+      
+      citation_res <- httr::GET(citation_url, httr::timeout(5))
       metadata_res <- httr::GET(metadata_url, httr::timeout(5))
       
-      output$doi_result <- renderText({
-        if (httr::status_code(citation_res) == 200) {
-          citation_text <- httr::content(citation_res, as = "text", encoding = "UTF-8")
-          data_meta$last_doi_citation <- citation_text
-          citation_text
-        } else {
-          paste0("Error while retrieving citation: ", httr::status_code(citation_res))
-        }
-      })
+      # Handle citation response
+      if (httr::status_code(citation_res) == 200) {
+        citation_text <- httr::content(citation_res, as = "text", encoding = "UTF-8")
+        data_meta$last_doi_citation <- citation_text
+      } else {
+        data_meta$last_doi_citation <- NULL
+      }
       
-      # Store metadata silently
+      # Handle metadata response
       if (httr::status_code(metadata_res) == 200) {
         meta_data <- tryCatch({
           jsonlite::fromJSON(httr::content(metadata_res, as = "text", encoding = "UTF-8"))
         }, error = function(e) NULL)
-        data_meta$last_doi_metadata <- meta_data
+        
+        if (!is.null(meta_data)) {
+          data_meta$last_doi_metadata <- meta_data
+        } else {
+          data_meta$last_doi_metadata <- NULL
+        }
       } else {
         data_meta$last_doi_metadata <- NULL
       }
     })
     
-    # Add publication using metadata
-    observeEvent(input$add_publication, {
+    # Autofill metadata - Enhanced with checks for valid metadata
+    observeEvent(data_meta$last_doi_metadata, {
       meta <- data_meta$last_doi_metadata
-      req(meta)
       
-      # Safe extraction with fallback to empty string
-      get_safe <- function(x, default = "") {
-        if (!is.null(x) && length(x) > 0) x else default
+      # Ensure the metadata is available and valid
+      req(meta, msg = "Metadata not available")
+      
+      # Check the type of meta and ensure it's a list or data frame
+      if (!is.list(meta) && !is.data.frame(meta)) {
+        showNotification("Metadata is not in the expected format", type = "error")
+        return()  # Exit early if meta is not a valid list/data frame
       }
-
-      # Only try extracting author if `meta` is a list and has `author`
-      author_last <- tryCatch({
-        if (is.list(meta) && !is.null(meta$author) && length(meta$author) > 0) {
-          get_safe(meta$author$family[[1]])
-        } else {
-          ""
-        }
-      }, error = function(e) "")
       
-      new_pub <- data.frame(
-        first_author_last_name = author_last,
-        title = get_safe(meta$title),
-        publication_year = as.character(get_safe(meta$issued$`date-parts`[[1]][1])),
-        journal = get_safe(meta$`container-title`),
-        doi = as.character(get_safe(meta$DOI)),
-        stringsAsFactors = FALSE
-      )
+      # Safely access metadata fields with fallback to default values
+      title <- if (!is.null(meta$title)) meta$title else ""
+      authors <- if (!is.null(meta$author) && length(meta$author) > 0) meta$author else NULL
+      first_author <- if (!is.null(authors) && length(authors) > 0) authors$family[1] else ""
+      journal <- if (!is.null(meta$`container-title`)) meta$`container-title` else ""
+      year <- if (!is.null(meta$issued) && length(meta$issued) > 0) meta$issued$`date-parts`[1] else ""
+      doi <- if (!is.null(meta$DOI)) meta$DOI else ""
       
-      if (is.null(data_meta$tbl7)) {
-        data_meta$tbl7 <- new_pub
-      } else {
-        data_meta$tbl7 <- dplyr::bind_rows(data_meta$tbl7, new_pub)
-      }
-    })
-    
-    #### dpublication ####
-    dpublication <- reactiveVal()
-    data_meta <- reactiveValues(tbl7 = NULL, last_doi_citation = NULL)
-    
-    # Read and store publication metadata from uploaded Excel file
-    observe({
-      req(input$meta_file)
-      publication_meta_info <- openxlsx::readWorkbook(WB_meta(), sheet = "publication", startRow = 1, colNames = TRUE)[-(1:6), ] %>%
-        dplyr::tibble()
-      dpublication(publication_meta_info)
-    })
-    
-    # Sync dpublication into data_meta
-    observeEvent(dpublication(), {
-      data_meta$tbl7 <- dpublication()
-    })
-    
-
-    # Render editable publication table
-    output$tbl7 <- rhandsontable::renderRHandsontable({
-      req(data_meta$tbl7, column_configs)
-      column_configs <- column_configs()
+      # Debug prints to help check what's being retrieved
+      print(paste("Title: ", title))
+      print(paste("First Author: ", first_author))
+      print(paste("Journal: ", journal))
+      print(paste("Year: ", year))
+      print(paste("DOI: ", doi))
       
-      rhandsontable::rhandsontable(
-        data_meta$tbl7,
-        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all'
-      ) %>%
-        hot_col_wrapper('first_author_last_name', column_configs$tbl7$first_author_last_name) %>%
-        hot_col_wrapper('title', column_configs$tbl7$title) %>%
-        hot_col_wrapper('publication_year', column_configs$tbl7$publication_year) %>%
-        hot_col_wrapper('journal', column_configs$tbl7$journal) %>%
-        hot_col_wrapper('doi', column_configs$tbl7$doi)
+      # Update the inputs with the retrieved metadata
+      updateTextInput(session, "title", value = title)
+      updateTextInput(session, "first_author_last_name", value = first_author)
+      updateTextInput(session, "journal", value = journal)
+      updateTextInput(session, "publication_year", value = year)
+      updateTextInput(session, "doi", value = doi)
+      # Optionally make the form visible
+      publication_form_visible(TRUE)
     })
-    
     
     observeEvent(input$save_publication, {
       save_and_validate(
@@ -3093,7 +3461,6 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
         update_validation = validation_results
       )
     })
-    
     
     
   } # end of server function
