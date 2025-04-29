@@ -15,7 +15,7 @@
 #'   shiny::runApp(system.file("app", package = "GloboXyloApp"))
 #' }
 #'
-xyloR.App <- function() {
+xyloR <- function() {
 # ─── Load Helpers ─────────────────────────────────────────────────────────────
 source("R/helpers.R")
 

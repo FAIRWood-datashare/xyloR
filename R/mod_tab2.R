@@ -173,7 +173,10 @@ mod_tab2_server <- function(id, out_tab1) {
           meta_template <- create_xylo_metadata(out_tab1$obs_file()$datapath, template_path)
           
           shiny::setProgress(value = 0.8, detail = "Saving the file...")
-          openxlsx::saveWorkbook(meta_template, file, overwrite = TRUE)
+          
+          if (interactive()) {
+            openxlsx::saveWorkbook(meta_template, file, overwrite = TRUE)
+          }
           
           shiny::setProgress(value = 1, detail = "File ready for download")
           shinyjs::addClass(id = "card_header2_1", class = "bg-success")
@@ -194,9 +197,13 @@ mod_tab2_server <- function(id, out_tab1) {
         obs_template <- openxlsx::loadWorkbook(template_path)
         
         # Save directly to the user-selected location
-        openxlsx::saveWorkbook(obs_template, file, overwrite = TRUE)
+        if (interactive()) {
+          openxlsx::saveWorkbook(obs_template, file, overwrite = TRUE)
+        }
       }
     )
+    
+
     
     # ============================================================================
     # CARD 2.2: Validate uploaded metadata and observation files
