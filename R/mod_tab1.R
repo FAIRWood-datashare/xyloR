@@ -396,19 +396,21 @@ mod_tab1_server <- function(id) {
 
       shiny::observeEvent(input$obs_file, {
         shiny::req(temp_folder(), input$obs_file$name) # Ensure dependencies exist
-
-        # Actually save the file
-        if (!file.exists(obs_file_saved)) {
-          file.copy(input$obs_file$datapath, obs_file_saved, overwrite = TRUE)
-        }
         
+        # Initialize the path for saving the file
         obs_file_saved <- normalizePath(
           file.path(temp_folder(), input$obs_file$name),
           winslash = "/", mustWork = FALSE
         )
+        
+        # Actually save the file if it doesn't exist
+        if (!file.exists(obs_file_saved)) {
+          file.copy(input$obs_file$datapath, obs_file_saved, overwrite = TRUE)
+        }
+        
         log_step("obs_file_saved", obs_file_saved)
       })
-
+      
 
       # Read site info
       site_info <- tryCatch(

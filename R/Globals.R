@@ -393,6 +393,7 @@ save_and_validate <- function(data_reactive, sheet_name, wb_reactive, temp_folde
   
   # Determine whether the sheet belongs to meta or obs
   meta_sheets <- c("site", "tree", "sample", "person", "publication")
+  print(sheet_name)
   is_meta_sheet <- sheet_name %in% meta_sheets
   
   # Get workbook
@@ -416,6 +417,10 @@ save_and_validate <- function(data_reactive, sheet_name, wb_reactive, temp_folde
   meta_file_path <- paste(temp_folder(), meta_file_name, sep = "/")
   
   # Choose file paths based on the type of sheet
+  print("meta_file_path")
+  print(meta_file_path)
+  print("xylo_file_path")
+  print(xylo_file_path)
   path_of_file_changed_by_user <- if (is_meta_sheet) meta_file_path else xylo_file_path
   
   # Save workbook

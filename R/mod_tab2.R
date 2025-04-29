@@ -174,9 +174,8 @@ mod_tab2_server <- function(id, out_tab1) {
           
           shiny::setProgress(value = 0.8, detail = "Saving the file...")
           
-          if (interactive()) {
             openxlsx::saveWorkbook(meta_template, file, overwrite = TRUE)
-          }
+          
           
           shiny::setProgress(value = 1, detail = "File ready for download")
           shinyjs::addClass(id = "card_header2_1", class = "bg-success")
@@ -197,9 +196,7 @@ mod_tab2_server <- function(id, out_tab1) {
         obs_template <- openxlsx::loadWorkbook(template_path)
         
         # Save directly to the user-selected location
-        if (interactive()) {
           openxlsx::saveWorkbook(obs_template, file, overwrite = TRUE)
-        }
       }
     )
     
