@@ -10,18 +10,14 @@
 #' report <- xylo_format_validation(xylo_file)
 #' }
 #' 
-#' @import readxl dplyr purrr stringr tibble utils magrittr
-#' @importFrom utils read.csv
+#' @importFrom utils read.csv 
 #' @importFrom magrittr %>%
-#' @importFrom stringr str_detect
-#' @importFrom stringr str_split
-#' @importFrom stringr str_sub
-#' @importFrom dplyr select filter mutate
-#' @importFrom purrr map_dfr
+#' @importFrom dplyr select filter mutate pull
+#' @importFrom purrr map_dfr 
 #' @importFrom readxl excel_sheets read_excel
-#' @importFrom stats na.omit
+#' @importFrom stats na.omit setNames
 #' 
-#' # xylo_file <- "~/Desktop/Ltal.2007_xylo_data_2025-03-06_test.xlsx"
+#' 
 xylo_format_validation <- function(xylo_file) {
   
   # Load sheets excluding instructions and lookup tables
@@ -39,7 +35,7 @@ xylo_format_validation <- function(xylo_file) {
   for (sheet in sheet_names) {
     ifelse(sheet == "Xylo_obs_data", 
           data <- sheet_data[[sheet]][-1:-6,],  
-          data <- sheet_data[[sheet]][-1:-4,] %>% setNames(c("site_label", "latitude", "longitude", "elevation") ) 
+          data <- sheet_data[[sheet]][-1:-4,] %>% stats::setNames(c("site_label", "latitude", "longitude", "elevation") ) 
           ) 
     constraints <- col_constraints %>% dplyr::filter(Table == sheet)
     
@@ -114,17 +110,17 @@ xylo_format_validation <- function(xylo_file) {
   # Convert report list to tibble
   convert_report_to_tibble <- function(report_list) {
     purrr::map_dfr(names(report_list), function(sheet) {
-      tibble(Sheet = sheet, Column = names(report_list[[sheet]]), Issue = unlist(report_list[[sheet]]))
+      tibble::tibble(Sheet = sheet, Column = names(report_list[[sheet]]), Issue = unlist(report_list[[sheet]]))
     })
   }
   
   # additional ad-hoc checks 
   # 1. check site_label match 
   obs_info_labels <- sheet_data[["obs_data_info"]][-1:-4,] %>%
-    setNames(c("site_label", "latitude", "longitude", "elevation")) %>%
-    pull(site_label)
+    stats::setNames(c("site_label", "latitude", "longitude", "elevation")) %>%
+    dplyr::pull(site_label)
   
-  xylo_obs_labels <- unique(na.omit(sheet_data[["Xylo_obs_data"]][-1:-6, "site_label"])) %>% pull()
+  xylo_obs_labels <- unique(na.omit(sheet_data[["Xylo_obs_data"]][-1:-6, "site_label"])) %>% dplyr::pull()
   identical(sort(obs_info_labels), sort(xylo_obs_labels))
   if (!identical(sort(obs_info_labels), sort(xylo_obs_labels))) {
     report[["obs_data_info"]][["site_label"]] <- "Site labels in obs_data_info do not match those in Xylo_obs_data"
@@ -136,7 +132,7 @@ xylo_format_validation <- function(xylo_file) {
   }
  
   # 3. check sample_label in Xylo_obs_data are unique
-  xylo_obs_sample_labels <- na.omit(sheet_data[["Xylo_obs_data"]][-1:-6, "sample_label"]) %>% pull()
+  xylo_obs_sample_labels <- na.omit(sheet_data[["Xylo_obs_data"]][-1:-6, "sample_label"]) %>% dplyr::pull()
   if (any(duplicated(xylo_obs_sample_labels))) {
     report[["Xylo_obs_data"]][["sample_label"]] <- "Sample labels in Xylo_obs_data are not unique"
   }

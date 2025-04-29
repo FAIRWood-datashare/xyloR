@@ -1,28 +1,12 @@
+# global.R
 
+# 1) Packages
+library(shiny)
+library(shinyjs)
+library(bslib)
+library(openxlsx)
 
-utils::globalVariables(c(
-  "path_out", "Network", "Site_code", "Tree_label", "Number.of.samples",
-  "Sample_id", "Measure_Radial", "Measure", "Value", "Date", "tbl_Person", "tbl_Site", "tbl_Tree", 
-  "tbl_Sample", "tbl_Publication", "Koppen_climate_class", "Organization_name", "Name", "Table", 
-  "cell", "constraints", 'data origin', "elevation", "itrdb_species_code", "latitude", "leaf_habit", 
-  "longitude", "navPanel", "navsetCardTab", "network_code", "network_label", "number_of_samples", "observe",
-  "observeEvent", "on_tree_dendrometer_data",
-  "on_tree_phenological_observation", "on_tree_sapflux_data",
-  "on_tree_shoot_growth_data", "on_tree_weather_data", "plot_code", "plot_label",
-  "reactive", "renderLeaflet", "renderPlotly", "renderReactable", "renderText", "req",
-  "sample_code", "sample_comment", "sample_date", "sample_id", "sample_label",
-  "setNames", "shinyApp", "site_code", "site_label", "tree_age", "tree_code",
-  "tree_comment", "tree_dbh", "tree_health_status", "tree_height", "tree_label",
-  "tree_latitude", "tree_longitude", "tree_origin", "tree_ring_anatomical_data",
-  "tree_ring_isotope_data", "tree_ring_structure", "tree_ring_width_data",
-  "tree_sex", "tree_social_status", "tree_species", "tree_treatment",
-  "updateActionButton", "updateSelectInput", "updateTabsetPanel", "wood_type", "year",
-  "year_label", "zone_code", "zone_hierarchy", "zone_name", "zone_type", ".", "cell constraints", 
-  "Mandatory", "Domain", "toggleState", "parent", "value", "label", "head", "obs_file", "Date_measure", 
-  "Observation_measure", "Precision_date_measure", "address", "country_name", "geonames_details", "name", "sampling_date", "types"
-))
-
-
+# 2) Pure helper functions (no `input`, no `reactive()`)
 hot_col_wrapper <- function(ht, col, col_config) {
   readOnly <- ifelse(is.null(col_config$readOnly), FALSE, col_config$readOnly)
   # for char cols:
@@ -402,6 +386,92 @@ renderer_date <- function(required = NULL){
       return td;
       }", check_required)))
 }
+
+save_and_validate <- function(data_reactive, sheet_name, wb_reactive, temp_folder, update_validation) {
+  req(data_reactive)
+  req(wb_reactive())
+  
+  # Determine whether the sheet belongs to meta or obs
+  meta_sheets <- c("site", "tree", "sample", "person", "publication")
+  is_meta_sheet <- sheet_name %in% meta_sheets
+  
+  # Get workbook
+  wb <- wb_reactive()
+  
+  # Write data to the sheet (starting row depends on sheet name)
+  openxlsx::writeData(
+    wb,
+    sheet = sheet_name,
+    x = data_reactive,
+    startCol = 1,
+    startRow = ifelse(sheet_name == "obs_data_info", 6, 8),
+    colNames = FALSE,
+    rowNames = FALSE
+  )
+  
+  files <- list.files(temp_folder(), pattern = "*.xlsx", recursive = TRUE) 
+  xylo_file_name <- files[grep("xylo_data", files)]
+  meta_file_name <- files[grep("xylo_meta", files)]
+  xylo_file_path <- paste(temp_folder(), xylo_file_name, sep = "/")
+  meta_file_path <- paste(temp_folder(), meta_file_name, sep = "/")
+  
+  # Choose file paths based on the type of sheet
+  path_of_file_changed_by_user <- if (is_meta_sheet) meta_file_path else xylo_file_path
+  
+  # Save workbook
+  openxlsx::saveWorkbook(wb, path_of_file_changed_by_user, overwrite = TRUE)
+  
+  # Notify user
+  showNotification(
+    paste0("Data written to sheet '", sheet_name, "' of ", path_of_file_changed_by_user),
+    type = "message"
+  )
+  print(paste("File saved at:", path_of_file_changed_by_user))
+  
+  
+  tbl_validation <- rbind(
+      xylo_format_validation(xylo_file_path),
+      meta_format_validation(meta_file_path)
+    )
+  
+  # Update validation reactive
+  update_validation(tbl_validation)
+}
+
+
+# 3) Static data you can load once (instead of inside a reactive)
+obs_template_path  <- system.file("extdata","Datasetname_xylo_data_yyyy-mm-dd.xlsx", package="xyloR")
+meta_template_path <- system.file("extdata","Datasetname_xylo_meta_yyyy-mm-dd.xlsx", package="xyloR")
+drop_list_obs  <- openxlsx::readWorkbook(obs_template_path,  sheet="DropList")
+drop_list_meta <- openxlsx::readWorkbook(meta_template_path, sheet="DropList")
+
+
+
+
+utils::globalVariables(c(
+  "path_out", "Network", "Site_code", "Tree_label", "Number.of.samples",
+  "Sample_id", "Measure_Radial", "Measure", "Value", "Date", "tbl_Person", "tbl_Site", "tbl_Tree", 
+  "tbl_Sample", "tbl_Publication", "Koppen_climate_class", "Organization_name", "Name", "Table", 
+  "cell", "constraints", 'data origin', "elevation", "itrdb_species_code", "latitude", "leaf_habit", 
+  "longitude", "navPanel", "navsetCardTab", "network_code", "network_label", "number_of_samples", "observe",
+  "observeEvent", "on_tree_dendrometer_data",
+  "on_tree_phenological_observation", "on_tree_sapflux_data",
+  "on_tree_shoot_growth_data", "on_tree_weather_data", "plot_code", "plot_label",
+  "reactive", "renderLeaflet", "renderPlotly", "renderReactable", "renderText", "req",
+  "sample_code", "sample_comment", "sample_date", "sample_id", "sample_label",
+  "setNames", "shinyApp", "site_code", "site_label", "tree_age", "tree_code",
+  "tree_comment", "tree_dbh", "tree_health_status", "tree_height", "tree_label",
+  "tree_latitude", "tree_longitude", "tree_origin", "tree_ring_anatomical_data",
+  "tree_ring_isotope_data", "tree_ring_structure", "tree_ring_width_data",
+  "tree_sex", "tree_social_status", "tree_species", "tree_treatment",
+  "updateActionButton", "updateSelectInput", "updateTabsetPanel", "wood_type", "year",
+  "year_label", "zone_code", "zone_hierarchy", "zone_name", "zone_type", ".", "cell constraints", 
+  "Mandatory", "Domain", "toggleState", "parent", "value", "label", "head", "obs_file", "Date_measure", 
+  "Observation_measure", "Precision_date_measure", "address", "country_name", "geonames_details", "name", "sampling_date", "types"
+))
+
+
+
 
 
 #' Get country codes

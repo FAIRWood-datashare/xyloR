@@ -1,10 +1,10 @@
 Package: xyloR
-Title: Tools to Prepare Files for GloboXylo
+Title: GloboXylo Data Collector
 Version: 0.0.0.9000
 Authors@R: 
     person("Patrick", "Fonti", , "patrick.fonti@wsl.ch", role = c("aut", "cre"),
            comment = c(ORCID = "https://orcid.org/0000-0002-7070-3292"))
-Description: Provides tools to standardize and format observation data and associated metadata for upload to the GloboXylo database. The package ensures data compatibility and adherence to required metadata structures.
+Description: A Shiny application for collecting and validating GloboXylo data.
 License: GPL-3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

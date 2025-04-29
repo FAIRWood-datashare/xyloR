@@ -1,4 +1,2 @@
-pkgload::load_all()
-xyloglobal_upload()
-
-
+devtools::load_all(".")
+xyloR.App()

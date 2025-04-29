@@ -802,44 +802,7 @@ Red = Problems to fix in your metadata file. Return to 2.2, correct the file, an
       
       
       
-      # # TAB 8: View publication -----------------------------------------------
-      # nav_panel(
-      #     title = div(id = "meta_publication", "Publication"),
-      #     value = "Publication",
-      #     
-      #     fluidRow(
-      #       column(1, class = "bg-light p-2 border-end", style = "height: 100%;",
-      #              bslib::card(
-      #                bslib::card_body(
-      #                  actionButton('save_publication', "Save publication", icon = icon('save'))
-      #                )
-      #              )
-      #       ),
-      #       
-      #       column(11, style = "height: 100%;",
-      #              bslib::card(
-      #                textInput("doi_input", "Enter DOI:"),
-      #                actionButton("search_doi", "Search for DOI", class = "btn btn-info"),
-      #                actionButton("add_publication", "Add Publication")
-      #              ),
-      #              bslib::card(
-      #                h6('DOI search result:'),
-      #                textOutput("doi_result"),
-      #                verbatimTextOutput("testing")
-      #              ),
-      #              bslib::card(
-      #                bslib::card_header("Publication Metadata"),
-      #                bslib::card_body(
-      #                  div(rhandsontable::rHandsontableOutput("tbl7"))
-      #                )
-      #              )
-      #       )
-      #     )
-      #   )
-      # ,
-      #      
-      
-      # TAB 9: View Publication -----------------------------------------------
+      # TAB 8: View Publication -----------------------------------------------
       nav_panel(
         title = div(id = "meta_publication", "Publication"),
         value = "Publication",

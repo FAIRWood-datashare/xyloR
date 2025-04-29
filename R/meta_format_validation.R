@@ -10,22 +10,19 @@
 #' report <- meta_format_validation(meta_file)
 #' }
 #' 
-#' @import readxl dplyr purrr stringr tibble utils magrittr
 #' @importFrom utils read.csv
 #' @importFrom magrittr %>%
-#' @importFrom stringr str_detect
-#' @importFrom stringr str_split
-#' @importFrom stringr str_sub
-#' @importFrom dplyr select filter mutate
+#' @importFrom dplyr select filter mutate pull count summarise
 #' @importFrom purrr map_dfr
+#' @importFrom tibble as_tibble
 #' @importFrom readxl excel_sheets read_excel
-#' @importFrom stats na.omit
+#' @importFrom stats na.omit setNames
 #' 
 meta_format_validation <- function(meta_file) {
   req(meta_file)
   # Load sheets excluding instructions and lookup tables
   sheet_names <- setdiff(readxl::excel_sheets(meta_file), c("instructions", "DropList", "ListOfVariables"))
-  sheet_data <- setNames(lapply(sheet_names, function(sheet) readxl::read_excel(meta_file, sheet = sheet)), sheet_names)
+  sheet_data <- stats::setNames(lapply(sheet_names, function(sheet) readxl::read_excel(meta_file, sheet = sheet)), sheet_names)
   sheet_listvariables <- readxl::read_excel(meta_file, sheet = "ListOfVariables")
   sheet_droplist <- readxl::read_excel(meta_file, sheet = "DropList")
   
@@ -124,9 +121,9 @@ meta_format_validation <- function(meta_file) {
   # 2. check tree_label grouped by site and plot in tree are unique
   meta_tree_tree_label_in_plot <- na.omit(sheet_data[["tree"]][-1:-6, c("site_label", "plot_label", "tree_label")])
   is_unique <- meta_tree_tree_label_in_plot %>%
-    count(site_label, plot_label, tree_label) %>%
-    summarise(all_unique = all(n == 1)) %>%
-    pull(all_unique)
+    dplyr::count(site_label, plot_label, tree_label) %>%
+    dplyr::summarise(all_unique = all(n == 1)) %>%
+    dplyr::pull(all_unique)
   if (!is_unique) {
     report[["tree"]][["plot_label"]] <- "Tree_label by plot_label and site_label in tree are not unique"
   }
