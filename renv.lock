@@ -405,7 +405,7 @@
       "NeedsCompilation": "no",
       "Author": "Jeffrey Horner [aut, cph], Greg Hunt [aut, cre, cph]",
       "Maintainer": "Greg Hunt <greg@firmansyah.com>"
-    },
+    }, 
     "brio": {
       "Package": "brio",
       "Version": "1.1.5",
