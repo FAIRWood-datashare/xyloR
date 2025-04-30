@@ -6,6 +6,9 @@
 \usage{
 author_input(author_nr)
 }
+\arguments{
+\item{author_nr}{nummer of the author}
+}
 \description{
 Helper to create Authors Input UI
 }

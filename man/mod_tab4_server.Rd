@@ -10,7 +10,11 @@ mod_tab4_server(id, out_tab1, out_tab2, out_tab3)
 \item{id}{The module ID, which is used to create unique namespaces for the inputs
 and outputs within the module.}
 
-\item{shared}{A shared object containing global reactive values or functions, such as the workbook.}
+\item{out_tab1}{A reactive object containing the dataset name and observation file.}
+
+\item{out_tab2}{A reactive object containing the metadata file and validation results.}
+
+\item{out_tab3}{A reactive object containing the workbook reference and column configurations.}
 }
 \value{
 A server-side function for managing the site metadata table, synchronizing

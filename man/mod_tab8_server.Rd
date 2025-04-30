@@ -9,7 +9,13 @@ mod_tab8_server(id, out_tab1, out_tab2, out_tab3, out_tab4)
 \arguments{
 \item{id}{The module ID for the server logic.}
 
-\item{shared}{A shared object containing metadata.}
+\item{out_tab1}{A reactive object containing the dataset name and observation file.}
+
+\item{out_tab2}{A reactive object containing the metadata file and validation results.}
+
+\item{out_tab3}{A reactive object containing the workbook reference and column configurations.}
+
+\item{out_tab4}{A reactive object containing the tree metadata table and other related data.}
 }
 \value{
 A server-side function for managing the Publication tab.

@@ -9,8 +9,13 @@ mod_tab5_server(id, out_tab1, out_tab2, out_tab3, out_tab4)
 \arguments{
 \item{id}{The module ID.}
 
-\item{shared}{A shared object containing global data or values that need to be accessed
-across modules (such as the \code{WB_meta} function).}
+\item{out_tab1}{A reactive object containing the dataset name and observation file.}
+
+\item{out_tab2}{A reactive object containing the metadata file and validation results.}
+
+\item{out_tab3}{A reactive object containing the workbook reference and column configurations.}
+
+\item{out_tab4}{A reactive object containing the tree metadata table and other related data.}
 }
 \value{
 A module server function that performs actions for the Tree Metadata tab.

@@ -9,7 +9,13 @@ mod_tab6_server(id, out_tab1, out_tab2, out_tab3, out_tab4)
 \arguments{
 \item{id}{A string representing the namespace for the module's server logic. This is required for module-based server functions.}
 
-\item{shared}{A reactive object containing shared data, including workbook references and validation results.}
+\item{out_tab1}{A reactive object containing the dataset name and observation file.}
+
+\item{out_tab2}{A reactive object containing the metadata file and validation results.}
+
+\item{out_tab3}{A reactive object containing the workbook reference and column configurations.}
+
+\item{out_tab4}{A reactive object containing the tree metadata table and other related data.}
 }
 \value{
 NULL. This function performs side-effects, such as rendering the sample table and saving data.

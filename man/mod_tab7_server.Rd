@@ -9,7 +9,13 @@ mod_tab7_server(id, out_tab1, out_tab2, out_tab3, out_tab4)
 \arguments{
 \item{id}{A string representing the unique identifier for the module UI.}
 
-\item{shared}{A reactive expression providing shared data to be used across multiple modules.}
+\item{out_tab1}{A reactive object containing the dataset name and observation file.}
+
+\item{out_tab2}{A reactive object containing the metadata file and validation results.}
+
+\item{out_tab3}{A reactive object containing the workbook reference and column configurations.}
+
+\item{out_tab4}{A reactive object containing the tree metadata table and other related data.}
 }
 \description{
 This module handles the server-side logic for the person Metadata Tab in the app.

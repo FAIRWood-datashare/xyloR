@@ -8,8 +8,6 @@ mod_tab1_server(id)
 }
 \arguments{
 \item{id}{A string that serves as the module namespace identifier.}
-
-\item{shared}{A list or reactiveValues object shared across modules.}
 }
 \value{
 No return value, called for side effects.

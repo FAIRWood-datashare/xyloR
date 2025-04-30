@@ -9,7 +9,7 @@ mod_tab2_server(id, out_tab1)
 \arguments{
 \item{id}{A string that serves as the module namespace identifier.}
 
-\item{shared}{A list or reactiveValues object shared across modules.}
+\item{out_tab1}{A reactive object containing the dataset name and observation file.}
 }
 \value{
 No return value, called for side effects.
