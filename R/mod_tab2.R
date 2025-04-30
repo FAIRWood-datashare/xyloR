@@ -137,7 +137,7 @@ mod_tab2_ui <- function(id) {
 #' - Displaying validation results and feedback messages based on metadata quality.
 #'
 #' @param id A string that serves as the module namespace identifier.
-#' @param shared A list or reactiveValues object shared across modules.
+#' @param out_tab1 A reactive object containing the dataset name and observation file.
 #'
 #' @return No return value, called for side effects.
 #' @export
@@ -208,7 +208,7 @@ mod_tab2_server <- function(id, out_tab1) {
     
     # Logging helper
     log_step <- function(label, value = NULL) {
-      cat(paste0("[", Sys.time(), "] ✅ ", label, "\n"))
+      cat(paste0("[", Sys.time(), "] ", label, "\n"))
       if (!is.null(value)) print(value)
     }
     

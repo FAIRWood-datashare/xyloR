@@ -13,6 +13,7 @@ get_country_codes <- function(){
 
 #' Helper to create Authors Input UI
 #' 
+#' @param author_nr nummer of the author
 #' @import shiny
 #' @export
 #' 

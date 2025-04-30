@@ -12,10 +12,13 @@ RoxygenNote: 7.3.2
 Imports:
     bslib,
     bsicons,
+    countrycode,
     curl,
     dplyr,
     DT,
     geodata,
+    htmltools,
+    htmlwidgets,
     httr,
     jsonlite,
     magrittr,
@@ -26,7 +29,6 @@ Imports:
     plotly,
     purrr,
     raster,
-    reactable,
     readr,
     readxl,
     sf,
@@ -39,7 +41,6 @@ Imports:
     utils,
     writexl,
     zip,
-    dttr2,
     rhandsontable
 Suggests:
   knitr,

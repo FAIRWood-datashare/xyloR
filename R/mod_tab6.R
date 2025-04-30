@@ -54,7 +54,10 @@ mod_tab6_ui <- function(id) {
 #' @description This function defines the server-side logic for the "Sample" tab, including loading sample metadata from an uploaded file, rendering the sample metadata table, and handling save events.
 #'
 #' @param id A string representing the namespace for the module's server logic. This is required for module-based server functions.
-#' @param shared A reactive object containing shared data, including workbook references and validation results.
+#' @param out_tab1 A reactive object containing the dataset name and observation file.
+#' @param out_tab2 A reactive object containing the metadata file and validation results.
+#' @param out_tab3 A reactive object containing the workbook reference and column configurations.
+#' @param out_tab4 A reactive object containing the tree metadata table and other related data.
 #'
 #' @return NULL. This function performs side-effects, such as rendering the sample table and saving data.
 #' 

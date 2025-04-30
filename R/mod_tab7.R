@@ -98,7 +98,7 @@ mod_tab7_ui <- function(id) {
               id = ns("card_header_orcid"),
               tooltip(
                 bsicons::bs_icon("question-circle"),
-                "Use this tool to search for a person’s ORCID ID using their name or an existing ORCID. Retrieved info will populate the form below.",
+                "Use this tool to search for a persons ORCID ID using their name or an existing ORCID. Retrieved info will populate the form below.",
                 placement = "right"
               ),
               shiny::fluidRow(
@@ -192,7 +192,10 @@ mod_tab7_ui <- function(id) {
 #' validating form inputs, and interacting with external APIs (ORCID, ROR) for person data retrieval.
 #'
 #' @param id A string representing the unique identifier for the module UI.
-#' @param shared A reactive expression providing shared data to be used across multiple modules.
+#' @param out_tab1 A reactive object containing the dataset name and observation file.
+#' @param out_tab2 A reactive object containing the metadata file and validation results.
+#' @param out_tab3 A reactive object containing the workbook reference and column configurations.
+#' @param out_tab4 A reactive object containing the tree metadata table and other related data.
 #'
 #' @return NULL
 #'

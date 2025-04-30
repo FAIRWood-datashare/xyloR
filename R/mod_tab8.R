@@ -131,7 +131,11 @@ mod_tab8_ui <- function(id) {
 #' It manages the interactions for adding, editing, deleting, and ordering publications.
 #'
 #' @param id The module ID for the server logic.
-#' @param shared A shared object containing metadata.
+#' @param out_tab1 A reactive object containing the dataset name and observation file.
+#' @param out_tab2 A reactive object containing the metadata file and validation results.
+#' @param out_tab3 A reactive object containing the workbook reference and column configurations.
+#' @param out_tab4 A reactive object containing the tree metadata table and other related data.
+
 #' @return A server-side function for managing the Publication tab.
 #' 
 #' @import shiny

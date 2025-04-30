@@ -52,8 +52,10 @@ mod_tab5_ui <- function(id) {
 #' Additionally, it handles the save functionality for the tree metadata.
 #'
 #' @param id The module ID.
-#' @param shared A shared object containing global data or values that need to be accessed 
-#' across modules (such as the `WB_meta` function).
+#' @param out_tab1 A reactive object containing the dataset name and observation file.
+#' @param out_tab2 A reactive object containing the metadata file and validation results.
+#' @param out_tab3 A reactive object containing the workbook reference and column configurations.
+#' @param out_tab4 A reactive object containing the tree metadata table and other related data.
 #' @return A module server function that performs actions for the Tree Metadata tab.
 #' 
 #' @import shiny

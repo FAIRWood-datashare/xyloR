@@ -56,7 +56,9 @@ mod_tab4_ui <- function(id) {
 #'
 #' @param id The module ID, which is used to create unique namespaces for the inputs
 #' and outputs within the module.
-#' @param shared A shared object containing global reactive values or functions, such as the workbook.
+#' @param out_tab1 A reactive object containing the dataset name and observation file.
+#' @param out_tab2 A reactive object containing the metadata file and validation results.
+#' @param out_tab3 A reactive object containing the workbook reference and column configurations.
 #' @return A server-side function for managing the site metadata table, synchronizing
 #' Koppen climate data, and saving the updated table.
 #' 

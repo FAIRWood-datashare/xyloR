@@ -75,7 +75,8 @@ mod_tab3_ui <- function(id) {
 #' - Data validation, and managing input data transformations.
 #'
 #' @param id A string that serves as the module namespace identifier.
-#' @param shared A list or reactiveValues object shared across modules.
+#' @param out_tab1 A reactive object containing the dataset name and observation file.
+#' @param out_tab2 A reactive object containing the metadata file and validation results.
 #'
 #' @return No return value, called for side effects.
 #' @export
@@ -132,7 +133,7 @@ mod_tab3_server <- function(id, out_tab1, out_tab2) {
         site_label <- unique(obs_data$site_label) %>% tibble::tibble() %>% dplyr::filter(!is.na(.))  # Extract unique site labels
         site_info <- cbind(site_label, site_info)   # Add it as the first column
       } else if (ncol(site_info) != 4) {
-        stop("⚠️ Error: Expected 3 or 4 columns in 'Xylo_obs_data'. Please check your data format.")
+        stop("Error: Expected 3 or 4 columns in 'Xylo_obs_data'. Please check your data format.")
       }
       
       # Apply column names only if the check passes

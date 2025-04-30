@@ -180,7 +180,6 @@ mod_tab1_ui <- function(id) {
 #' - Checkbox-based validation to proceed.
 #'
 #' @param id A string that serves as the module namespace identifier.
-#' @param shared A list or reactiveValues object shared across modules.
 #'
 #' @return No return value, called for side effects.
 #' @export
@@ -206,19 +205,19 @@ mod_tab1_server <- function(id) {
 
         # Check if the dataset name is empty
         if (is.null(name) || name == "") {
-          shiny::showNotification("⚠️ Dataset name is required.", type = "error")
+          shiny::showNotification("Dataset name is required.", type = "error")
           return() # Stop execution if validation fails
         }
 
         # Check if the dataset name contains only valid characters
         if (!grepl("^[a-zA-Z0-9_-]+$", name)) {
-          shiny::showNotification("⚠️ Dataset name must contain only letters, numbers, underscores, or dashes.", type = "error")
+          shiny::showNotification("Dataset name must contain only letters, numbers, underscores, or dashes.", type = "error")
           return() # Stop execution if validation fails
         }
 
         # If validation passes, continue with the rest of your logic
         # For example, you can show a success notification or proceed to the next step
-        shiny::showNotification("✅ Dataset name is valid!", type = "message")
+        shiny::showNotification("Dataset name is valid!", type = "message")
 
         # shinyjs::addClass("card_header1_1", "bg-success")  # Green header
         # shinyjs::removeClass("card_header1_1", "bg-danger")
@@ -363,7 +362,7 @@ mod_tab1_server <- function(id) {
 
       # Logging helper
       log_step <- function(label, value = NULL) {
-        cat(paste0("[", Sys.time(), "] ✅ ", label, "\n"))
+        cat(paste0("[", Sys.time(), "] ", label, "\n"))
         if (!is.null(value)) print(value)
       }
 
@@ -454,7 +453,7 @@ mod_tab1_server <- function(id) {
       } else if (ncol(site_info) != 4) {
         shiny::showModal(modalDialog(
           title = "Error",
-          "⚠️ Expected 3 or 4 columns in 'obs_data_info'. Please check your data format.",
+          "Expected 3 or 4 columns in 'obs_data_info'. Please check your data format.",
           easyClose = TRUE,
           footer = NULL
         ))
@@ -527,7 +526,7 @@ mod_tab1_server <- function(id) {
       if (any(is.na(df$sample_date))) {
         shiny::showModal(modalDialog(
           title = "Date Parsing Issue",
-          "⚠️ Some sample_date entries could not be parsed. Please check date formats.",
+          "Some sample_date entries could not be parsed. Please check date formats.",
           easyClose = TRUE,
           footer = NULL
         ))
@@ -558,7 +557,7 @@ mod_tab1_server <- function(id) {
           dplyr::filter(!is.na(.))
         site_info <- cbind(site_label, site_info) # Add site_label as the first column
       } else if (ncol(site_info) != 4) {
-        stop("⚠️ Error: 'obs_data_info' sheet must contain either 3 or 4 columns. Found ", ncol(site_info), " columns.")
+        stop("Error: 'obs_data_info' sheet must contain either 3 or 4 columns. Found ", ncol(site_info), " columns.")
       }
 
       # Set proper column names and filter for selected site
@@ -712,7 +711,7 @@ mod_tab1_server <- function(id) {
           dplyr::filter(!is.na(.)) # Extract unique site labels
         site_info <- cbind(site_label, site_info) # Add it as the first column
       } else if (ncol(site_info) != 4) {
-        stop("⚠️ Error: Expected 3 or 4 columns in 'Xylo_obs_data'. Please check your data format.")
+        stop("Error: Expected 3 or 4 columns in 'Xylo_obs_data'. Please check your data format.")
       }
 
       # Apply column names
@@ -722,7 +721,7 @@ mod_tab1_server <- function(id) {
 
       # Check for missing lat/long values before continuing
       if (any(is.na(site_info$latitude)) | any(is.na(site_info$longitude))) {
-        stop("⚠️ Error: Missing latitude or longitude data for the selected site.")
+        stop("Error: Missing latitude or longitude data for the selected site.")
       }
 
       # Convert lat/lng to numeric
