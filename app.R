@@ -1,3 +1,3 @@
-devtools::load_all(".")
 renv::restore()
+devtools::load_all(".")
 xyloR()
