@@ -170,7 +170,7 @@ mod_tab2_server <- function(id, out_tab1) {
           template_path <- system.file("extdata", "Datasetname_xylo_meta_yyyy-mm-dd.xlsx", package = "xyloR")
           
           shiny::setProgress(value = 0.5, detail = "Prefilling the template...")
-          meta_template <- create_xylo_metadata(out_tab1$obs_file()$datapath, template_path)
+          meta_template <- create_xylo_metadata(out_tab1$obs_file()$datapath, template_path, destdir = out_tab1$temp_folder())
           
           shiny::setProgress(value = 0.8, detail = "Saving the file...")
           

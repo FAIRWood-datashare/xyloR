@@ -37,7 +37,7 @@
 
 
 
-create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), output_name = NULL) {
+create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$temp_folder(), output_name = NULL) {
   # if (missing(xylo_file) || !file.exists(xylo_file)) {
   #   stop("The argument 'xylo_file' is missing or the file does not exist.")
   # }
@@ -156,7 +156,7 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
       
       # Get climate data using pmap
       climate = pmap(list(lat = latitude, lon = longitude), 
-                     ~ get_climate_data(..1, ..2, tempdir())),
+                     ~ get_climate_data(..1, ..2, destdir)),
       temp = map_dbl(climate, "avg_temp"),
       precip = map_dbl(climate, "avg_prec"),
 
