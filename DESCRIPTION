@@ -14,6 +14,7 @@ Imports:
     bsicons,
     countrycode,
     curl,
+    devtools,
     dplyr,
     DT,
     geodata,
