@@ -55,7 +55,7 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
   countries <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
 
   # Preload Köppen datasets
-  # koppen_data <- raster::brick(system.file("extdata", "CHELSA_kg1_1981-2010_V.2.1.tif", package = "xyloR"))
+  koppen_data <- raster::brick(system.file("extdata", "CHELSA_kg1_1981-2010_V.2.1.tif", package = "xyloR"))
 
   # Helper Functions
   get_iso_country <- function(lat, lon) {
@@ -147,15 +147,19 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
       latitude,
       longitude,
       elevation,
-      koppen_climate_class = NA, #extract_Koppen(xylo_header[2, 6], xylo_header[1, 6])[1, 1],
-      koppen_climate_code = NA, #tbl_droplist$Koppen.Climate.Code[which(tbl_droplist$Koppen.Climate.Class == Koppen_climate_class)],
-      koppen_climate_classification = NA, #tbl_droplist$Koppen.Climate.Classifications[which(tbl_droplist$Koppen.Climate.Class == Koppen_climate_class)],
+      koppen_climate_class = extract_Koppen(latitude, longitude)[1, 1],
+      koppen_climate_code = tbl_droplist$koppen_climate_code[which(tbl_droplist$koppen_climate_value == koppen_climate_class)],
+      koppen_climate_classification = tbl_droplist$koppen_climate_classification[which(tbl_droplist$koppen_climate_value == koppen_climate_class)],
       site_aspect = NA,
       site_slope = NA,
       site_topography = NA,
-      temp = NA, #get_climate_data(xylo_header[1, 6], xylo_header[2, 6], tempdir())[[1]],
-      precip = NA, #get_climate_data(xylo_header[1, 6], xylo_header[2, 6], tempdir())[[2]],
-      soil_depth = NA,
+      
+      # Get climate data using pmap
+      climate = pmap(list(lat = latitude, lon = longitude), 
+                     ~ get_climate_data(..1, ..2, tempdir())),
+      temp = map_dbl(climate, "avg_temp"),
+      precip = map_dbl(climate, "avg_prec"),
+
       soil_water_holding_capacity = NA,
       forest_stand_type = NA,
       forest_stand_structure = NA,
@@ -170,7 +174,8 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = tempdir(), 
       in_stand_other_data = NA,
       number_of_trees = dplyr::n_distinct(xylo_obs$tree_label),
       site_comment = NA
-    )
+    ) %>%
+    select(-climate)
 
   # Prepare Tree Tab
   metadata_tree <- xylo_obs %>%
