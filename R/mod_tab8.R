@@ -77,6 +77,7 @@ mod_tab8_ui <- function(id) {
         shiny::conditionalPanel(
           condition = sprintf("output['%s'] == 'TRUE'", ns("publication_form_visible")),
           bslib::accordion(
+            open= c("DOI Search", "Publication Metadata"),
             bslib::accordion_panel(
               title = "DOI Search",
               id = ns("card_header_doi"),

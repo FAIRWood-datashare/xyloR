@@ -445,10 +445,10 @@ save_and_validate <- function(data_reactive, sheet_name, wb_reactive, temp_folde
 
 
 # 3) Static data you can load once (instead of inside a reactive)
-obs_template_path  <- system.file("extdata","Datasetname_xylo_data_yyyy-mm-dd.xlsx", package="xyloR")
-meta_template_path <- system.file("extdata","Datasetname_xylo_meta_yyyy-mm-dd.xlsx", package="xyloR")
-drop_list_obs  <- openxlsx::readWorkbook(obs_template_path,  sheet="DropList")
-drop_list_meta <- openxlsx::readWorkbook(meta_template_path, sheet="DropList")
+# obs_template_path  <- system.file("extdata","Datasetname_xylo_data_yyyy-mm-dd.xlsx", package="xyloR")
+# meta_template_path <- system.file("extdata","Datasetname_xylo_meta_yyyy-mm-dd.xlsx", package="xyloR")
+# drop_list_obs  <- openxlsx::readWorkbook(obs_template_path,  sheet="DropList")
+# drop_list_meta <- openxlsx::readWorkbook(meta_template_path, sheet="DropList")
 
 
 

@@ -92,6 +92,7 @@ mod_tab7_ui <- function(id) {
           
           # Accordion for ORCID and ROR Search
           bslib::accordion(
+            open = c("ORCID Search", "ROR Search", "Person Metadata"),
             bslib::accordion_panel(
               title = "ORCID Search",
               id = ns("card_header_orcid"),

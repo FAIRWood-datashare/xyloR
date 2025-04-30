@@ -140,7 +140,7 @@ mod_tab4_server <- function(id, out_tab1, out_tab2, out_tab3) {
       shiny::req(data_meta$tbl3)  # Ensure data is available
       rhandsontable::rhandsontable(
         data_meta$tbl3, 
-        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all') %>%
+        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all', height=150) %>%
         hot_col_wrapper('network_label', out_tab3$column_configs()$tbl3$network_label) %>%
         hot_col_wrapper('network_code', out_tab3$column_configs()$tbl3$network_code) %>%
         hot_col_wrapper('country_code', out_tab3$column_configs()$tbl3$country_code) %>%

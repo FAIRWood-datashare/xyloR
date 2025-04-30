@@ -1,2 +1,2 @@
 devtools::load_all(".")
-yxyloR()
+xyloR()
