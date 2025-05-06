@@ -189,8 +189,24 @@ mod_tab1_ui <- function(id) {
 #' @importFrom shinyjs addClass removeClass show runjs
 #' @importFrom openxlsx loadWorkbook saveWorkbook readWorkbook
 #' @importFrom dplyr tibble filter
-mod_tab1_server <- function(id) {
+mod_tab1_server <- function(id, session_global) {
   moduleServer(id, function(input, output, session) {
+    
+    # Include Observations and Upload metadata in the list of tabs to disable
+    tab_ids <- c("upload_metadata")
+    
+    # Disable the "upload_metadata" tab initially
+    shinyjs::disable(selector = "a[data-value='upload_metadata']")
+    
+    # Enable the tab and navigate to it when the button is clicked
+    shiny::observeEvent(input$next_btn, {
+      shinyjs::enable(selector = "a[data-value='upload_metadata']")
+      delay(200, {
+        bslib::nav_select(id = "tabs", selected = "upload_metadata", session = session_global)
+      })
+    })
+    
+    
     # # Accessing shared elements
     # temp_folder <- reactive({ shared$temp_folder })
 
@@ -255,6 +271,59 @@ mod_tab1_server <- function(id) {
     ### CARD 1.2 with the DOWNLOAD TEMPLATE
 
     # Download TEMPLATE for OBSERVATION FILE
+    # output$download_template <- shiny::downloadHandler(
+    #   filename = function() {
+    #     # Ensure dataset name is provided
+    #     shiny::req(input$dataset_name) # Ensure that dataset_name is available before downloading
+    #     paste0(input$dataset_name, "_xylo_data_", Sys.Date(), ".xlsx")
+    #   },
+    #   content = function(file) {
+    #     # Validate dataset name before proceeding
+    #     if (is.null(input$dataset_name) || input$dataset_name == "") {
+    #       stop("Please enter a dataset name before downloading.")
+    #     }
+    # 
+    #     # Define the paths for the template and temporary file
+    #     template_path <- system.file("extdata", "Datasetname_xylo_data_yyyy-mm-dd.xlsx", package = "xyloR")
+    #     if (template_path == "") {
+    #       shiny::showModal(modalDialog(
+    #         title = "Error",
+    #         "Template file not found. Please check the template package.",
+    #         easyClose = TRUE,
+    #         footer = NULL
+    #       ))
+    #       return(NULL) # Exit function if the template is not found
+    #     }
+    # 
+    #     obs_path_temporary <- file.path(tempdir(), paste0(input$dataset_name, "_xylo_data_", Sys.Date(), ".xlsx"))
+    # 
+    #     # Load the template
+    #     tryCatch(
+    #       {
+    #         obs_template <- openxlsx::loadWorkbook(template_path)
+    #       },
+    #       error = function(e) {
+    #         shiny::showModal(modalDialog(
+    #           title = "Error",
+    #           paste("Error loading template file:", e$message),
+    #           easyClose = TRUE,
+    #           footer = NULL
+    #         ))
+    #         return(NULL) # Exit function on error
+    #       }
+    #     )
+    # 
+    #     # Save the template to a temporary file
+    #     openxlsx::saveWorkbook(obs_template, obs_path_temporary, overwrite = TRUE)
+    # 
+    #     # Copy the file to the user-selected location for downloading
+    #     file.copy(obs_path_temporary, file)
+    # 
+    #     # Update card header to 'success' after download
+    #     update_card_header_success() # Call helper function to update header color
+    #   }
+    # )
+    
     output$download_template <- shiny::downloadHandler(
       filename = function() {
         # Ensure dataset name is provided
@@ -264,9 +333,15 @@ mod_tab1_server <- function(id) {
       content = function(file) {
         # Validate dataset name before proceeding
         if (is.null(input$dataset_name) || input$dataset_name == "") {
-          stop("Please enter a dataset name before downloading.")
+          shiny::showModal(modalDialog(
+            title = "Error",
+            "Please enter a dataset name before downloading.",
+            easyClose = TRUE,
+            footer = NULL
+          ))
+          return(NULL) # Exit function if the dataset name is missing
         }
-
+        
         # Define the paths for the template and temporary file
         template_path <- system.file("extdata", "Datasetname_xylo_data_yyyy-mm-dd.xlsx", package = "xyloR")
         if (template_path == "") {
@@ -278,78 +353,143 @@ mod_tab1_server <- function(id) {
           ))
           return(NULL) # Exit function if the template is not found
         }
-
+        
         obs_path_temporary <- file.path(tempdir(), paste0(input$dataset_name, "_xylo_data_", Sys.Date(), ".xlsx"))
-
-        # Load the template
-        tryCatch(
-          {
-            obs_template <- openxlsx::loadWorkbook(template_path)
-          },
-          error = function(e) {
-            shiny::showModal(modalDialog(
-              title = "Error",
-              paste("Error loading template file:", e$message),
-              easyClose = TRUE,
-              footer = NULL
-            ))
-            return(NULL) # Exit function on error
-          }
-        )
-
-        # Save the template to a temporary file
-        openxlsx::saveWorkbook(obs_template, obs_path_temporary, overwrite = TRUE)
-
-        # Copy the file to the user-selected location for downloading
-        file.copy(obs_path_temporary, file)
-
-        # Update card header to 'success' after download
-        update_card_header_success() # Call helper function to update header color
+        
+        # Provide progress feedback to the user
+        shiny::withProgress(message = "Preparing dataset template...", value = 0, {
+          
+          shiny::setProgress(value = 0.2, detail = "Loading the template...")
+          
+          # Load the template
+          tryCatch(
+            {
+              obs_template <- openxlsx::loadWorkbook(template_path)
+            },
+            error = function(e) {
+              shiny::showModal(modalDialog(
+                title = "Error",
+                paste("Error loading template file:", e$message),
+                easyClose = TRUE,
+                footer = NULL
+              ))
+              return(NULL) # Exit function on error
+            }
+          )
+          
+          shiny::setProgress(value = 0.5, detail = "Prefilling the template...")
+          
+          # You can insert any logic here if you need to modify the template before saving it
+          
+          shiny::setProgress(value = 0.8, detail = "Saving the template...")
+          
+          # Save the template to a temporary file
+          openxlsx::saveWorkbook(obs_template, obs_path_temporary, overwrite = TRUE)
+          
+          shiny::setProgress(value = 1, detail = "File ready for download")
+          
+          # Copy the file to the user-selected location for downloading
+          file.copy(obs_path_temporary, file)
+          
+          # Optionally, you can update UI elements after completion
+          shinyjs::addClass(id = "card_header", class = "bg-success")
+          shinyjs::removeClass(id = "card_header", class = "bg-danger")
+        })
       }
     )
+    
 
     # Download FILLED EXAMPLE OBSERVATION FILE
+    # output$download_example_obs <- shiny::downloadHandler(
+    #   filename = function() {
+    #     paste0("Example_Filled_Obs.xlsx")
+    #   },
+    #   content = function(file) {
+    #     # Define the template path for filled example observation
+    #     template_path <- system.file("extdata", "Ltal.2007_xylo_data_2025-03-06.xlsx", package = "xyloR")
+    # 
+    #     # Check if the template exists
+    #     if (template_path == "") {
+    #       shiny::showModal(modalDialog(
+    #         title = "Error",
+    #         "Example template file not found. Please check the template package.",
+    #         easyClose = TRUE,
+    #         footer = NULL
+    #       ))
+    #       return(NULL) # Exit function if the template is not found
+    #     }
+    # 
+    #     # Load the template
+    #     tryCatch(
+    #       {
+    #         obs_template <- openxlsx::loadWorkbook(template_path)
+    #       },
+    #       error = function(e) {
+    #         shiny::showModal(modalDialog(
+    #           title = "Error",
+    #           paste("Error loading example template file:", e$message),
+    #           easyClose = TRUE,
+    #           footer = NULL
+    #         ))
+    #         return(NULL) # Exit function on error
+    #       }
+    #     )
+    # 
+    #     # Save directly to the user-selected location
+    #     openxlsx::saveWorkbook(obs_template, file, overwrite = TRUE)
+    #   }
+    # )
+
     output$download_example_obs <- shiny::downloadHandler(
       filename = function() {
         paste0("Example_Filled_Obs.xlsx")
       },
       content = function(file) {
-        # Define the template path for filled example observation
-        template_path <- system.file("extdata", "Ltal.2007_xylo_data_2025-03-06.xlsx", package = "xyloR")
-
-        # Check if the template exists
-        if (template_path == "") {
-          shiny::showModal(modalDialog(
-            title = "Error",
-            "Example template file not found. Please check the template package.",
-            easyClose = TRUE,
-            footer = NULL
-          ))
-          return(NULL) # Exit function if the template is not found
-        }
-
-        # Load the template
-        tryCatch(
-          {
-            obs_template <- openxlsx::loadWorkbook(template_path)
-          },
-          error = function(e) {
+        # Provide progress feedback to the user
+        shiny::withProgress(message = "Preparing the observation file...", value = 0, {
+          
+          # Step 1: Define the template path for filled example observation
+          shiny::setProgress(value = 0.1, detail = "Locating template file...")
+          template_path <- system.file("extdata", "Ltal.2007_xylo_data_2025-03-06.xlsx", package = "xyloR")
+          
+          # Check if the template exists
+          if (template_path == "") {
             shiny::showModal(modalDialog(
               title = "Error",
-              paste("Error loading example template file:", e$message),
+              "Example template file not found. Please check the template package.",
               easyClose = TRUE,
               footer = NULL
             ))
-            return(NULL) # Exit function on error
+            return(NULL) # Exit function if the template is not found
           }
-        )
-
-        # Save directly to the user-selected location
-        openxlsx::saveWorkbook(obs_template, file, overwrite = TRUE)
+          
+          # Step 2: Load the template
+          shiny::setProgress(value = 0.5, detail = "Loading template...")
+          tryCatch(
+            {
+              obs_template <- openxlsx::loadWorkbook(template_path)
+            },
+            error = function(e) {
+              shiny::showModal(modalDialog(
+                title = "Error",
+                paste("Error loading example template file:", e$message),
+                easyClose = TRUE,
+                footer = NULL
+              ))
+              return(NULL) # Exit function on error
+            }
+          )
+          
+          # Step 3: Save the workbook to the user-selected location
+          shiny::setProgress(value = 0.8, detail = "Saving file...")
+          openxlsx::saveWorkbook(obs_template, file, overwrite = TRUE)
+          
+          # Final step: Complete the progress bar
+          shiny::setProgress(value = 1, detail = "Download complete!")
+        })
       }
     )
-
-
+    
 
 
     ### CARD 1.3 with the UPLOAD OBSERVATION FILE
@@ -804,12 +944,12 @@ mod_tab1_server <- function(id) {
       }
     })
 
-    # Handle navigation after validation
-    shiny::observeEvent(input$next_btn, {
-      # Navigate to the next tab after validation
-      bslib::nav_select(id = "tabs", selected = "upload_metadata", session = session)
-    })
-
+    # # Handle navigation after validation
+    # shiny::observeEvent(input$next_btn, {
+    #   # Navigate to the next tab after validation
+    #   bslib::nav_select(id = "tabs", selected = "upload_metadata", session = session)
+    # })
+    
 
     # Optionally, improve feedback messages for specific validation states
     shiny::observe({

@@ -60,7 +60,7 @@ ui <- shiny::fluidPage(
 
 # ─── 2) Build the server ──────────────────────────────────────────────────────
 server <- function(input, output, session) {
-  out_tab1 <- mod_tab1_server("tab1")
+  out_tab1 <- mod_tab1_server("tab1", session = session)
   out_tab2 <- mod_tab2_server("tab2", out_tab1)
   out_tab3 <- mod_tab3_server("tab3", out_tab1, out_tab2)
   out_tab4 <- mod_tab4_server("tab4", out_tab1, out_tab2, out_tab3)

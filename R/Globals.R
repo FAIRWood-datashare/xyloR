@@ -387,60 +387,128 @@ renderer_date <- function(required = NULL){
       }", check_required)))
 }
 
+# save_and_validate <- function(data_reactive, sheet_name, wb_reactive, temp_folder, update_validation) {
+#   req(data_reactive)
+#   req(wb_reactive())
+#   
+#   # Determine whether the sheet belongs to meta or obs
+#   meta_sheets <- c("site", "tree", "sample", "person", "publication")
+#   print(sheet_name)
+#   is_meta_sheet <- sheet_name %in% meta_sheets
+#   
+#   # Get workbook
+#   wb <- wb_reactive()
+#   
+#   # Write data to the sheet (starting row depends on sheet name)
+#   openxlsx::writeData(
+#     wb,
+#     sheet = sheet_name,
+#     x = data_reactive,
+#     startCol = 1,
+#     startRow = ifelse(sheet_name == "obs_data_info", 6, 8),
+#     colNames = FALSE,
+#     rowNames = FALSE
+#   )
+#   
+#   files <- list.files(temp_folder(), pattern = "*.xlsx", recursive = TRUE) 
+#   xylo_file_name <- files[grep("xylo_data", files)]
+#   meta_file_name <- files[grep("xylo_meta", files)]
+#   xylo_file_path <- paste(temp_folder(), xylo_file_name, sep = "/")
+#   meta_file_path <- paste(temp_folder(), meta_file_name, sep = "/")
+#   
+#   # Choose file paths based on the type of sheet
+#   print("meta_file_path")
+#   print(meta_file_path)
+#   print("xylo_file_path")
+#   print(xylo_file_path)
+#   path_of_file_changed_by_user <- if (is_meta_sheet) meta_file_path else xylo_file_path
+#   
+#   # Save workbook
+#   openxlsx::saveWorkbook(wb, path_of_file_changed_by_user, overwrite = TRUE)
+#   
+#   # Notify user
+#   showNotification(
+#     paste0("Data written to sheet '", sheet_name, "' of ", path_of_file_changed_by_user),
+#     type = "message"
+#   )
+#   print(paste("File saved at:", path_of_file_changed_by_user))
+#   
+#   
+#   tbl_validation <- rbind(
+#       xylo_format_validation(xylo_file_path),
+#       meta_format_validation(meta_file_path)
+#     )
+#   
+#   # Update validation reactive
+#   update_validation(tbl_validation)
+# }
+
 save_and_validate <- function(data_reactive, sheet_name, wb_reactive, temp_folder, update_validation) {
   req(data_reactive)
   req(wb_reactive())
   
-  # Determine whether the sheet belongs to meta or obs
-  meta_sheets <- c("site", "tree", "sample", "person", "publication")
-  print(sheet_name)
-  is_meta_sheet <- sheet_name %in% meta_sheets
-  
-  # Get workbook
-  wb <- wb_reactive()
-  
-  # Write data to the sheet (starting row depends on sheet name)
-  openxlsx::writeData(
-    wb,
-    sheet = sheet_name,
-    x = data_reactive,
-    startCol = 1,
-    startRow = ifelse(sheet_name == "obs_data_info", 6, 8),
-    colNames = FALSE,
-    rowNames = FALSE
-  )
-  
-  files <- list.files(temp_folder(), pattern = "*.xlsx", recursive = TRUE) 
-  xylo_file_name <- files[grep("xylo_data", files)]
-  meta_file_name <- files[grep("xylo_meta", files)]
-  xylo_file_path <- paste(temp_folder(), xylo_file_name, sep = "/")
-  meta_file_path <- paste(temp_folder(), meta_file_name, sep = "/")
-  
-  # Choose file paths based on the type of sheet
-  print("meta_file_path")
-  print(meta_file_path)
-  print("xylo_file_path")
-  print(xylo_file_path)
-  path_of_file_changed_by_user <- if (is_meta_sheet) meta_file_path else xylo_file_path
-  
-  # Save workbook
-  openxlsx::saveWorkbook(wb, path_of_file_changed_by_user, overwrite = TRUE)
-  
-  # Notify user
-  showNotification(
-    paste0("Data written to sheet '", sheet_name, "' of ", path_of_file_changed_by_user),
-    type = "message"
-  )
-  print(paste("File saved at:", path_of_file_changed_by_user))
-  
-  
-  tbl_validation <- rbind(
+  # Start the progress bar
+  shiny::withProgress(message = 'Saving and validating data...', value = 0, {
+    
+    # Step 1: Determine whether the sheet belongs to meta or obs
+    meta_sheets <- c("site", "tree", "sample", "person", "publication")
+    is_meta_sheet <- sheet_name %in% meta_sheets
+    
+    # Update progress to indicate the determination step
+    shiny::setProgress(value = 0.1, detail = "Determining sheet type...")
+    
+    # Step 2: Get the workbook
+    wb <- wb_reactive()
+    
+    # Step 3: Write data to the sheet
+    shiny::setProgress(value = 0.3, detail = "Writing data to sheet...")
+    
+    openxlsx::writeData(
+      wb,
+      sheet = sheet_name,
+      x = data_reactive,
+      startCol = 1,
+      startRow = ifelse(sheet_name == "obs_data_info", 6, 8),
+      colNames = FALSE,
+      rowNames = FALSE
+    )
+    
+    # Step 4: Get the list of files and choose the correct file path
+    shiny::setProgress(value = 0.5, detail = "Fetching file paths...")
+    
+    files <- list.files(temp_folder(), pattern = "*.xlsx", recursive = TRUE)
+    xylo_file_name <- files[grep("xylo_data", files)]
+    meta_file_name <- files[grep("xylo_meta", files)]
+    xylo_file_path <- paste(temp_folder(), xylo_file_name, sep = "/")
+    meta_file_path <- paste(temp_folder(), meta_file_name, sep = "/")
+    
+    # Choose file paths based on the type of sheet
+    path_of_file_changed_by_user <- if (is_meta_sheet) meta_file_path else xylo_file_path
+    
+    # Step 5: Save workbook to the correct file
+    shiny::setProgress(value = 0.7, detail = "Saving workbook...")
+    
+    openxlsx::saveWorkbook(wb, path_of_file_changed_by_user, overwrite = TRUE)
+    
+    # Step 6: Notify user that the data has been saved
+    shiny::setProgress(value = 0.9, detail = "Data saved, validating format...")
+    
+    showNotification(
+      paste0("Data written to sheet '", sheet_name, "' of ", path_of_file_changed_by_user),
+      type = "message"
+    )
+    
+    tbl_validation <- rbind(
       xylo_format_validation(xylo_file_path),
       meta_format_validation(meta_file_path)
     )
-  
-  # Update validation reactive
-  update_validation(tbl_validation)
+    
+    # Step 7: Update validation reactive
+    update_validation(tbl_validation)
+    
+    # Complete the progress bar
+    shiny::setProgress(value = 1, detail = "Validation complete.")
+  })
 }
 
 

@@ -106,7 +106,7 @@ mod_tab3_server <- function(id, out_tab1, out_tab2) {
       openxlsx::loadWorkbook(out_tab2$meta_file()$datapath)
     })
     
-    tab_ids <- c("Site", "Tree", "Sample", "Person", "Publication")
+    tab_ids <- c("Observations", "Site", "Tree", "Sample", "Person", "Publication")
     lapply(tab_ids, function(id) shinyjs::disable(selector = sprintf("a[data-value='%s']", id)))
     
     shiny::observe({

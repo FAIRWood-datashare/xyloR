@@ -98,7 +98,9 @@ mod_tab7_ui <- function(id) {
               id = ns("card_header_orcid"),
               tooltip(
                 bsicons::bs_icon("question-circle"),
-                "Use this tool to search for a persons ORCID ID using their name or an existing ORCID. Retrieved info will populate the form below.",
+                htmltools::HTML("<b>Use this tool to search for a persons ORCID ID using their name or an existing ORCID.</b><br>
+                                A table with the search results will appear.<br>
+                                Select the correct row to retrieve the info in the Metadata form below.<br>"),
                 placement = "right"
               ),
               shiny::fluidRow(
@@ -114,6 +116,12 @@ mod_tab7_ui <- function(id) {
                 shiny::column(3, shiny::textInput(ns("orcid_search"), "ORCID ID",         placeholder = "e.g. 0000-0002-1825-0097"))
               )
             ),
+            shiny::fluidRow(
+              shiny::column(12,
+                            h4("ORCID Search Results:"),
+                            DT::DTOutput(ns("orcid_results_table"))
+              )
+            ),
             
             bslib::accordion_panel(
               title = "ROR Search",
@@ -121,8 +129,9 @@ mod_tab7_ui <- function(id) {
               bslib::tooltip(
                 bsicons::bs_icon("question-circle"),
                 htmltools::HTML(
-                  "<b>Search for a Research Organization Registry (ROR) ID.</b><br>
-                   Helps standardize institution names and identifiers.<br><br>"
+                  "<b>Use this tool to search for a Research Organization Registry (ROR) using their name or an existing ORCID.</b><br>
+                    A table with the search results will appear.<br>
+                    Select the correct row to retrieve the info in the Metadata form below.<br>"
                 ),
                 placement = "right"
               ),
@@ -201,11 +210,14 @@ mod_tab7_ui <- function(id) {
 #'
 #' @import shiny
 #' @import rhandsontable
-#' @import dplyr
+#' @import dplyr 
 #' @import shinyjs
 #' @import httr
 #' @import jsonlite
 #' @import openxlsx
+#' @importFrom DT renderDT
+#' @importFrom tidyr separate
+#' 
 mod_tab7_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
   moduleServer(id, function(input, output, session) {
     
@@ -311,7 +323,7 @@ mod_tab7_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
       shiny::req(out_tab4$data_meta$tbl6)  # Ensure data is available
       rhandsontable::rhandsontable(
         out_tab4$data_meta$tbl6,
-        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all', selectCallback = TRUE) %>%
+        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all', selectCallback = TRUE, height=150) %>%
         hot_col_wrapper('person_role', out_tab3$column_configs()$tbl6$person_role) %>%
         hot_col_wrapper('person_order', out_tab3$column_configs()$tbl6$person_order) %>%
         hot_col_wrapper('last_name', out_tab3$column_configs()$tbl6$last_name) %>%
@@ -427,8 +439,10 @@ mod_tab7_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
       req(input$tbl6)
       if (!is.null(input$tbl6)) {
         ordered_data <- rhandsontable::hot_to_r(input$tbl6)
-        ordered_data$person_order <- as.numeric(ordered_data$person_order)
-        out_tab4$data_meta$tbl6 <- ordered_data[order(ordered_data$person_order), ]
+        ordered_data$person_order <- as.integer(ordered_data$person_order)
+        ordered_data <- ordered_data[order(ordered_data$person_order), ]
+        ordered_data$person_order <- seq_len(nrow(ordered_data))
+        out_tab4$data_meta$tbl6 <- ordered_data
       }
     })
     
@@ -436,73 +450,170 @@ mod_tab7_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
     orcid_data <- shiny::reactiveValues(results = NULL)
     
     # Search via Orcid
+    # observeEvent(input$search_orcid, {
+    #   # If ORCID ID is provided, use that
+    #   if (nzchar(input$orcid_search)) {
+    #     orcid_id <- gsub("https?://orcid.org/", "", trimws(input$orcid_search))
+    #     orcid_url <- paste0("https://pub.orcid.org/v3.0/", orcid_id)
+    #     
+    #     res <- httr::GET(orcid_url, httr::add_headers(Accept = "application/json"))
+    #     
+    #     if (httr::status_code(res) == 200) {
+    #       parsed <- jsonlite::fromJSON(rawToChar(res$content))
+    #       
+    #       updateTextInput(session, "orcid", value = orcid_id)
+    #       updateTextInput(session, "last_name", value = parsed$`person`$`name`$`family-name`$value)
+    #       updateTextInput(session, "first_name", value = parsed$`person`$`name`$`given-names`$value)
+    #       
+    #       email_val <- tryCatch(parsed$`person`$emails$email[[1]]$email, error = function(e) "")
+    #       updateTextInput(session, "email", value = email_val)
+    #       
+    #       if (!is.null(parsed$`activities-summary`$`employments`$`employment-summary`)) {
+    #         org_name <- parsed$`activities-summary`$`employments`$`employment-summary`[[1]]$`organization`$`name`
+    #         updateTextInput(session, "organization_name", value = org_name)
+    #       }
+    #       
+    #     } else {
+    #       showNotification("Failed to retrieve data for provided ORCID ID.", type = "error")
+    #     }
+    #     
+    #     # Else if names are provided, do a name-based search
+    #   } else if (nzchar(input$first_name_search) && nzchar(input$last_name_search)) {
+    #     given <- trimws(input$first_name_search)
+    #     family <- trimws(input$last_name_search)
+    #     query_name <- URLencode(paste0("given-names:", given, " AND family-name:", family))
+    #     search_url <- sprintf("https://pub.orcid.org/v3.0/expanded-search?q=%s", query_name)
+    #     
+    #     res <- httr::GET(search_url, httr::add_headers(Accept = "application/json"))
+    #     
+    #     if (httr::status_code(res) == 200) {
+    #       parsed <- jsonlite::fromJSON(rawToChar(res$content))
+    #       if (!is.null(parsed$`expanded-result`) && nrow(parsed$`expanded-result`) > 0) {
+    #         results <- tibble::tibble(
+    #           ORCID = parsed$`expanded-result`$`orcid-id`,
+    #           LastName = parsed$`expanded-result`$`family-names`,
+    #           FirstName = parsed$`expanded-result`$`given-names`,
+    #           Email = if (!is.null(parsed$`expanded-result`$email) && length(parsed$`expanded-result`$email) > 0) paste(parsed$`expanded-result`$email[[1]], collapse = ", ") else "",
+    #           Organization = if (!is.null(parsed$`expanded-result`$`institution-name`) && length(parsed$`expanded-result`$`institution-name`) > 0) paste(parsed$`expanded-result`$`institution-name`[[1]], collapse = ", ") else ""
+    #         )
+    #         
+    #         updateTextInput(session, "orcid", value = results$ORCID[1])
+    #         updateTextInput(session, "last_name", value = results$LastName[1])
+    #         updateTextInput(session, "first_name", value = results$FirstName[1])
+    #         updateTextInput(session, "email", value = results$Email[1])
+    #         updateTextInput(session, "organization_name", value = results$Organization[1])
+    #         
+    #         orcid_data$results <- results
+    #       } else {
+    #         showNotification("No ORCID results found for that name.", type = "message")
+    #       }
+    #     } else {
+    #       showNotification("ORCID name search failed.", type = "error")
+    #     }
+    #     
+    #   } else {
+    #     showNotification("Please provide either an ORCID ID or both first and last name.", type = "warning")
+    #   }
+    # })
+    
     observeEvent(input$search_orcid, {
-      # If ORCID ID is provided, use that
+      
+      # Build query
+      query <- NULL
       if (nzchar(input$orcid_search)) {
         orcid_id <- gsub("https?://orcid.org/", "", trimws(input$orcid_search))
-        orcid_url <- paste0("https://pub.orcid.org/v3.0/", orcid_id)
-        
-        res <- httr::GET(orcid_url, httr::add_headers(Accept = "application/json"))
-        
-        if (httr::status_code(res) == 200) {
-          parsed <- jsonlite::fromJSON(rawToChar(res$content))
-          
-          updateTextInput(session, "orcid", value = orcid_id)
-          updateTextInput(session, "last_name", value = parsed$`person`$`name`$`family-name`$value)
-          updateTextInput(session, "first_name", value = parsed$`person`$`name`$`given-names`$value)
-          
-          email_val <- tryCatch(parsed$`person`$emails$email[[1]]$email, error = function(e) "")
-          updateTextInput(session, "email", value = email_val)
-          
-          if (!is.null(parsed$`activities-summary`$`employments`$`employment-summary`)) {
-            org_name <- parsed$`activities-summary`$`employments`$`employment-summary`[[1]]$`organization`$`name`
-            updateTextInput(session, "organization_name", value = org_name)
-          }
-          
+        if (grepl("^[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]$", orcid_id)) {
+          query <- paste0("?q=orcid:", orcid_id)
         } else {
-          showNotification("Failed to retrieve data for provided ORCID ID.", type = "error")
+          showNotification("Invalid ORCID format.", type = "error")
+          return()
         }
+      } else if (nzchar(input$first_name_search) || nzchar(input$last_name_search)) {
+        query_ln <- if (nzchar(input$last_name_search)) {
+          sprintf('(family-name:(%s))', URLencode(gsub(" ", "+AND+", input$last_name_search)))
+        } else ""
         
-        # Else if names are provided, do a name-based search
-      } else if (nzchar(input$first_name_search) && nzchar(input$last_name_search)) {
-        given <- trimws(input$first_name_search)
-        family <- trimws(input$last_name_search)
-        query_name <- URLencode(paste0("given-names:", given, " AND family-name:", family))
-        search_url <- sprintf("https://pub.orcid.org/v3.0/expanded-search?q=%s", query_name)
+        query_fn <- if (nzchar(input$first_name_search)) {
+          sprintf('(given-names:(%s))', URLencode(gsub(" ", "+AND+", input$first_name_search)))
+        } else ""
         
-        res <- httr::GET(search_url, httr::add_headers(Accept = "application/json"))
+        query <- paste0("?q=", query_ln, ifelse(nzchar(query_ln) && nzchar(query_fn), "+AND+", ""), query_fn)
+      } else {
+        showNotification("Please provide an ORCID or a name to search.", type = "warning")
+        return()
+      }
+      
+      # Perform CSV API request
+      search_url <- paste0(
+        "https://pub.orcid.org/v3.0/csv-search/", query,
+        "&fl=family-name,given-names,email,orcid,current-institution-affiliation-name,other-names",
+        "&rows=50"
+      )
+      
+      res <- httr::GET(search_url, httr::timeout(5))
+      
+      if (httr::status_code(res) == 200) {
+        orcid_df <- read.table(text = rawToChar(res$content), sep = ",", header = TRUE, stringsAsFactors = FALSE)
         
-        if (httr::status_code(res) == 200) {
-          parsed <- jsonlite::fromJSON(rawToChar(res$content))
-          if (!is.null(parsed$`expanded-result`) && nrow(parsed$`expanded-result`) > 0) {
-            results <- tibble::tibble(
-              ORCID = parsed$`expanded-result`$`orcid-id`,
-              LastName = parsed$`expanded-result`$`family-names`,
-              FirstName = parsed$`expanded-result`$`given-names`,
-              Email = if (!is.null(parsed$`expanded-result`$email) && length(parsed$`expanded-result`$email) > 0) paste(parsed$`expanded-result`$email[[1]], collapse = ", ") else "",
-              Organization = if (!is.null(parsed$`expanded-result`$`institution-name`) && length(parsed$`expanded-result`$`institution-name`) > 0) paste(parsed$`expanded-result`$`institution-name`[[1]], collapse = ", ") else ""
-            )
-            
-            updateTextInput(session, "orcid", value = results$ORCID[1])
-            updateTextInput(session, "last_name", value = results$LastName[1])
-            updateTextInput(session, "first_name", value = results$FirstName[1])
-            updateTextInput(session, "email", value = results$Email[1])
-            updateTextInput(session, "organization_name", value = results$Organization[1])
-            
-            orcid_data$results <- results
-          } else {
-            showNotification("No ORCID results found for that name.", type = "message")
-          }
+        if (nrow(orcid_df) > 0) {
+          results <- orcid_df %>%
+            rename(
+              last_name = family.name,
+              first_name = given.names,
+              orcid_id = orcid,
+              org_name = current.institution.affiliation.name,
+              other_names = other.names
+            ) %>%
+            tidyr::separate(email, into = c("email"), sep = ",(?!\\s)", extra = "drop", remove = FALSE) %>%
+            tidyr::separate(org_name, into = c("org_name"), sep = ",(?!\\s)", extra = "drop", remove = FALSE) %>%
+            mutate(orcid_link = sprintf("<a href='https://orcid.org/%s' target='_blank'>%s</a>", orcid_id, orcid_id))
+          
+          orcid_data$results <- results
         } else {
-          showNotification("ORCID name search failed.", type = "error")
+          orcid_data$results <- NULL
+          showNotification("No ORCID results found.", type = "message")
         }
         
       } else {
-        showNotification("Please provide either an ORCID ID or both first and last name.", type = "warning")
+        orcid_data$results <- NULL
+        showNotification("ORCID API request failed.", type = "error")
       }
     })
     
-    # ROR Search
+    output$orcid_results_table <- DT::renderDT({
+      req(orcid_data$results)
+      
+      df <- orcid_data$results %>%
+        select(
+          `ORCID (clickable)` = orcid_link,
+          `First Name` = first_name,
+          `Last Name` = last_name,
+          Email = email,
+          Organization = org_name
+        )
+      
+      DT::datatable(df,
+                escape = FALSE,
+                rownames = FALSE,
+                selection = "single",
+                options = list(pageLength = 10, autoWidth = TRUE))
+    })
+    
+    observeEvent(input$orcid_results_table_rows_selected, {
+      selected <- input$orcid_results_table_rows_selected
+      if (!is.null(selected) && length(selected) == 1) {
+        row <- orcid_data$results[selected, ]
+        updateTextInput(session, "orcid", value = row$orcid_id)
+        updateTextInput(session, "first_name", value = row$first_name)
+        updateTextInput(session, "last_name", value = row$last_name)
+        updateTextInput(session, "email", value = row$email)
+        updateTextInput(session, "organization_name", value = row$org_name)
+      }
+    })
+  
+  
+  
+  # ROR Search
     ror_data <- shiny::reactiveValues(results = NULL)
     
     observeEvent(input$search_ror, {
@@ -550,7 +661,8 @@ mod_tab7_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
           
           
           output$ror_results <- DT::renderDT({
-            DT::datatable(res_df, rownames = FALSE)
+            DT::datatable(res_df, rownames = FALSE, selection = "single", escape = FALSE,
+                          options = list(pageLength = 10, autoWidth = TRUE))
           })
         }
         else {
@@ -572,9 +684,10 @@ mod_tab7_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
       # insert results into their corresponding fields
       updateTextInput(session, "organization_name", value = ror_row$Name[1])
       updateTextInput(session, "research_organization_registry", value = ror_row$ROR[1])
-      updateTextInput(session, "city", value = ror_row$Location[1])
-      updateTextInput(session, "country", value = ror_row$Location[1])
-      updateTextInput(session, "person_country_code", value = countrycode::countrycode(ror_row$Location[1], origin = "country.name", destination = "iso2c"))
+      updateTextInput(session, "city", value = ror_row$city[1])
+      updateTextInput(session, "country", value = ror_row$country[1])
+      updateTextInput(session, "person_country_code", value = countrycode::countrycode(ror_row$country[1], origin = "country.name", destination = "iso2c"))
+      
       updateTextInput(session, "webpage", value = ror_row$Website[1])
       
       

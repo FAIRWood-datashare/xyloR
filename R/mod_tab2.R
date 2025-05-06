@@ -157,7 +157,6 @@ mod_tab2_ui <- function(id) {
 #' 
 mod_tab2_server <- function(id, out_tab1) {
   moduleServer(id, function(input, output, session) {
-    
 
     output$download_meta_template <- shiny::downloadHandler(
       filename = function() {
@@ -184,23 +183,55 @@ mod_tab2_server <- function(id, out_tab1) {
       }
     )
     
+    # output$download_example_meta <- shiny::downloadHandler(
+    #   filename = function() {
+    #     paste0("Example_Filled_Meta.xlsx")
+    #   },
+    #   content = function(file) {
+    #     # Define the template path
+    #     template_path <- system.file("extdata", "Ltal.2007_xylo_meta_2025-03-08.xlsx", package = "xyloR")
+    #     
+    #     # Load the template
+    #     obs_template <- openxlsx::loadWorkbook(template_path)
+    #     
+    #     # Save directly to the user-selected location
+    #       openxlsx::saveWorkbook(obs_template, file, overwrite = TRUE)
+    #   }
+    # )
+    # 
     output$download_example_meta <- shiny::downloadHandler(
       filename = function() {
+        # Define the filename dynamically, if needed
         paste0("Example_Filled_Meta.xlsx")
       },
       content = function(file) {
-        # Define the template path
-        template_path <- system.file("extdata", "Ltal.2007_xylo_meta_2025-03-08.xlsx", package = "xyloR")
-        
-        # Load the template
-        obs_template <- openxlsx::loadWorkbook(template_path)
-        
-        # Save directly to the user-selected location
+        # Provide progress feedback to the user
+        shiny::withProgress(message = "Preparing the metadata file...", value = 0, {
+          
+          # Step 1: Define the template path
+          shiny::setProgress(value = 0.1, detail = "Locating template file...")
+          template_path <- system.file("extdata", "Ltal.2007_xylo_meta_2025-03-08.xlsx", package = "xyloR")
+          
+          # Check if the template file exists
+          if (template_path == "") {
+            showNotification("Template file not found. Please contact support.", type = "error")
+            return(NULL)
+          }
+          
+          # Step 2: Load the template
+          shiny::setProgress(value = 0.5, detail = "Loading template...")
+          obs_template <- openxlsx::loadWorkbook(template_path)
+          
+          # Step 3: Save the workbook to the user-selected location
+          shiny::setProgress(value = 0.8, detail = "Saving file...")
           openxlsx::saveWorkbook(obs_template, file, overwrite = TRUE)
+          
+          # Final step: Complete the progress bar
+          shiny::setProgress(value = 1, detail = "Download complete!")
+        })
       }
     )
     
-
     
     # ============================================================================
     # CARD 2.2: Validate uploaded metadata and observation files
@@ -383,56 +414,138 @@ mod_tab2_server <- function(id, out_tab1) {
     })
     
     # Folder path where the files will be saved
+    # output$download_zip <- shiny::downloadHandler(
+    #   filename = function() {
+    #     shiny::req(out_tab1$dataset_name())
+    #     paste(out_tab1$dataset_name(), "_Exchange_Files_", Sys.Date(), ".zip", sep = "")
+    #   },
+    #   
+    #   content = function(file) {
+    #     
+    #     # Get the paths to the uploaded final files
+    #     # req(input$obs_file, input$meta_file)
+    #     # obs_file_path <- input$obs_file$name
+    #     # meta_file_path <- input$meta_file$name
+    #     # Define paths to the saved files in the reactive temp folder
+    #     obs_file_saved <- file.path(out_tab1$temp_folder(), basename(out_tab1$obs_file()$name))
+    #     meta_file_saved <- file.path(out_tab1$temp_folder(), basename(input$meta_file$name))
+    #     
+    #     
+    #     # Call the function to process and save the exchange files
+    #     result <- tryCatch({
+    #       print("obs_file_saved")
+    #       print(obs_file_saved)
+    #       print("meta_file_saved")
+    #       print(meta_file_saved)
+    #       print("out_tab1$temp_folder()")
+    #       print(out_tab1$temp_folder())
+    #       print("out_tab1$dataset_name()")
+    #       print(out_tab1$dataset_name())
+    #       
+    #       to_exchange_files(obs_file_saved, meta_file_saved, dir = out_tab1$temp_folder(), dataset_name = out_tab1$dataset_name())  # Process the files
+    #     }, error = function(e) {
+    #       stop(paste("Error: ", e$message))
+    #     })
+    #     
+    #     # print(list.files(temp_folder()))
+    #     
+    #     # List all files inside the folder without the parent directory
+    #     files_to_zip <- list.files(out_tab1$temp_folder(), full.names = TRUE, recursive = TRUE)
+    #     
+    #     # Clean the file paths, removing any redundant slashes
+    #     files_to_zip <- gsub("//", "/", files_to_zip)
+    #     
+    #     # Compress the files into a ZIP file, avoiding the parent folder structure
+    #     zip::zipr(zipfile = file, files = files_to_zip)      
+    #   }
+    # )
+    # 
+    # # Placeholder for modal UI output (if needed)
+    # output$modal_ui <- renderUI({
+    #   NULL
+    # })
+    # 
+    
     output$download_zip <- shiny::downloadHandler(
       filename = function() {
-        shiny::req(out_tab1$dataset_name())
+        shiny::req(out_tab1$dataset_name())  # Ensure the dataset name is available
         paste(out_tab1$dataset_name(), "_Exchange_Files_", Sys.Date(), ".zip", sep = "")
       },
       
       content = function(file) {
-        
-        # Get the paths to the uploaded final files
-        # req(input$obs_file, input$meta_file)
-        # obs_file_path <- input$obs_file$name
-        # meta_file_path <- input$meta_file$name
-        # Define paths to the saved files in the reactive temp folder
-        obs_file_saved <- file.path(out_tab1$temp_folder(), basename(out_tab1$obs_file()$name))
-        meta_file_saved <- file.path(out_tab1$temp_folder(), basename(input$meta_file$name))
-        
-        
-        # Call the function to process and save the exchange files
-        result <- tryCatch({
+        # Ensure the required files are present in the temp folder
+        shiny::withProgress(message = 'Preparing the exchange files...', value = 0, {
+          
+          # Initialize progress
+          shiny::setProgress(value = 0.1, detail = "Getting file paths...")
+          
+          # Get the paths to the uploaded final files from the reactive temp folder
+          obs_file_saved <- file.path(out_tab1$temp_folder(), basename(out_tab1$obs_file()$name))
+          meta_file_saved <- file.path(out_tab1$temp_folder(), basename(input$meta_file$name))
+          
+          # Print paths for debugging (optional)
           print("obs_file_saved")
           print(obs_file_saved)
           print("meta_file_saved")
           print(meta_file_saved)
-          print("out_tab1$temp_folder()")
-          print(out_tab1$temp_folder())
-          print("out_tab1$dataset_name()")
-          print(out_tab1$dataset_name())
           
-          to_exchange_files(obs_file_saved, meta_file_saved, dir = out_tab1$temp_folder(), dataset_name = out_tab1$dataset_name())  # Process the files
-        }, error = function(e) {
-          stop(paste("Error: ", e$message))
+          # Check if the files exist in the temporary folder
+          if (!file.exists(obs_file_saved)) {
+            shiny::showModal(modalDialog(
+              title = "Error",
+              "Observation file is missing or not found.",
+              easyClose = TRUE,
+              footer = NULL
+            ))
+            return(NULL)  # Exit function if the file doesn't exist
+          }
+          if (!file.exists(meta_file_saved)) {
+            shiny::showModal(modalDialog(
+              title = "Error",
+              "Metadata file is missing or not found.",
+              easyClose = TRUE,
+              footer = NULL
+            ))
+            return(NULL)  # Exit function if the file doesn't exist
+          }
+          
+          # Provide progress feedback for processing files
+          shiny::setProgress(value = 0.3, detail = "Processing files...")
+          
+          # Process and save the exchange files
+          result <- tryCatch({
+            to_exchange_files(obs_file_saved, meta_file_saved, dir = out_tab1$temp_folder(), dataset_name = out_tab1$dataset_name())  # Process the files
+          }, error = function(e) {
+            shiny::showModal(modalDialog(
+              title = "Error",
+              paste("Error processing files:", e$message),
+              easyClose = TRUE,
+              footer = NULL
+            ))
+            return(NULL)  # Exit function on error
+          })
+          
+          # Provide feedback that the files are being zipped
+          shiny::setProgress(value = 0.6, detail = "Creating ZIP archive...")
+          
+          # List all files inside the folder without the parent directory
+          files_to_zip <- list.files(out_tab1$temp_folder(), full.names = TRUE, recursive = TRUE)
+          
+          # Clean the file paths, removing any redundant slashes
+          files_to_zip <- gsub("//", "/", files_to_zip)
+          
+          # Create the ZIP file
+          zip::zipr(zipfile = file, files = files_to_zip)
+          
+          # Final progress update when the ZIP file is ready
+          shiny::setProgress(value = 1, detail = "File ready for download")
+          
+          # Optionally, update the UI card to show success
+          shinyjs::addClass(id = "card_header", class = "bg-success")
+          shinyjs::removeClass(id = "card_header", class = "bg-danger")
         })
-        
-        # print(list.files(temp_folder()))
-        
-        # List all files inside the folder without the parent directory
-        files_to_zip <- list.files(out_tab1$temp_folder(), full.names = TRUE, recursive = TRUE)
-        
-        # Clean the file paths, removing any redundant slashes
-        files_to_zip <- gsub("//", "/", files_to_zip)
-        
-        # Compress the files into a ZIP file, avoiding the parent folder structure
-        zip::zipr(zipfile = file, files = files_to_zip)      
       }
     )
-    
-    # Placeholder for modal UI output (if needed)
-    output$modal_ui <- renderUI({
-      NULL
-    })
     
     
     # ============================================================================

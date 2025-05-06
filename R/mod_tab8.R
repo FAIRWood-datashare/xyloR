@@ -200,8 +200,7 @@ mod_tab8_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
       shiny::req(out_tab4$data_meta$tbl7)
       rhandsontable::rhandsontable(
         out_tab4$data_meta$tbl7,
-        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all', selectCallback = TRUE
-      ) %>%
+        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all', selectCallback = TRUE, height=150) %>%
         hot_col_wrapper('first_author_last_name', out_tab3$column_configs()$tbl7$first_author_last_name) %>%
         hot_col_wrapper('title', out_tab3$column_configs()$tbl7$title) %>%
         hot_col_wrapper('publication_year', out_tab3$column_configs()$tbl7$publication_year) %>%
