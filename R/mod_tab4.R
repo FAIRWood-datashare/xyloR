@@ -157,6 +157,8 @@ mod_tab4_server <- function(id, out_tab1, out_tab2, out_tab3) {
         hot_col_wrapper('site_aspect', out_tab3$column_configs()$tbl3$site_aspect) %>%
         hot_col_wrapper('site_slope', out_tab3$column_configs()$tbl3$site_slope) %>%
         hot_col_wrapper('site_topography', out_tab3$column_configs()$tbl3$site_topography) %>%
+        hot_col_wrapper('temp', out_tab3$column_configs()$tbl3$temp) %>%
+        hot_col_wrapper('precip', out_tab3$column_configs()$tbl3$precip) %>%
         hot_col_wrapper('soil_depth', out_tab3$column_configs()$tbl3$soil_depth) %>%
         hot_col_wrapper('soil_water_holding_capacity', out_tab3$column_configs()$tbl3$soil_water_holding_capacity) %>%
         hot_col_wrapper('forest_stand_type', out_tab3$column_configs()$tbl3$forest_stand_type) %>%

@@ -97,7 +97,7 @@ get_column_configs <- function(WB, WB_meta, dobs) {
         site_slope = list(type = 'numeric', min_val = 0, max_val = NULL, regex_pattern = NULL, unique = TRUE), # integer
         site_topography = list(type = 'dropdown', options = site_topography_droplist),
         temp = list(type = 'numeric', required = TRUE, min_val = -50, max_val = 50),
-        precip = list(type = 'numeric', required = TRUE, min_val = 0, max_val = NULL),
+        precip = list(type = 'numeric', required = TRUE, min_val = 0, max_val = 5000),
         soil_depth = list(type = 'dropdown', options = soil_depth_droplist),
         soil_water_holding_capacity = list(type = 'dropdown', options = soil_water_holding_capacity_droplist),
         forest_stand_type = list(type = 'dropdown', options = forest_stand_type_droplist),
