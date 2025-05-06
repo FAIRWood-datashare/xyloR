@@ -371,7 +371,7 @@ mod_tab7_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
       )
       
       if (edit_mode() && !is.null(selected_row())) {
-        new_row$person_order <- as.character(new_row$person_order)
+        new_entry$person_order <- as.character(new_entry$person_order)
         out_tab4$data_meta$tbl6[selected_row(), names(new_entry)] <- as.list(new_entry[1, ])
       } else {
         out_tab4$data_meta$tbl6 <- rbind(out_tab4$data_meta$tbl6, new_entry)
