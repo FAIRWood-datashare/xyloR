@@ -134,10 +134,16 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
   }
 
   # Prepare Site Tab
+  # Count number of distinct trees per site
+  tree_counts <- xylo_obs %>%
+    dplyr::group_by(network_label, site_label) %>%
+    dplyr::summarise(number_of_trees = n_distinct(tree_label), .groups = "drop")
+  
   metadata_site <- xylo_obs %>%
     dplyr::count(network_label, site_label, name = "number_of_samples") %>% 
     dplyr::arrange(network_label, site_label) %>%
-    dplyr::left_join(., obs_data_info, by = c("site_label")) %>% 
+    dplyr::left_join(tree_counts, by = c("network_label", "site_label")) %>%
+    dplyr::left_join(., obs_data_info, by = "site_label") %>%
     dplyr::transmute(
       network_label,
       network_code = suppressWarnings(abbreviate(network_label, 5)),
@@ -147,7 +153,7 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
       latitude,
       longitude,
       elevation,
-      koppen_climate_class = extract_Koppen(latitude, longitude)[1, 1],
+      koppen_climate_class = extract_Koppen(longitude, latitude)[1, 1],
       koppen_climate_code = tbl_droplist$koppen_climate_code[which(tbl_droplist$koppen_climate_value == koppen_climate_class)],
       koppen_climate_classification = tbl_droplist$koppen_climate_classification[which(tbl_droplist$koppen_climate_value == koppen_climate_class)],
       site_aspect = NA,
@@ -159,7 +165,8 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
                      ~ get_climate_data(..1, ..2, destdir)),
       temp = map_dbl(climate, "avg_temp"),
       precip = map_dbl(climate, "avg_prec"),
-
+      
+      soil_depth = NA,
       soil_water_holding_capacity = NA,
       forest_stand_type = NA,
       forest_stand_structure = NA,
@@ -172,11 +179,12 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
       in_stand_weather_data = NA,
       in_stand_soil_data = NA,
       in_stand_other_data = NA,
-      number_of_trees = dplyr::n_distinct(xylo_obs$tree_label),
+      number_of_trees,  # now this is taken from the left_joined data
       site_comment = NA
     ) %>%
     select(-climate)
-
+  
+  
   # Prepare Tree Tab
   metadata_tree <- xylo_obs %>%
     dplyr::count(site_label, plot_label, tree_label, tree_species, name = "number_of_samples") %>%
