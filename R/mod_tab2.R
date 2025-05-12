@@ -202,7 +202,7 @@ mod_tab2_server <- function(id, out_tab1) {
     output$download_example_meta <- shiny::downloadHandler(
       filename = function() {
         # Define the filename dynamically, if needed
-        paste0("Example_Filled_Meta.xlsx")
+        paste0("Example_xylo_meta.xlsx")
       },
       content = function(file) {
         # Provide progress feedback to the user

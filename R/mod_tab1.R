@@ -442,7 +442,7 @@ mod_tab1_server <- function(id, session_global) {
 
     output$download_example_obs <- shiny::downloadHandler(
       filename = function() {
-        paste0("Example_Filled_Obs.xlsx")
+        paste0("Example_xylo_data.xlsx")
       },
       content = function(file) {
         # Provide progress feedback to the user
