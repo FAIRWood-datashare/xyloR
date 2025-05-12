@@ -90,7 +90,7 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
     dplyr::tibble() 
   
     # Check if sample_date is numeric (Excel date format)
-  if (!is.numeric(xylo_obs$sample_date)) {
+  if (is.numeric(xylo_obs$sample_date)) {
     xylo_obs <- xylo_obs %>%
       dplyr::mutate(sample_date = as.Date(as.numeric(sample_date), origin = "1899-12-30")) %>% 
       dplyr::filter(!is.na(sample_date))
@@ -103,7 +103,7 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
   
   obs_data_info <- openxlsx::readWorkbook(xylo_workbook, sheet = "obs_data_info", startRow = 6, colNames = FALSE) %>% setNames(c("site_label", "latitude", "longitude", "elevation"))
 
-  
+  print(obs_data_info)
   
   
   # Prepare Person Tab
@@ -150,8 +150,8 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
       country_code = get_iso_country(latitude, longitude),
       site_label,
       site_code = suppressWarnings(abbreviate(site_label, 5)), 
-      latitude,
-      longitude,
+      latitude = as.numeric(latitude),
+      longitude = as.numeric(longitude),
       elevation,
       koppen_climate_class = extract_Koppen(longitude, latitude)[1, 1],
       koppen_climate_code = tbl_droplist$koppen_climate_code[which(tbl_droplist$koppen_climate_value == koppen_climate_class)],
