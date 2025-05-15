@@ -103,8 +103,7 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
   
   obs_data_info <- openxlsx::readWorkbook(xylo_workbook, sheet = "obs_data_info", startRow = 6, colNames = FALSE) %>% setNames(c("site_label", "latitude", "longitude", "elevation"))
 
-  print(obs_data_info)
-  
+
   
   # Prepare Person Tab
   person_role <- if_else(xylo_header[3, 2] == xylo_header[3, 4], "Contact and Data owner", "Data owner")
