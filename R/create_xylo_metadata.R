@@ -90,7 +90,7 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
     dplyr::tibble() 
   
     # Check if sample_date is numeric (Excel date format)
-  if (is.numeric(xylo_obs$sample_date)) {
+  if (all(!is.na(as.numeric(xylo_obs$sample_date)))) {
     xylo_obs <- xylo_obs %>%
       dplyr::mutate(sample_date = as.Date(as.numeric(sample_date), origin = "1899-12-30")) %>% 
       dplyr::filter(!is.na(sample_date))
