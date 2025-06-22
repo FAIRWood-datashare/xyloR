@@ -27,7 +27,7 @@ mod_tab8_ui <- function(id) {
         1, class = "bg-light p-2 border-end", style = "height: 100%;",
         bslib::card(
           bslib::card_body(
-            shiny::actionButton(ns("save_publication"), label = htmltools::tagList(bsicons::bs_icon("save"), 'Save publication'), class = "btn-primary")
+            shiny::actionButton(ns("save_publication"), label = htmltools::tagList(bsicons::bs_icon("save"), 'Save'), class = "btn-primary")
           )
         )
       ),
@@ -68,7 +68,7 @@ mod_tab8_ui <- function(id) {
               ),
               bslib::tooltip(
                 shiny::actionButton(ns("apply_publication_order"), label = htmltools::tagList(bsicons::bs_icon("sort-down"), "Apply Publication Order")),
-                "Reorder publications in the table according to the values in the 'publication_order' column. Edit that column and click this button to sort accordingly.", placement = "right"
+                "Reorder publications in the table according to the values in the 'publication_year'. Edit that column and click this button to sort accordingly.", placement = "right"
               )
             )
           )
@@ -104,13 +104,27 @@ mod_tab8_ui <- function(id) {
                 "Fill in or edit the metadata of a publication. Use DOI search to auto-complete relevant fields.", placement = "right"
               ),
               shiny::fluidRow(
-                shiny::column(3, shiny::textInput(ns("first_author_last_name"), htmltools::HTML("First Author <span style='color:red;'>*</span>"))),
-                shiny::column(9, shiny::textInput(ns("title"), htmltools::HTML("Title <span style='color:red;'>*</span>")))
+                shiny::column(4, shiny::textInput(ns("first_author_last_name"), htmltools::HTML("First Author <span style='color:red;'>*</span>"))),
+                shiny::column(4, shiny::textInput(ns("title"), htmltools::HTML("Title <span style='color:red;'>*</span>"))),
+                shiny::column(4, shiny::selectInput(
+                  ns("publication_type"), 
+                  label = htmltools::HTML("Type <span style='color:red;'>*</span>"),
+                  choices = c("article", "thesis", "report", "other"),
+                  selected = NULL,
+                  multiple = FALSE,
+                  selectize = TRUE,
+                  width = "100%"
+                ))
               ),
+              # shiny::fluidRow(
+              #   shiny::column(3, shiny::textInput(ns("first_author_last_name"), htmltools::HTML("First Author <span style='color:red;'>*</span>"))),
+              #   shiny::column(9, shiny::textInput(ns("title"), htmltools::HTML("Title <span style='color:red;'>*</span>"))),
+              #   shiny::column(9, shiny::textInput(ns("publication_type"), label = htmltools::HTML("Type (e.g., article, thesis, report, other)"), placeholder = "e.g. article")))
+              # ),
               shiny::fluidRow(
                 shiny::column(4, shiny::textInput(ns("publication_year"), htmltools::HTML("Year <span style='color:red;'>*</span>"))),
-                shiny::column(4, shiny::textInput(ns("journal"), htmltools::HTML("Journal <span style='color:red;'>*</span>"))),
-                shiny::column(4, shiny::textInput(ns("doi"), htmltools::HTML("DOI <span style='color:red;'>*</span>")))
+                shiny::column(4, shiny::textInput(ns("journal"), htmltools::HTML("Journal"))),
+                shiny::column(4, shiny::textInput(ns("doi"), htmltools::HTML("DOI")))
               ),
               htmltools::br(),
               bslib::tooltip(
@@ -156,6 +170,7 @@ mod_tab8_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
     clear_publication_fields <- function(session) {
       shiny::updateTextInput(session, "first_author_last_name", value = "")
       shiny::updateTextInput(session, "title", value = "")
+      shiny::updateSelectInput(session, "publication_type", selected = "")
       shiny::updateTextInput(session, "publication_year", value = "")
       shiny::updateTextInput(session, "journal", value = "")
       shiny::updateTextInput(session, "doi", value = "")
@@ -203,6 +218,7 @@ mod_tab8_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
         rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all', selectCallback = TRUE, height=150) %>%
         hot_col_wrapper('first_author_last_name', out_tab3$column_configs()$tbl7$first_author_last_name) %>%
         hot_col_wrapper('title', out_tab3$column_configs()$tbl7$title) %>%
+        hot_col_wrapper('publication_type', out_tab3$column_configs()$tbl7$publication_type) %>%
         hot_col_wrapper('publication_year', out_tab3$column_configs()$tbl7$publication_year) %>%
         hot_col_wrapper('journal', out_tab3$column_configs()$tbl7$journal) %>%
         hot_col_wrapper('doi', out_tab3$column_configs()$tbl7$doi)
@@ -227,6 +243,7 @@ mod_tab8_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
     shiny::observeEvent(input$add_publication_data, {
       shiny::req(input$first_author_last_name)
       shiny::req(input$title)
+      # shiny::req(input$publication_type)
       shiny::req(input$publication_year)
       shiny::req(input$journal)
       shiny::req(input$doi)
@@ -234,6 +251,7 @@ mod_tab8_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
       new_row <- data.frame(
         first_author_last_name = input$first_author_last_name,
         title = input$title,
+        publication_type = input$publication_type,
         publication_year = as.numeric(input$publication_year),
         journal = input$journal,
         doi = input$doi,
@@ -264,6 +282,7 @@ mod_tab8_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
       
       shiny::updateTextInput(session, "first_author_last_name", value = out_tab4$data_meta$tbl7$first_author_last_name[row])
       shiny::updateTextInput(session, "title", value = out_tab4$data_meta$tbl7$title[row])
+      shiny::updateSelectInput(session, "publication_type", value = out_tab4$data_meta$tbl7$publication_type[row])
       shiny::updateTextInput(session, "publication_year", value = as.character(out_tab4$data_meta$tbl7$publication_year[row]))
       shiny::updateTextInput(session, "journal", value = out_tab4$data_meta$tbl7$journal[row])
       shiny::updateTextInput(session, "doi", value = out_tab4$data_meta$tbl7$doi[row])

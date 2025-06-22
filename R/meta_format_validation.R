@@ -65,7 +65,8 @@ meta_format_validation <- function(meta_file) {
       
       # Check droplist values
       if (grepl("droplist", constraint_origin, ignore.case = TRUE)) {
-        ifelse(col == "person_country_code", col <- "country_code", col <- col)
+        ifelse(col == "organization_country_code", col <- "country_code", col <- col)
+        ifelse(col == "organization_country", col <- "country", col <- col)
         valid_values <- sheet_droplist[[col]] %>% na.omit()
         invalid_values <- setdiff(na.omit(data[[col]]), valid_values)
         if (length(invalid_values) > 0) {

@@ -40,7 +40,7 @@ get_climate_data <- function(lat, lon, data_dir) {
 
   # Extract temperature and precipitation values at the coordinates
   temp_val <- terra::extract(temp_tile, coords)[, -1]  # Remove ID column
-  prec_val <- terra::extract(prec_tile, coords)[, -1]  # Remove ID column
+  prec_val <- terra::extract(prec_tile, coords)[, -1] * 12  # Remove ID column # multiply by 12 to convert monthly to annual precipitation
 
   # Return the results as a list
   return(list(

@@ -25,7 +25,7 @@ mod_tab5_ui <- function(id) {
         bslib::card(
           bslib::card_header(NULL),
           bslib::card_body(
-            shiny::actionButton(ns("save_tree"), label = htmltools::tagList(bsicons::bs_icon("save"), "Save tree"), class = "btn-primary")
+            shiny::actionButton(ns("save_tree"), label = htmltools::tagList(bsicons::bs_icon("save"), "Save"), class = "btn-primary")
           )
         )
       ),
@@ -100,7 +100,7 @@ mod_tab5_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
     shiny::observe({
       shiny::req(out_tab3$WB_meta())
       df <- openxlsx::readWorkbook(out_tab3$WB_meta(), sheet = "DropList", colNames = TRUE) %>%
-        dplyr::select(tree_species,	itrdb_species_code,	wood_type,	leaf_habit,	tree_ring_structure) %>%
+        dplyr::select(tree_species,	species_code,	phylogenetic_group,	leaf_habit,	tree_ring_structure) %>%
         data.frame(stringsAsFactors = FALSE)
       species_family(df)
     })
@@ -119,8 +119,8 @@ mod_tab5_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
           suffix = c("", "_from_list")
         ) %>%
         dplyr::mutate(
-          itrdb_species_code = itrdb_species_code_from_list,	
-          wood_type = wood_type_from_list,
+          species_code = species_code_from_list,	
+          phylogenetic_group = phylogenetic_group_from_list,
           leaf_habit = leaf_habit_from_list,
           tree_ring_structure = tree_ring_structure_from_list
         ) %>%
@@ -137,15 +137,16 @@ mod_tab5_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
         rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all') %>%
         hot_col_wrapper('site_label', out_tab3$column_configs()$tbl4$site_label) %>%
         hot_col_wrapper('tree_label', out_tab3$column_configs()$tbl4$tree_label) %>%
-        hot_col_wrapper('tree_code', out_tab3$column_configs()$tbl4$tree_code) %>%
+        hot_col_wrapper('suggested_tree_code', out_tab3$column_configs()$tbl4$suggested_tree_code) %>%
         hot_col_wrapper('plot_label', out_tab3$column_configs()$tbl4$plot_label) %>%
-        hot_col_wrapper('plot_code', out_tab3$column_configs()$tbl4$plot_code) %>%
+        hot_col_wrapper('suggested_plot_code', out_tab3$column_configs()$tbl4$suggested_plot_code) %>%
         hot_col_wrapper('tree_species', out_tab3$column_configs()$tbl4$tree_species) %>%
-        hot_col_wrapper('itrdb_species_code', out_tab3$column_configs()$tbl4$itrdb_species_code) %>%
-        hot_col_wrapper('wood_type', out_tab3$column_configs()$tbl4$wood_type) %>%
+        hot_col_wrapper('species_code', out_tab3$column_configs()$tbl4$species_code) %>%
+        hot_col_wrapper('phylogenetic_group', out_tab3$column_configs()$tbl4$phylogenetic_group) %>%
         hot_col_wrapper('leaf_habit', out_tab3$column_configs()$tbl4$leaf_habit) %>%
         hot_col_wrapper('tree_ring_structure', out_tab3$column_configs()$tbl4$tree_ring_structure) %>%
         hot_col_wrapper('tree_treatment', out_tab3$column_configs()$tbl4$tree_treatment) %>%
+        hot_col_wrapper('tree_sampling_pattern', out_tab3$column_configs()$tbl4$tree_sampling_pattern) %>%
         hot_col_wrapper('tree_dbh', out_tab3$column_configs()$tbl4$tree_dbh) %>%
         hot_col_wrapper('tree_height', out_tab3$column_configs()$tbl4$tree_height) %>%
         hot_col_wrapper('tree_age', out_tab3$column_configs()$tbl4$tree_age) %>%
@@ -155,14 +156,16 @@ mod_tab5_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
         hot_col_wrapper('tree_origin', out_tab3$column_configs()$tbl4$tree_origin) %>%
         hot_col_wrapper('tree_latitude', out_tab3$column_configs()$tbl4$tree_latitude) %>% 
         hot_col_wrapper('tree_longitude', out_tab3$column_configs()$tbl4$tree_longitude) %>%
-        hot_col_wrapper('on_tree_dendrometer_data', out_tab3$column_configs()$tbl4$on_tree_dendrometer_data) %>%
-        hot_col_wrapper('on_tree_sapflux_data', out_tab3$column_configs()$tbl4$on_tree_sapflux_data) %>%
-        hot_col_wrapper('on_tree_phenological_observation', out_tab3$column_configs()$tbl4$on_tree_phenological_observation) %>%
-        hot_col_wrapper('on_tree_weather_data', out_tab3$column_configs()$tbl4$on_tree_weather_data) %>%
-        hot_col_wrapper('on_tree_shoot_growth_data', out_tab3$column_configs()$tbl4$on_tree_shoot_growth_data) %>%
+        hot_col_wrapper('on_tree_dendrometer_monitoring', out_tab3$column_configs()$tbl4$on_tree_dendrometer_monitoring) %>%
+        hot_col_wrapper('on_tree_sapflux_monitoring', out_tab3$column_configs()$tbl4$on_tree_sapflux_monitoring) %>%
+        hot_col_wrapper('on_tree_primary_phenological_observation', out_tab3$column_configs()$tbl4$on_tree_primary_phenological_observation) %>%
+        hot_col_wrapper('on_tree_weather_monitoring', out_tab3$column_configs()$tbl4$on_tree_weather_monitoring) %>%
+        hot_col_wrapper('on_tree_shoot_growth_monitoring', out_tab3$column_configs()$tbl4$on_tree_shoot_growth_monitoring) %>%
         hot_col_wrapper('tree_ring_width_data', out_tab3$column_configs()$tbl4$tree_ring_width_data) %>%
+        hot_col_wrapper('tree_ring_density_data', out_tab3$column_configs()$tbl4$tree_ring_density_data) %>%
         hot_col_wrapper('tree_ring_anatomical_data', out_tab3$column_configs()$tbl4$tree_ring_anatomical_data) %>%
         hot_col_wrapper('tree_ring_isotope_data', out_tab3$column_configs()$tbl4$tree_ring_isotope_data) %>%
+        hot_col_wrapper('number_of_samples', out_tab3$column_configs()$tbl4$number_of_samples) %>%
         hot_col_wrapper('tree_comment', out_tab3$column_configs()$tbl4$tree_comment)
     })
     

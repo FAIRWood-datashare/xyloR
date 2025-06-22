@@ -28,7 +28,7 @@ mod_tab4_ui <- function(id) {
         bslib::card(
           bslib::card_header(NULL),
           bslib::card_body(
-            shiny::actionButton(ns("save_site"), label = htmltools::tagList(bsicons::bs_icon("save"), "Save site"), class = "btn-primary")
+            shiny::actionButton(ns("save_site"), label = htmltools::tagList(bsicons::bs_icon("save"), "Save"), class = "btn-primary")
           )
         )
       ),
@@ -97,6 +97,13 @@ mod_tab4_server <- function(id, out_tab1, out_tab2, out_tab3) {
       data_meta$tbl3 <- dsite()  # Access dsite in a valid reactive context
     })
     
+    # FROM MARA!!!!!!!!!!
+    # observe({
+    #   data_meta$tbl3$latitude <- out_tab3$data_in$tbl1 %>% dplyr::pull(latitude)
+    # })
+    
+    
+    
     # Koppen_family
     koppen_family <- shiny::reactiveVal()
     
@@ -144,10 +151,12 @@ mod_tab4_server <- function(id, out_tab1, out_tab2, out_tab3) {
         data_meta$tbl3, 
         rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all', height=150) %>%
         hot_col_wrapper('network_label', out_tab3$column_configs()$tbl3$network_label) %>%
-        hot_col_wrapper('network_code', out_tab3$column_configs()$tbl3$network_code) %>%
-        hot_col_wrapper('country_code', out_tab3$column_configs()$tbl3$country_code) %>%
+        hot_col_wrapper('suggested_network_code', out_tab3$column_configs()$tbl3$suggested_network_code) %>%
+        hot_col_wrapper('site_country_code', out_tab3$column_configs()$tbl3$site_country_code) %>%
         hot_col_wrapper('site_label', out_tab3$column_configs()$tbl3$site_label) %>%
-        hot_col_wrapper('site_code', out_tab3$column_configs()$tbl3$site_code) %>%
+        hot_col_wrapper('suggested_site_code', out_tab3$column_configs()$tbl3$suggested_site_code) %>%
+        hot_col_wrapper('plot_label', out_tab3$column_configs()$tbl3$plot_label) %>%
+        hot_col_wrapper('suggested_plot_code', out_tab3$column_configs()$tbl3$suggested_plot_code) %>%
         hot_col_wrapper('latitude', out_tab3$column_configs()$tbl3$latitude) %>%
         hot_col_wrapper('longitude', out_tab3$column_configs()$tbl3$longitude) %>%
         hot_col_wrapper('elevation', out_tab3$column_configs()$tbl3$elevation) %>%
@@ -161,17 +170,21 @@ mod_tab4_server <- function(id, out_tab1, out_tab2, out_tab3) {
         hot_col_wrapper('precip', out_tab3$column_configs()$tbl3$precip) %>%
         hot_col_wrapper('soil_depth', out_tab3$column_configs()$tbl3$soil_depth) %>%
         hot_col_wrapper('soil_water_holding_capacity', out_tab3$column_configs()$tbl3$soil_water_holding_capacity) %>%
-        hot_col_wrapper('forest_stand_type', out_tab3$column_configs()$tbl3$forest_stand_type) %>%
+        hot_col_wrapper('soil_moisture', out_tab3$column_configs()$tbl3$soil_moisture) %>%
+        hot_col_wrapper('forest_stand_composition', out_tab3$column_configs()$tbl3$forest_stand_composition) %>%
         hot_col_wrapper('forest_stand_structure', out_tab3$column_configs()$tbl3$forest_stand_structure) %>%
+        hot_col_wrapper('forest_stand_age_structure', out_tab3$column_configs()$tbl3$forest_stand_age_structure) %>%
         hot_col_wrapper('forest_stand_age', out_tab3$column_configs()$tbl3$forest_stand_age) %>%
         hot_col_wrapper('forest_stand_main_species_composition', out_tab3$column_configs()$tbl3$forest_stand_main_species_composition) %>%
         hot_col_wrapper('forest_stand_management_intensity', out_tab3$column_configs()$tbl3$forest_stand_management_intensity) %>%
-        hot_col_wrapper('in_stand_dendrometer_data', out_tab3$column_configs()$tbl3$in_stand_dendrometer_data) %>%
-        hot_col_wrapper('in_stand_sapflux_data', out_tab3$column_configs()$tbl3$in_stand_sapflux_data) %>%
-        hot_col_wrapper('in_stand_phenological_observation', out_tab3$column_configs()$tbl3$in_stand_phenological_observation) %>%
-        hot_col_wrapper('in_stand_weather_data', out_tab3$column_configs()$tbl3$in_stand_weather_data) %>%
-        hot_col_wrapper('in_stand_soil_data', out_tab3$column_configs()$tbl3$in_stand_soil_data) %>%
-        hot_col_wrapper('in_stand_other_data', out_tab3$column_configs()$tbl3$in_stand_other_data) %>%
+        hot_col_wrapper('in_stand_soil_description', out_tab3$column_configs()$tbl3$in_stand_soil_description) %>%
+        hot_col_wrapper('in_stand_dendrometer_monitoring', out_tab3$column_configs()$tbl3$in_stand_dendrometer_monitoring) %>%
+        hot_col_wrapper('in_stand_phloem_observation', out_tab3$column_configs()$tbl3$in_stand_phloem_observation) %>%
+        hot_col_wrapper('in_stand_sapflux_monitoring', out_tab3$column_configs()$tbl3$in_stand_sapflux_monitoring) %>%
+        hot_col_wrapper('in_stand_primary_phenological_observation', out_tab3$column_configs()$tbl3$in_stand_primary_phenological_observation) %>%
+        hot_col_wrapper('in_stand_weather_monitoring', out_tab3$column_configs()$tbl3$in_stand_weather_monitoring) %>%
+        hot_col_wrapper('in_stand_soil_monitoring', out_tab3$column_configs()$tbl3$in_stand_soil_monitoring) %>%
+        hot_col_wrapper('number_of_trees', out_tab3$column_configs()$tbl3$number_of_trees) %>%
         hot_col_wrapper('site_comment', out_tab3$column_configs()$tbl3$site_comment)
     })
     

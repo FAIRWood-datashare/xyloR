@@ -210,7 +210,7 @@ mod_tab2_server <- function(id, out_tab1) {
           
           # Step 1: Define the template path
           shiny::setProgress(value = 0.1, detail = "Locating template file...")
-          template_path <- system.file("extdata", "Ltal.2007_xylo_meta_2025-03-08.xlsx", package = "xyloR")
+          template_path <- system.file("extdata", "Ltal.2007_xylo_meta_2025-06-22.xlsx", package = "xyloR")
           
           # Check if the template file exists
           if (template_path == "") {
@@ -560,7 +560,7 @@ mod_tab2_server <- function(id, out_tab1) {
       sheet_data <- setNames(lapply(sheet_names, function(sheet) readxl::read_excel(meta_file_data, sheet)[-1:-6,]), sheet_names)
       
       df_joined <- dplyr::left_join(sheet_data[["sample"]], sheet_data[["tree"]], by = "tree_label", relationship = "many-to-many") %>%
-        dplyr::left_join(sheet_data[["site"]], by = "site_label", relationship = "many-to-many") %>%
+        dplyr::left_join(sheet_data[["site"]], by = c("site_label", "plot_label"), relationship = "many-to-many") %>%
         dplyr::group_by(network_label, site_label, plot_label, tree_label, year = lubridate::year(sample_date), sample_id) %>%
         dplyr::summarise(n = n(), .groups = "drop") %>%
         dplyr::mutate(
@@ -626,7 +626,7 @@ mod_tab2_server <- function(id, out_tab1) {
       
       # Join sample, tree, and site data and group by relevant columns
       df_joined <- dplyr::left_join(sheet_data[["sample"]], sheet_data[["tree"]], by = "tree_label") %>%
-        dplyr::left_join(sheet_data[["site"]], by = "site_label") %>%
+        dplyr::left_join(sheet_data[["site"]], by = c("site_label", "plot_label")) %>%
         dplyr::group_by(network_label, site_label, plot_label, tree_label, year = lubridate::year(sample_date), sample_id) %>%
         dplyr::summarise(n = dplyr::n(), .groups = "drop")  # Ensure correct summarization
       
@@ -637,7 +637,7 @@ mod_tab2_server <- function(id, out_tab1) {
       if (!is.null(selection)) {
         point_number <- selection$pointNumber
         df_hierarchy <- df_hierarchy_reactive()  # Access the reactive df_hierarchy
-        selected_row <- df_hierarchy[point_number + 1, ]  # Adding 1 because pointNumber is 0-based
+        selected_row <- df_hierarchy[point_number + 1, ]  # Adding 1 because point Number is 0-based
         
         # Split the 'id' of the selected row into components
         site_label_split <- strsplit(as.character(selected_row$id), "__")[[1]][2]  # Site label (2nd element)

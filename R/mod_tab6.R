@@ -29,7 +29,7 @@ mod_tab6_ui <- function(id) {
         bslib::card(
           bslib::card_header(NULL),
           bslib::card_body(
-            shiny::actionButton(ns("save_sample"), label = htmltools::tagList(bsicons::bs_icon("save"), "Save sample"), class = "btn-primary")
+            shiny::actionButton(ns("save_sample"), label = htmltools::tagList(bsicons::bs_icon("save"), "Save"), class = "btn-primary")
           )
         )
       ),
@@ -119,19 +119,23 @@ mod_tab6_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
         hot_col_wrapper('sample_id', out_tab3$column_configs()$tbl5$sample_id) %>%
         hot_col_wrapper('sample_date', out_tab3$column_configs()$tbl5$sample_date) %>%
         hot_col_wrapper('sample_label', out_tab3$column_configs()$tbl5$sample_label) %>%
-        hot_col_wrapper('sample_code', out_tab3$column_configs()$tbl5$sample_code) %>%
+        hot_col_wrapper('suggested_sample_code', out_tab3$column_configs()$tbl5$suggested_sample_code) %>%
         hot_col_wrapper('sample_organ', out_tab3$column_configs()$tbl5$sample_organ) %>%
-        hot_col_wrapper('sample_preparation_method', out_tab3$column_configs()$tbl5$sample_preparation_method) %>%
+        hot_col_wrapper('sample_type', out_tab3$column_configs()$tbl5$sample_type) %>%
+        hot_col_wrapper('sample_embedding', out_tab3$column_configs()$tbl5$sample_embedding) %>%
         hot_col_wrapper('sample_staining_method', out_tab3$column_configs()$tbl5$sample_staining_method) %>%
         hot_col_wrapper('sample_mounting_method', out_tab3$column_configs()$tbl5$sample_mounting_method) %>%
         hot_col_wrapper('sample_observation_method', out_tab3$column_configs()$tbl5$sample_observation_method) %>%
         hot_col_wrapper('sample_image_file_name', out_tab3$column_configs()$tbl5$sample_image_file_name) %>%
         hot_col_wrapper('sample_section_archived', out_tab3$column_configs()$tbl5$sample_section_archived) %>%
         hot_col_wrapper('sample_archived', out_tab3$column_configs()$tbl5$sample_archived) %>%
+        hot_col_wrapper('sample_image_archived', out_tab3$column_configs()$tbl5$sample_image_archived) %>%
+        hot_col_wrapper('sample_image_annotated', out_tab3$column_configs()$tbl5$sample_image_annotated) %>%
         hot_col_wrapper('sampling_height', out_tab3$column_configs()$tbl5$sampling_height) %>%
         hot_col_wrapper('sample_apex_distance', out_tab3$column_configs()$tbl5$sample_apex_distance) %>%
         hot_col_wrapper('section_thickness', out_tab3$column_configs()$tbl5$section_thickness) %>%
-        hot_col_wrapper('on_section_anatomical_data', out_tab3$column_configs()$tbl5$on_section_anatomical_data) %>%
+        hot_col_wrapper('coupled_anatomical_data', out_tab3$column_configs()$tbl5$coupled_anatomical_data) %>%
+        hot_col_wrapper('reaction_wood', out_tab3$column_configs()$tbl5$reaction_wood) %>%
         hot_col_wrapper('sample_comment', out_tab3$column_configs()$tbl5$sample_comment)
     }) 
     

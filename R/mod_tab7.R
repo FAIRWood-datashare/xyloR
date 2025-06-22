@@ -33,7 +33,7 @@ mod_tab7_ui <- function(id) {
         1, class = "bg-light p-2 border-end", style = "height: 100%;",
         bslib::card(
           bslib::card_body(
-            shiny::actionButton(ns("save_person"), label = htmltools::tagList(bsicons::bs_icon("save"), 'Save person'), class = "btn-primary")
+            shiny::actionButton(ns("save_person"), label = htmltools::tagList(bsicons::bs_icon("save"), 'Save'), class = "btn-primary")
           )
         )
       ),
@@ -157,7 +157,7 @@ mod_tab7_ui <- function(id) {
                 placement = "right"
               ),
               shiny::fluidRow(
-                shiny::column(3, shiny::selectInput(ns("person_role"), htmltools::HTML("Person Role <span style='color:red;'>*</span>"), choices = c("Contact and Data owner","Data owner","Contact","Contributor"))),
+                shiny::column(3, shiny::selectInput(ns("person_role"), htmltools::HTML("Person Role <span style='color:red;'>*</span>"), choices = c("Contact and Principal Investigator","Principal Investigator","Contact","Contributor"))),
                 shiny::column(3, shiny::numericInput(ns("person_order"), htmltools::HTML("Order <span style='color:red;'>*</span>"), value = 1, min = 1)),
                 shiny::column(3, shiny::textInput(ns("last_name"), htmltools::HTML("Last Name <span style='color:red;'>*</span>"))),
                 shiny::column(3, shiny::textInput(ns("first_name"), htmltools::HTML("First Name <span style='color:red;'>*</span>")))
@@ -165,8 +165,8 @@ mod_tab7_ui <- function(id) {
               shiny::fluidRow(
                 shiny::column(3, shiny::textInput(ns("email"), htmltools::HTML("Email <span style='color:red;'>*</span>"))),
                 shiny::column(3, shiny::textInput(ns("orcid"), htmltools::HTML("ORCID ID <span style='color:red;'>*</span>"))),
-                shiny::column(3, shiny::textInput(ns("organization_name"), htmltools::HTML("Organization <span style='color:red;'>*</span>"))),
-                shiny::column(3, shiny::textInput(ns("research_organization_registry"), htmltools::HTML("ROR ID <span style='color:red;'>*</span>")))
+                shiny::column(3, shiny::textInput(ns("main_organization_name"), htmltools::HTML("Organization <span style='color:red;'>*</span>"))),
+                shiny::column(3, shiny::textInput(ns("main_organization_registry"), htmltools::HTML("ROR ID <span style='color:red;'>*</span>")))
               ),
               shiny::fluidRow(
                 shiny::column(3, shiny::textInput(ns("department"), "Department")),
@@ -175,10 +175,8 @@ mod_tab7_ui <- function(id) {
                 shiny::column(3, shiny::textInput(ns("city"),       htmltools::HTML("City <span style='color:red;'>*</span>")))
               ),
               shiny::fluidRow(
-                shiny::column(3, shiny::textInput(ns("country"), htmltools::HTML("Country <span style='color:red;'>*</span>"))),
-                shiny::column(3, shiny::textInput(ns("person_country_code"), htmltools::HTML("Country Code <span style='color:red;'>*</span>"))),
-                shiny::column(3, shiny::textInput(ns("webpage"),  "Webpage")),
-                shiny::column(3, shiny::textInput(ns("phone_number"), "Phone Number"))
+                shiny::column(3, shiny::textInput(ns("organization_country"), htmltools::HTML("Country <span style='color:red;'>*</span>"))),
+                shiny::column(3, shiny::textInput(ns("organization_country_code"), htmltools::HTML("Country Code <span style='color:red;'>*</span>")))
               ),
               htmltools::br(),
               bslib::tooltip(
@@ -231,17 +229,14 @@ mod_tab7_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
       updateTextInput(session, "first_name", value = "")
       updateTextInput(session, "email", value = "")
       updateTextInput(session, "orcid", value = "")
-      updateTextInput(session, "organization_name", value = "")
-      updateTextInput(session, "research_organization_registry", value = "")
-      # updateTextInput(session, "organization_name_finder", value = "")
+      updateTextInput(session, "main_organization_name", value = "")
+      updateTextInput(session, "main_organization_registry", value = "")
       updateTextInput(session, "department", value = "")
       updateTextInput(session, "street", value = "")
       updateTextInput(session, "postal_code", value = "")
       updateTextInput(session, "city", value = "")
-      updateTextInput(session, "country", value = "")
-      updateTextInput(session, "person_country_code", value = "")
-      updateTextInput(session, "webpage", value = "")
-      updateTextInput(session, "phone_number", value = "")
+      updateTextInput(session, "organization_country", value = "")
+      updateTextInput(session, "organization_country_code", value = "")
       
       # Also clear the ORCID search fields
       updateTextInput(session, "first_name_search", value = "")
@@ -273,10 +268,9 @@ mod_tab7_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
     # Color field red or green
     observe({
       fields <- c("person_role", "last_name", "first_name", "email", "orcid", 
-                  "organization_name", "research_organization_registry", 
+                  "main_organization_name", "main_organization_registry", 
                   "department", "street", 
-                  "postal_code", "city", "country", "person_country_code", 
-                  "webpage", "phone_number")
+                  "postal_code", "city", "organization_country", "organization_country_code")
       
       lapply(fields, function(field) {
         if (!is.null(input[[field]])) {
@@ -307,8 +301,8 @@ mod_tab7_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
     observe({
       req(out_tab2$meta_file)
       person_meta_info <- openxlsx::readWorkbook(out_tab3$WB_meta(), sheet = "person", startRow = 1, colNames = TRUE)[-(1:6), ] %>%
-        tibble::tibble() %>%
-        dplyr::rename(organization_name_finder = `organization_name.(finder)`)
+        tibble::tibble() # %>%
+        # dplyr::rename(organization_name_finder = `organization_name.(finder)`)
       dperson(person_meta_info)  # Store in reactive value
     })
     
@@ -330,17 +324,14 @@ mod_tab7_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
         hot_col_wrapper('first_name', out_tab3$column_configs()$tbl6$first_name) %>%
         hot_col_wrapper('email', out_tab3$column_configs()$tbl6$email) %>%
         hot_col_wrapper('orcid', out_tab3$column_configs()$tbl6$orcid) %>%
-        hot_col_wrapper('organization_name', out_tab3$column_configs()$tbl6$organization_name) %>%
-        hot_col_wrapper('research_organization_registry', out_tab3$column_configs()$tbl6$research_organization_registry) %>%
-        # hot_col_wrapper('organization_name_finder', column_configs$tbl6$organization_name_finder) %>%
+        hot_col_wrapper('main_organization_name', out_tab3$column_configs()$tbl6$main_organization_name) %>%
+        hot_col_wrapper('main_organization_registry', out_tab3$column_configs()$tbl6$main_organization_registry) %>%
         hot_col_wrapper('department', out_tab3$column_configs()$tbl6$department) %>%
         hot_col_wrapper('street', out_tab3$column_configs()$tbl6$street) %>%
         hot_col_wrapper('postal_code', out_tab3$column_configs()$tbl6$postal_code) %>%
         hot_col_wrapper('city', out_tab3$column_configs()$tbl6$city) %>%
-        hot_col_wrapper('country', out_tab3$column_configs()$tbl6$country) %>%
-        hot_col_wrapper('person_country_code', out_tab3$column_configs()$tbl6$person_country_code) %>%
-        hot_col_wrapper('webpage', out_tab3$column_configs()$tbl6$webpage) %>%
-        hot_col_wrapper('phone_number', out_tab3$column_configs()$tbl6$phone_number)
+        hot_col_wrapper('organization_country', out_tab3$column_configs()$tbl6$organization_country) %>%
+        hot_col_wrapper('organization_country_code', out_tab3$column_configs()$tbl6$organization_country_code)
     })
     
     observeEvent(input$tbl6_select$select$r, {
@@ -355,18 +346,14 @@ mod_tab7_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
         first_name = as.character(input$first_name),
         email = as.character(input$email),
         orcid = as.character(input$orcid),
-        organization_name = as.character(input$organization_name),
-        research_organization_registry = as.character(input$research_organization_registry),
-        # organization_name_finder = as.character(input$organization_name_finder),
-        organization_name_finder = NA_character_,
+        main_organization_name = as.character(input$main_organization_name),
+        main_organization_registry = as.character(input$main_organization_registry),
         department = as.character(input$department),
         street = as.character(input$street),
         postal_code = as.character(input$postal_code),
         city = as.character(input$city),
-        country = as.character(input$country),
-        person_country_code = as.character(input$person_country_code),
-        webpage = as.character(input$webpage),
-        phone_number = as.character(input$phone_number),
+        organization_country = as.character(input$organization_country),
+        organization_country_code = as.character(input$organization_country_code),
         stringsAsFactors = FALSE
       )
       
@@ -394,10 +381,9 @@ mod_tab7_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
       
       isolate({
         fields <- c("person_role", "last_name", "first_name", "email", "orcid", 
-                    "organization_name", "research_organization_registry", 
+                    "main_organization_name", "main_organization_registry", 
                     "department", "street", 
-                    "postal_code", "city", "country", "person_country_code", 
-                    "webpage", "phone_number")
+                    "postal_code", "city", "organization_country", "organization_country_code")
         
         for (field in fields) {
           value <- out_tab4$data_meta$tbl6[[field]][row]
@@ -607,7 +593,7 @@ mod_tab7_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
         updateTextInput(session, "first_name", value = row$first_name)
         updateTextInput(session, "last_name", value = row$last_name)
         updateTextInput(session, "email", value = row$email)
-        updateTextInput(session, "organization_name", value = row$org_name)
+        updateTextInput(session, "main_organization_name", value = row$org_name)
       }
     })
   
@@ -682,15 +668,11 @@ mod_tab7_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
       ror_row <- ror_df[sel, ]
       
       # insert results into their corresponding fields
-      updateTextInput(session, "organization_name", value = ror_row$Name[1])
-      updateTextInput(session, "research_organization_registry", value = ror_row$ROR[1])
+      updateTextInput(session, "main_organization_name", value = ror_row$Name[1])
+      updateTextInput(session, "main_organization_registry", value = ror_row$ROR[1])
       updateTextInput(session, "city", value = ror_row$city[1])
-      updateTextInput(session, "country", value = ror_row$country[1])
-      updateTextInput(session, "person_country_code", value = countrycode::countrycode(ror_row$country[1], origin = "country.name", destination = "iso2c"))
-      
-      updateTextInput(session, "webpage", value = ror_row$Website[1])
-      
-      
+      updateTextInput(session, "organization_country", value = ror_row$organization_country[1])
+      updateTextInput(session, "organization_country_code", value = countrycode::countrycode(ror_row$country[1], origin = "country.name", destination = "iso2c"))
     })
     
     # Sync data on user input

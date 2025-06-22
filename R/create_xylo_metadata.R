@@ -29,8 +29,8 @@
 #'
 #' @examples
 #' \dontrun{
-#' xylo_file <- system.file("extdata", "Ltal.2007_xylo_data_2025-03-06.xlsx", package = "xyloR")
-#' template_meta <- system.file("extdata", "Datasetname_xylo_meta_yyyy-mm-dd.xlsx", package = "xyloR")
+#' xylo_file <- system.file("extdata", "Datasetname_xylo_data_yyyy-mm-dd_new.xlsx", package = "xyloR")
+#' template_meta <- system.file("extdata", "Datasetname_xylo_meta_yyyy-mm-dd_new.xlsx", package = "xyloR")
 #' destdir <- "~/Desktop/"  # tempdir()  # Use a temporary directory for output
 #' create_xylo_metadata(xylo_file, template_meta, destdir = destdir, output_name = "test.xlsx")
 #' }
@@ -106,9 +106,9 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
 
   
   # Prepare Person Tab
-  person_role <- if_else(xylo_header[3, 2] == xylo_header[3, 4], "Contact and Data owner", "Data owner")
+  person_role <- if_else(xylo_header[3, 2] == xylo_header[3, 4], "Contact and Principal Investigator", "Principal Investigator")
   
-  if(person_role == "Contact and Data owner") {
+  if(person_role == "Contact and Principal Investigator") {
     metadata_person <- tibble::tibble(
     person_role = person_role,
     person_order = NA,
@@ -116,9 +116,8 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
     first_name = xylo_header[1, 2],
     email = xylo_header[3, 2],
     orcid = NA,
-    organization_name = NA,
-    research_organization_registry = NA,
-    organization_name_helper = NA,
+    main_organization_name = NA,
+    main_organization_registry = NA
     ) }
   else {metadata_person <- tibble::tibble(
     person_role = c("Contact",person_role),
@@ -126,29 +125,30 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
     first_name = c(xylo_header[1, 4],xylo_header[1, 2]),
     email = c(xylo_header[3, 4],xylo_header[3, 2]),
     orcid = c(NA,NA),
-    organization_name = c(NA,NA),
-    research_organization_registry = c(NA,NA),
-    organization_name_helper = c(NA,NA),
+    main_organization_name = c(NA,NA),
+    main_organization_registry = c(NA,NA)
   )
   }
 
   # Prepare Site Tab
   # Count number of distinct trees per site
   tree_counts <- xylo_obs %>%
-    dplyr::group_by(network_label, site_label) %>%
+    dplyr::group_by(network_label, site_label, plot_label) %>%
     dplyr::summarise(number_of_trees = n_distinct(tree_label), .groups = "drop")
   
   metadata_site <- xylo_obs %>%
-    dplyr::count(network_label, site_label, name = "number_of_samples") %>% 
+    dplyr::count(network_label, site_label, plot_label, name = "number_of_samples") %>% 
     dplyr::arrange(network_label, site_label) %>%
-    dplyr::left_join(tree_counts, by = c("network_label", "site_label")) %>%
+    dplyr::left_join(tree_counts, by = c("network_label", "site_label", "plot_label")) %>%
     dplyr::left_join(., obs_data_info, by = "site_label") %>%
     dplyr::transmute(
       network_label,
-      network_code = suppressWarnings(abbreviate(network_label, 5)),
-      country_code = get_iso_country(latitude, longitude),
+      suggested_network_code = suppressWarnings(abbreviate(network_label, 5)),
+      site_country_code = get_iso_country(latitude, longitude),
       site_label,
-      site_code = suppressWarnings(abbreviate(site_label, 5)), 
+      suggested_site_code = suppressWarnings(abbreviate(site_label, 5)), 
+      plot_label,
+      suggested_plot_code = suppressWarnings(abbreviate(plot_label, 5)),
       latitude = as.numeric(latitude),
       longitude = as.numeric(longitude),
       elevation,
@@ -167,17 +167,20 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
       
       soil_depth = NA,
       soil_water_holding_capacity = NA,
-      forest_stand_type = NA,
+      soil_moisture = NA,
+      forest_stand_composition = NA,
       forest_stand_structure = NA,
+      forest_stand_age_structure = NA,
       forest_stand_age = NA,
       forest_stand_main_species_composition = NA,
       forest_stand_management_intensity = NA,
-      in_stand_dendrometer_data = NA,
-      in_stand_sapflux_data = NA,
-      in_stand_phenological_observation = NA,
-      in_stand_weather_data = NA,
-      in_stand_soil_data = NA,
-      in_stand_other_data = NA,
+      in_stand_soil_description = NA,
+      in_stand_dendrometer_monitoring = NA,
+      in_stand_phloem_observation = NA,
+      in_stand_sapflux_monitoring = NA,
+      in_stand_primary_phenological_observation = NA,
+      in_stand_weather_monitoring = NA,
+      is_stand_soil_monitoring = NA,
       number_of_trees,  # now this is taken from the left_joined data
       site_comment = NA
     ) %>%
@@ -188,22 +191,23 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
   metadata_tree <- xylo_obs %>%
     dplyr::count(site_label, plot_label, tree_label, tree_species, name = "number_of_samples") %>%
     dplyr::arrange(site_label, plot_label, tree_label, tree_species) %>%
-    dplyr::mutate(itrdb_species_code = tbl_droplist$itrdb_species_code[match(tree_species, tbl_droplist$tree_species)],
-                  wood_type = tbl_droplist$tree_ring_structure[match(tree_species, tbl_droplist$tree_species)],
+    dplyr::mutate(species_code = tbl_droplist$species_code[match(tree_species, tbl_droplist$tree_species)],
+                  phylogenetic_group = tbl_droplist$phylogenetic_group[match(tree_species, tbl_droplist$tree_species)],
                   leaf_habit = tbl_droplist$leaf_habit[match(tree_species, tbl_droplist$tree_species)],
                   tree_ring_structure = tbl_droplist$tree_ring_structure[match(tree_species, tbl_droplist$tree_species)])  %>% 
     dplyr::transmute(
       site_label,
       tree_label,
-      tree_code = suppressWarnings(abbreviate(tree_label, 5)),
+      suggested_tree_code = suppressWarnings(abbreviate(tree_label, 5)),
       plot_label,
-      plot_code = suppressWarnings(abbreviate(plot_label, 5)),
+      suggested_plot_code = suppressWarnings(abbreviate(plot_label, 5)),
       tree_species,
-      itrdb_species_code,
-      wood_type,
+      species_code,
+      phylogenetic_group,
       leaf_habit,
       tree_ring_structure,
       tree_treatment = NA,
+      tree_sampling_pattern = NA,
       tree_dbh = NA,
       tree_height = NA,
       tree_age = NA,
@@ -213,12 +217,13 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
       tree_origin = NA,
       tree_latitude = NA,
       tree_longitude = NA,
-      on_tree_dendrometer_data = NA,
-      on_tree_sapflux_data = NA,
-      on_tree_phenological_observation = NA,
-      on_tree_weather_data = NA,
-      on_tree_shoot_growth_data = NA,
+      on_tree_dendrometer_monitoring = NA,
+      on_tree_sapflux_monitoring = NA,
+      on_tree_primary_phenological_observation = NA,
+      on_tree_weather_monitoring = NA,
+      on_tree_shoot_growth_monitoring = NA,
       tree_ring_width_data = NA,
+      tree_ring_density_data = NA,
       tree_ring_anatomical_data = NA,
       tree_ring_isotopes_data = NA,
       number_of_samples,
@@ -234,19 +239,22 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
                      sample_id,
                      sample_date,
                      sample_label,
-                     sample_code = suppressWarnings(abbreviate(sample_label, 5)),
+                     suggested_sample_code = suppressWarnings(abbreviate(sample_label, 5)),
                      sample_organ = NA,
-                     sample_preparation_method = NA,
+                     sample_embedding = NA,
                      sample_staining_method = NA,
                      sample_mounting_method = NA,
                      sample_observation_method = NA,
                      sample_image_file_name = NA,
                      sample_section_archived = NA,
                      sample__archived = NA,
+                     sample_image_archived = NA,
+                     sample_image_annotated = NA,
                      sampling_height = NA,
                      sampling_apex_distance = NA,
                      section_thickness = NA,
-                     on_section_anatomical_data = NA,
+                     coupled_anatomical_data = NA,
+                     reaction_wood = NA,
                      sample_comment = NA)
 
 

@@ -156,7 +156,7 @@ mod_tab1_ui <- function(id) {
 
         # Observations table
         bslib::card(
-          bslib::card_header("Observations performed [# radial files]"),
+          bslib::card_header("average replications per sample and measure_type"),
           bslib::card_body(DT::DTOutput(ns("obs_table"))),
           style = "display: none;",
           id = ns("card_6")
@@ -450,7 +450,7 @@ mod_tab1_server <- function(id, session_global) {
           
           # Step 1: Define the template path for filled example observation
           shiny::setProgress(value = 0.1, detail = "Locating template file...")
-          template_path <- system.file("extdata", "Ltal.2007_xylo_data_2025-03-06.xlsx", package = "xyloR")
+          template_path <- system.file("extdata", "Ltal.2007_xylo_data_2025-06-22.xlsx", package = "xyloR")
           
           # Check if the template exists
           if (template_path == "") {
@@ -785,36 +785,38 @@ mod_tab1_server <- function(id, session_global) {
       # Load and process data from the uploaded file
       df <- xylo_obs()
 
-      # Extract obs information
-      obs_list <- df %>%
-        dplyr::select(-c(1:5, ncol(df))) %>%
-        colnames()
-
-      # Define the regex patterns for categories
-      var_categories <- list(
-        CZ = "^cz", EZ = "ez", TZ = "tz", MZ = "mz", PR = "pr"
+      # Define excluded columns
+      excluded_cols <- c(
+        "sample_date", "sample_id", "tree_species", "tree_label", "plot_label",
+        "site_label", "network_label", "sample_label", "measure_type",
+        "measure_replication", "sample_comment"
       )
-
-      # Extract count/width categories
-      count_vars <- grep("n", obs_list, value = TRUE)
-      width_vars <- grep("w", obs_list, value = TRUE)
-
-      # Extract C/E/W/M/Py categories
-      C_vars <- grep("^cz", obs_list, value = TRUE)
-      E_vars <- grep("ez", obs_list, value = TRUE)
-      T_vars <- grep("tz", obs_list, value = TRUE)
-      M_vars <- grep("mz", obs_list, value = TRUE)
-      Pr_vars <- grep("pr", obs_list, value = TRUE)
-
-      # Group the results based on occurrences in the subset
-      grouped <- data.frame(
-        Category = c("Count", "Width"),
-        CZ = c(length(intersect(C_vars, count_vars)), length(intersect(C_vars, width_vars))),
-        EZ = c(length(intersect(E_vars, count_vars)), length(intersect(E_vars, width_vars))),
-        TZ = c(length(intersect(T_vars, count_vars)), length(intersect(T_vars, width_vars))),
-        MZ = c(length(intersect(M_vars, count_vars)), length(intersect(M_vars, width_vars))),
-        PR = c(length(intersect(Pr_vars, count_vars)), length(intersect(Pr_vars, width_vars)))
-      )
+      
+      # Dynamically get columns to include
+      cols_to_include <- setdiff(names(df), excluded_cols)
+      
+      grouped <- df %>%
+        # Filter out rows where all included cols are NA
+        filter(if_any(all_of(cols_to_include), ~ !is.na(.))) %>%
+        
+        # Reshape to long format
+        pivot_longer(cols = all_of(cols_to_include), names_to = "variable", values_to = "value") %>%
+        
+        # Remove NAs
+        filter(!is.na(value)) %>%
+        
+        # Group by measure_type, sample, and variable
+        group_by(measure_type, sample_label, sample_id, variable) %>%
+        summarise(non_na_count = n(), .groups = "drop") %>%
+        
+        # Compute average non-NA count per variable across sample groups
+        group_by(measure_type, variable) %>%
+        summarise(avg_non_na = mean(non_na_count), .groups = "drop") %>%
+        
+        # Reshape to wide format
+        pivot_wider(names_from = variable, values_from = avg_non_na)
+      
+      
 
       # Define table styling options
       table_options <- list(

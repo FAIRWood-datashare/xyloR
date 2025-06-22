@@ -35,7 +35,7 @@ mod_tab3_ui <- function(id) {
         bslib::card(
           bslib::card_header(NULL),
           bslib::card_body(
-            shiny::actionButton(ns("save_obs"), label = htmltools::tagList(bsicons::bs_icon("save"), "Save obs"), class = "btn-primary")
+            shiny::actionButton(ns("save_obs"), label = htmltools::tagList(bsicons::bs_icon("save"), "Save"), class = "btn-primary")
           )
         )
       ),
@@ -147,8 +147,8 @@ mod_tab3_server <- function(id, out_tab1, out_tab2) {
     drop_species <- shiny::reactive({
       shiny::req(WB())  # Ensure the workbook is available
       drop_species <- openxlsx::readWorkbook(WB(), sheet = "DropList", colNames = TRUE) %>% 
-        dplyr::mutate(itrdb_species_code = ITRDB_species_code) %>% 
-        dplyr::select(tree_species, itrdb_species_code) %>%
+        dplyr::mutate(species_code = species_code) %>% 
+        dplyr::select(tree_species, species_code) %>%
         dplyr::filter(!is.na(tree_species))
     })
     
@@ -162,7 +162,7 @@ mod_tab3_server <- function(id, out_tab1, out_tab2) {
       data <- openxlsx::readWorkbook(WB(), sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] %>%
         tibble::tibble() %>% 
         dplyr::left_join(drop_species(), by = "tree_species") %>%
-        dplyr::relocate(itrdb_species_code, .after = tree_species)
+        dplyr::relocate(species_code, .after = tree_species)
       
       # Check if sample_date is numeric and convert to Date
       data <- data %>%
@@ -217,7 +217,7 @@ mod_tab3_server <- function(id, out_tab1, out_tab2) {
       updated <- df %>%
         dplyr::left_join(
           drop_species,
-          by = "itrdb_species_code",
+          by = "species_code",
           suffix = c("", "_from_list")
         ) %>%
         dplyr::mutate(
@@ -236,13 +236,14 @@ mod_tab3_server <- function(id, out_tab1, out_tab2) {
         hot_col_wrapper('sample_date', column_configs()$tbl2$sample_date) %>%
         hot_col_wrapper('sample_id', column_configs()$tbl2$sample_id) %>%
         hot_col_wrapper('tree_species', column_configs()$tbl2$tree_species) %>%
-        hot_col_wrapper('itrdb_species_code', column_configs()$tbl2$itrdb_species_code) %>%
+        hot_col_wrapper('species_code', column_configs()$tbl2$species_code) %>%
         hot_col_wrapper('tree_label', column_configs()$tbl2$tree_label) %>%
         hot_col_wrapper('plot_label', column_configs()$tbl2$plot_label) %>%
         hot_col_wrapper('site_label', column_configs()$tbl2$site_label) %>%
         hot_col_wrapper('network_label', column_configs()$tbl2$network_label)%>%
         hot_col_wrapper('sample_label', column_configs()$tbl2$sample_label) %>%
-        hot_col_wrapper('radial_file', column_configs()$tbl2$radial_file) %>%
+        hot_col_wrapper('measure_type', column_configs()$tbl2$measure_type) %>%
+        hot_col_wrapper('measure_replication', column_configs()$tbl2$measure_replication) %>%
         hot_col_wrapper('sample_comment', column_configs()$tbl2$sample_comment) %>%
         hot_cols(manualColumnResize = TRUE)
     })
@@ -269,15 +270,15 @@ mod_tab3_server <- function(id, out_tab1, out_tab2) {
         sheet_name = "obs_data_info",
         wb_reactive = WB,
         temp_folder = out_tab1$temp_folder,
-        update_validation = out_tab2$validation_results()
+        update_validation = out_tab2$validation_results
       )
       
       save_and_validate(
-        data_reactive = data_in$tbl2 %>% dplyr::select(-itrdb_species_code),
+        data_reactive = data_in$tbl2 %>% dplyr::select(-species_code),
         sheet_name = "Xylo_obs_data",
         wb_reactive = WB,
         temp_folder = out_tab1$temp_folder,
-        update_validation = out_tab2$validation_results()
+        update_validation = out_tab2$validation_results
       )
     })
     
