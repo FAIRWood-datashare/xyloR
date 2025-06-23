@@ -14,8 +14,8 @@
 #' 
 #' @examples
 #' \dontrun{
-#' obs_file_path <- system.file("extdata", "Ltal.2007_xylo_data_2025-03-06.xlsx", package = "xyloR")
-#' meta_file_path <- system.file("extdata", "Ltal.2007_xylo_meta_2025-03-08.xlsx", package = "xyloR")
+#' obs_file_path <- system.file("extdata", "Ltal.2007_xylo_data_2025-06-22.xlsx", package = "xyloR")
+#' meta_file_path <- system.file("extdata", "Ltal.2007_xylo_meta_2025-06-22.xlsx", package = "xyloR")
 #' dir <- tempdir()
 #' dataset_name <- "test"
 #' to_exchange_files(obs_file_path, meta_file_path)
@@ -59,9 +59,9 @@ meta_sheet_data <- lapply(meta_sheet_data, function(df) df[apply(df, 1, function
 
 
 # Group all samples per year, tree, plot, site, and network from sheet_data into a single data frame and count the number of samples per group
-dfmeta_joined <- left_join(meta_sheet_data[["sample"]], meta_sheet_data[["tree"]], by = "tree_label", relationship = "many-to-many") %>%
-  left_join(meta_sheet_data[["site"]], by = "site_label", relationship = "many-to-many") %>% 
-  group_by(network_label, network_code, site_label, site_code, plot_label, plot_code, tree_label, tree_code, year = as.numeric(format(sample_date, "%Y")), sample_label, sample_code, sample_id, sample_date) %>%
+dfmeta_joined <- left_join(meta_sheet_data[["sample"]], meta_sheet_data[["tree"]] %>% select(-plot_label, -suggested_plot_code), by = "tree_label", relationship = "many-to-many") %>%
+  left_join(meta_sheet_data[["site"]], by = "site_label", relationship = "many-to-many") %>%
+  group_by(network_label, suggested_network_code, site_label, suggested_site_code, plot_label, suggested_plot_code, tree_label, suggested_tree_code, year = as.numeric(format(sample_date, "%Y")), sample_label, suggested_sample_code, sample_id, sample_date) %>%
   summarise(n = n()) %>%
   ungroup() %>%
   mutate(site_label = paste0(network_label, "__", site_label),
@@ -72,21 +72,22 @@ dfmeta_joined <- left_join(meta_sheet_data[["sample"]], meta_sheet_data[["tree"]
  
 ### SAMPLE_TABLE exchange files
  # create data for excel 
-sample_data <- left_join(meta_sheet_data[["sample"]], meta_sheet_data[["tree"]], by = "tree_label", relationship = "many-to-many") %>%
-  left_join(meta_sheet_data[["site"]], by = "site_label", relationship = "many-to-many") %>% 
-  group_by(zone_hierarchy = paste(network_code, site_code, plot_code, sep = "."), tree_code, sample_code, sampling_date = as.Date(sample_date)) %>%
+sample_data <- left_join(meta_sheet_data[["sample"]], meta_sheet_data[["tree"]] %>% select(-plot_label, -suggested_plot_code) %>% distinct(tree_label, .keep_all = TRUE), by = "tree_label", relationship = "many-to-many") %>%
+  left_join(meta_sheet_data[["site"]] %>% distinct(site_label, .keep_all = TRUE), by = "site_label", relationship = "many-to-many") %>%
+  group_by(zone_hierarchy = paste(suggested_network_code, suggested_site_code, suggested_plot_code, sep = "."), suggested_tree_code, suggested_sample_code, sampling_date = as.Date(sample_date)) %>%
   summarise(n = n(), .groups = "drop") %>% 
   select(-n) %>% 
-  dplyr::mutate(comment = NA)
+  dplyr::mutate(comment = NA) %>% 
+  dplyr::arrange(zone_hierarchy, suggested_tree_code, sampling_date) 
  # save file on desktop
 # sample_data %>% 
 #   writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_sample_table_", Sys.Date(), ".xlsx")), col_names = TRUE)
-sample_data %>% 
+sample_data %>%
   readr::write_csv(file.path(dir, paste0(dataset_name, "_sample_table_", Sys.Date(), ".csv")))
 
 # create data for measure_sample
 measure_sample <- sample_data %>%
-  left_join(., meta_sheet_data[["sample"]], by = "sample_code", relationship = "many-to-many") %>%
+  left_join(., meta_sheet_data[["sample"]], by = "suggested_sample_code", relationship = "many-to-many") %>%
   left_join(., obs_sheet_data[[1]] %>% select(-tree_label, -sample_id, -sample_date, -sample_comment), by = "sample_label", relationship = "many-to-many") %>%
   dplyr::mutate(
     Observation_measure = NA,
@@ -105,9 +106,9 @@ measure_sample %>%
 
 ### TREE_TABLE exchange files
 # create data for excel 
-tree_data <- left_join(meta_sheet_data[["sample"]], meta_sheet_data[["tree"]], by = "tree_label", relationship = "many-to-many") %>%
+tree_data <- left_join(meta_sheet_data[["sample"]], meta_sheet_data[["tree"]] %>% select(-plot_label, -suggested_plot_code) %>% distinct(tree_label, .keep_all = TRUE), by = "tree_label", relationship = "many-to-many") %>%
   left_join(meta_sheet_data[["site"]], by = "site_label", relationship = "many-to-many") %>% 
-  group_by(zone_hierarchy = paste(network_code, site_code, plot_code, sep = "."), species_code = itrdb_species_code, tree_code) %>%
+  group_by(zone_hierarchy = paste(suggested_network_code, suggested_site_code, suggested_plot_code, sep = "."), species_code = species_code, suggested_tree_code) %>%
   summarise(n = n(), .groups = "drop") %>% 
   select(-n) %>% 
   dplyr::mutate(comment = NA)
@@ -119,15 +120,15 @@ tree_data %>%
 
 # create data for measure_tree
 measure_tree <- tree_data %>%
-  left_join(., meta_sheet_data[["tree"]], by = "tree_code", relationship = "many-to-many") %>%
-  select(zone_hierarchy, tree_code, plot_code, tree_species, itrdb_species_code, wood_type, leaf_habit, tree_ring_structure, tree_treatment, tree_dbh, tree_height, tree_age, tree_sex, tree_social_status, tree_health_status, tree_origin, tree_latitude, tree_longitude, on_tree_dendrometer_data, on_tree_sapflux_data, on_tree_phenological_observation, on_tree_weather_data, on_tree_shoot_growth_data, tree_ring_width_data, tree_ring_anatomical_data, tree_ring_isotope_data, number_of_samples, tree_comment) %>%
+  left_join(., meta_sheet_data[["tree"]] %>% select(-species_code) %>% distinct(tree_label, .keep_all = TRUE), by = "suggested_tree_code", relationship = "many-to-many") %>%
+  select(zone_hierarchy, suggested_tree_code, suggested_plot_code, tree_species, species_code, phylogenetic_group, leaf_habit, tree_ring_structure, tree_treatment, tree_sampling_pattern, tree_dbh, tree_height, tree_age, tree_sex, tree_social_status, tree_health_status, tree_origin, tree_latitude, tree_longitude, on_tree_dendrometer_monitoring, on_tree_sapflux_monitoring, on_tree_primary_phenological_observation, on_tree_weather_monitoring, on_tree_shoot_growth_monitoring, tree_ring_width_data, tree_ring_density_data, tree_ring_anatomical_data, tree_ring_isotope_data, number_of_samples, tree_comment) %>%
   dplyr::mutate(
     Observation_measure = NA,
     Date_measure = NA,
     Precision_date_measure = NA
   ) %>%
-  dplyr::relocate(Observation_measure, Date_measure, Precision_date_measure, .after = tree_code) %>% 
-  dplyr::select(-plot_code, -tree_species, -itrdb_species_code)
+  dplyr::relocate(Observation_measure, Date_measure, Precision_date_measure, .after = suggested_tree_code) %>% 
+  dplyr::select(-suggested_plot_code, -tree_species, -species_code)
   
  
 # save file on desktop
@@ -140,27 +141,27 @@ measure_tree %>%
 
 ### STUDY_ZONE exchange files
 # create data for excel 
-study_zone <- left_join(meta_sheet_data[["sample"]], meta_sheet_data[["tree"]], by = "tree_label", relationship = "many-to-many") %>%
+study_zone <- left_join(meta_sheet_data[["sample"]], meta_sheet_data[["tree"]] %>% select(-suggested_plot_code), by = "tree_label", relationship = "many-to-many") %>%
   left_join(meta_sheet_data[["site"]], by = "site_label", relationship = "many-to-many") %>% 
-  group_by(zone_hierarchy = paste(network_code, site_code, plot_code, sep = "."), network_label, network_code, site_label, site_code, plot_code) %>%
+  group_by(zone_hierarchy = paste(suggested_network_code, suggested_site_code, suggested_plot_code, sep = "."), network_label, suggested_network_code, site_label, suggested_site_code, suggested_plot_code) %>%
   summarise(n = n(), .groups = "drop") %>% 
   select(-n) 
 
 table_zone <- tibble(
-  zone_code = c(unique(study_zone$network_code), unique(study_zone$site_code), unique(study_zone$plot_code)),
+  zone_code = c(unique(study_zone$suggested_network_code), unique(study_zone$suggested_site_code), unique(study_zone$suggested_plot_code)),
   zone_type = case_when(
-    zone_code %in% study_zone$network_code ~ "network",
-    zone_code %in% study_zone$site_code ~ "site",
-    zone_code %in% unique(study_zone$plot_code) ~ "plot"
+    zone_code %in% study_zone$suggested_network_code ~ "network",
+    zone_code %in% study_zone$suggested_site_code ~ "site",
+    zone_code %in% unique(study_zone$suggested_plot_code) ~ "plot"
   )
 ) %>%
   mutate(
     zone_hierarchy = case_when(
       zone_type == "network" ~ zone_code,  # network_code directly
-      zone_type == "site" ~ paste(study_zone$network_code[match(zone_code, study_zone$site_code)], zone_code, sep = "."),  # network_code + site_code
+      zone_type == "site" ~ paste(study_zone$suggested_network_code[match(zone_code, study_zone$suggested_site_code)], zone_code, sep = "."),  # network_code + site_code
       zone_type == "plot" ~ paste(
-        study_zone$network_code[match(zone_code, study_zone$plot_code)],
-        study_zone$site_code[match(zone_code, study_zone$plot_code)],
+        study_zone$suggested_network_code[match(zone_code, study_zone$suggested_plot_code)],
+        study_zone$suggested_site_code[match(zone_code, study_zone$suggested_plot_code)],
         zone_code,
         sep = "."
       )  # network_code + site_code + plot_code
@@ -168,11 +169,11 @@ table_zone <- tibble(
   ) %>%
   mutate(
     zone_name = case_when(
-      zone_type == "network" ~ unique(study_zone$network_label),  # network_code directly
-      zone_type == "site" ~ paste(study_zone$network_label[match(zone_code, study_zone$site_code)], zone_code, sep = "."),  # network_code + site_code
+      zone_type == "network" ~ unique(study_zone$suggested_network_code),  # network_code directly
+      zone_type == "site" ~ paste(study_zone$suggested_network_code[match(zone_code, study_zone$suggested_site_code)], zone_code, sep = "."),  # network_code + site_code
       zone_type == "plot" ~ paste(
-        study_zone$network_label[match(zone_code, study_zone$plot_code)],
-        study_zone$site_label[match(zone_code, study_zone$plot_code)],
+        study_zone$suggested_network_code[match(zone_code, study_zone$suggested_plot_code)],
+        study_zone$site_label[match(zone_code, study_zone$suggested_plot_code)],
         zone_code,
         sep = "."
       )  # network_code + site_code + plot_code
@@ -188,17 +189,17 @@ table_zone %>%
 
 # create data for measure_zone
 measure_zone_sitelevel <- table_zone %>%
-  filter(zone_type == "site") %>% left_join(., meta_sheet_data[["site"]], by = c("zone_code" = "site_code"))
+  filter(zone_type == "site") %>% left_join(., meta_sheet_data[["site"]], by = c("zone_code" = "suggested_site_code"))
 
 
 measure_zone_networklevel <- table_zone %>%
   filter(zone_type == "network") %>%
-  mutate(`principal investigator (pi)` = meta_sheet_data[["person"]]$last_name[grepl("Data owner", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-    `email (email)` = meta_sheet_data[["person"]]$email[grepl("Data owner", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-    `organization_name` = meta_sheet_data[["person"]]$organization_name[grepl("Data owner", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-    `country name person (country_name)` = meta_sheet_data[["person"]]$country[grepl("Data owner", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-    `country code person (country_code)` = meta_sheet_data[["person"]]$person_country_code[grepl("Data owner", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-    `comment (zone_com)` = meta_sheet_data[["site"]]$site_comment[match(zone_code, meta_sheet_data[["site"]]$site_code)]
+  mutate(`principal investigator (pi)` = meta_sheet_data[["person"]]$last_name[grepl("Contact", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
+    `email (email)` = meta_sheet_data[["person"]]$email[grepl("Contact", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
+    `organization_name` = meta_sheet_data[["person"]]$main_organization_name[grepl("Contact", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
+    `country name organization (country_name)` = meta_sheet_data[["person"]]$organization_country[grepl("Contact", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
+    `country code organization (country_code)` = meta_sheet_data[["person"]]$organization_country_code[grepl("Contact", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
+    `comment (zone_com)` = meta_sheet_data[["site"]]$site_comment[match(zone_code, meta_sheet_data[["site"]]$suggested_site_code)]
   )
 measure_zone_networklevel
 
