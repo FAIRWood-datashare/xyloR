@@ -94,15 +94,26 @@ meta_format_validation <- function(meta_file) {
       
       # Check range values
       if (grepl("^Range:", constraint_domain, ignore.case = TRUE)) {
+        # Extract numeric min/max
         range_values <- as.numeric(strsplit(gsub("Range: ", "", constraint_domain), " to ")[[1]])
         min_val <- range_values[1]
         max_val <- range_values[2]
-        numeric_values <- as.numeric(na.omit(data[[col]]))
-        invalid_values <- numeric_values[numeric_values < min_val | numeric_values > max_val]
+        
+        # Convert to numeric but keep NA (do NOT drop with na.omit)
+        values <- suppressWarnings(as.numeric(data[[col]]))
+        
+        # Find values that are not NA and outside the allowed range
+        invalid_values <- values[!is.na(values) & (values < min_val | values > max_val)]
+        
+        # Report if we found any
         if (length(invalid_values) > 0) {
-          report[[sheet]][[col]] <- paste("Values out of range (", min_val, "-", max_val, "):", paste(invalid_values, collapse = ", "))
+          report[[sheet]][[col]] <- paste(
+            "Values out of range (", min_val, "-", max_val, "):",
+            paste(invalid_values, collapse = ", ")
+          )
         }
       }
+      
     }
   }
   

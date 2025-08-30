@@ -37,7 +37,17 @@ hot_col_wrapper <- function(ht, col, col_config) {
         col,
         type = 'numeric',
         renderer = renderer_js,
-        readOnly = readOnly
+        readOnly = readOnly,
+        allowInvalid = TRUE,
+        validator = htmlwidgets::JS(
+          "function (value, callback) {
+           if (value === null || value === '' || value === undefined) {
+             callback(true);   // allow NA / empty
+           } else {
+             callback(!isNaN(value)); // valid if numeric
+           }
+         }"
+        )
       )
     # for dropdown cols:
   } else if (col_config$type == 'dropdown') {

@@ -29,8 +29,8 @@
 #'
 #' @examples
 #' \dontrun{
-#' xylo_file <- system.file("extdata", "Datasetname_xylo_data_yyyy-mm-dd_new.xlsx", package = "xyloR")
-#' template_meta <- system.file("extdata", "Datasetname_xylo_meta_yyyy-mm-dd_new.xlsx", package = "xyloR")
+#' xylo_file <- system.file("extdata", "Datasetname_xylo_data_yyyy-mm-dd.xlsx", package = "xyloR")
+#' template_meta <- system.file("extdata", "Datasetname_xylo_meta_yyyy-mm-dd.xlsx", package = "xyloR")
 #' destdir <- "~/Desktop/"  # tempdir()  # Use a temporary directory for output
 #' create_xylo_metadata(xylo_file, template_meta, destdir = destdir, output_name = "test.xlsx")
 #' }
@@ -121,6 +121,7 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
     ) }
   else {metadata_person <- tibble::tibble(
     person_role = c("Contact",person_role),
+    person_order = NA,
     last_name = c(xylo_header[2, 4],xylo_header[2, 2]),
     first_name = c(xylo_header[1, 4],xylo_header[1, 2]),
     email = c(xylo_header[3, 4],xylo_header[3, 2]),
@@ -137,18 +138,26 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
     dplyr::summarise(number_of_trees = n_distinct(tree_label), .groups = "drop")
   
   metadata_site <- xylo_obs %>%
-    dplyr::count(network_label, site_label, plot_label, name = "number_of_samples") %>% 
+    group_by(network_label, site_label, plot_label) %>%
+    summarise(number_of_samples = n_distinct(sample_label), .groups = "drop") %>%
+    # xylo_obs %>%
+    # dplyr::count(network_label, site_label, plot_label, name = "number_of_samples") %>% 
     dplyr::arrange(network_label, site_label) %>%
     dplyr::left_join(tree_counts, by = c("network_label", "site_label", "plot_label")) %>%
     dplyr::left_join(., obs_data_info, by = "site_label") %>%
     dplyr::transmute(
-      network_label,
+      # If network_label is missing, use site_label
+      network_label = coalesce(network_label, site_label),
       suggested_network_code = suppressWarnings(abbreviate(network_label, 5)),
+      
       site_country_code = get_iso_country(latitude, longitude),
       site_label,
       suggested_site_code = suppressWarnings(abbreviate(site_label, 5)), 
-      plot_label,
+      
+      # If plot_label is missing, use site_label
+      plot_label = coalesce(plot_label, site_label),
       suggested_plot_code = suppressWarnings(abbreviate(plot_label, 5)),
+      
       latitude = as.numeric(latitude),
       longitude = as.numeric(longitude),
       elevation,
@@ -186,10 +195,13 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
     ) %>%
     select(-climate)
   
-  
+    
   # Prepare Tree Tab
   metadata_tree <- xylo_obs %>%
-    dplyr::count(site_label, plot_label, tree_label, tree_species, name = "number_of_samples") %>%
+    group_by(site_label, plot_label, tree_label, tree_species) %>%
+    summarise(number_of_samples = n_distinct(sample_label), .groups = "drop") %>%
+    # xylo_obs %>%
+    # dplyr::count(site_label, plot_label, tree_label, tree_species, name = "number_of_samples") %>%
     dplyr::arrange(site_label, plot_label, tree_label, tree_species) %>%
     dplyr::mutate(species_code = tbl_droplist$species_code[match(tree_species, tbl_droplist$tree_species)],
                   phylogenetic_group = tbl_droplist$phylogenetic_group[match(tree_species, tbl_droplist$tree_species)],
@@ -199,8 +211,11 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
       site_label,
       tree_label,
       suggested_tree_code = suppressWarnings(abbreviate(tree_label, 5)),
-      plot_label,
+      
+      # If plot_label is missing, use site_label
+      plot_label = coalesce(plot_label, site_label),
       suggested_plot_code = suppressWarnings(abbreviate(plot_label, 5)),
+      
       tree_species,
       species_code,
       phylogenetic_group,

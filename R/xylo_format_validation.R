@@ -132,10 +132,18 @@ xylo_format_validation <- function(xylo_file) {
   }
  
   # 3. check sample_label in Xylo_obs_data are unique
-  xylo_obs_sample_labels <- na.omit(sheet_data[["Xylo_obs_data"]][-1:-6, "sample_label"]) %>% dplyr::pull()
+  # Extract relevant columns, removing first 6 rows and NAs in any column
+  xylo_obs_sample_labels <- sheet_data[["Xylo_obs_data"]][-1:-6, c("sample_label", "measure_type", "measure_replication")] %>%
+    na.omit()
   if (any(duplicated(xylo_obs_sample_labels))) {
-    report[["Xylo_obs_data"]][["sample_label"]] <- "Sample labels in Xylo_obs_data are not unique"
+    report[["Xylo_obs_data"]][["sample_label"]] <- "Combination of sample_label, measure_type, and measure_replication is not unique"
   }
+  
+  
+  # xylo_obs_sample_labels <- na.omit(sheet_data[["Xylo_obs_data"]][-1:-6, "sample_label"]) %>% dplyr::pull()
+  # if (any(duplicated(xylo_obs_sample_labels))) {
+  #   report[["Xylo_obs_data"]][["sample_label"]] <- "Sample labels in Xylo_obs_data are not unique"
+  # }
    
   return(convert_report_to_tibble(report))
 }

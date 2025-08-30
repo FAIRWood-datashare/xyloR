@@ -22,7 +22,7 @@ get_column_configs <- function(WB, WB_meta, dobs) {
     tbl2 = list(
       sample_date = list(type = "date", required = TRUE),
       sample_id = list(type = "character", required = TRUE, min_length = 1, max_length = 64),
-      tree_species = list(type = "character", required = TRUE, min_length = 1, max_length = 64, readOnly = TRUE),
+      tree_species = list(type = "character", required = TRUE, min_length = 1, max_length = 128, readOnly = TRUE),
       species_code = list(type = "dropdown", required = TRUE, options = species_code_droplist),
       tree_label = list(type = "character", required = TRUE, min_length = 1, max_length = 64),
       plot_label = list(type = "character", min_length = 1, max_length = 64),
@@ -95,13 +95,13 @@ get_column_configs <- function(WB, WB_meta, dobs) {
       # Site table
       tbl3 = list(
         # network_label = list(type = "dropdown", required = TRUE, options = unique(na.omit(data_in$tbl2$network_label)), unique = TRUE, readOnly = TRUE),
-        network_label = list(type = 'character', min_length = 1, max_length = 64, regex_pattern = NULL, readOnly = TRUE), # calculated
-        suggested_network_code = list(type = 'character', min_length = 1, max_length = 10, regex_pattern = NULL, readOnly = TRUE), # calculated
+        network_label = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = NULL, readOnly = TRUE), # calculated
+        suggested_network_code = list(type = 'character', required = TRUE, min_length = 1, max_length = 10, regex_pattern = NULL, readOnly = TRUE), # calculated
         site_country_code = list(type = 'dropdown', options = country_code_droplist, readOnly = TRUE),
         # site_label = list(type = "dropdown", required = TRUE, options = unique(na.omit(data_in$tbl2$site_label)), unique = TRUE, readOnly = TRUE),
         site_label = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = NULL, readOnly = TRUE), # calculated
         suggested_site_code = list(type = 'character', required = TRUE, min_length = 1, max_length = 10, regex_pattern = NULL, readOnly = TRUE), # calculated
-        plot_label = list(type = 'character', min_length = 1, max_length = 64, regex_pattern = NULL, readOnly = TRUE), 
+        plot_label = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = NULL, readOnly = TRUE), 
         suggested_plot_code = list(type = 'character', min_length = 1, max_length = 10, regex_pattern = NULL, readOnly = TRUE), # calculated
         latitude = list(type = 'numeric', required = TRUE, min_val = -90, max_val = 90, readOnly = TRUE), # calculated
         longitude = list(type = 'numeric', required = TRUE, min_val = -180, max_val = 180, readOnly = TRUE), # calculated
@@ -142,7 +142,7 @@ get_column_configs <- function(WB, WB_meta, dobs) {
         tree_label = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = NULL, unique = FALSE, unique.comp = TRUE, readOnly = TRUE),
         suggested_tree_code = list(type = 'character', required = TRUE, min_length = 1, max_length = 10, regex_pattern = NULL, unique = FALSE, unique.comp = TRUE, readOnly = TRUE), # calculated
         # plot_label = list(type = "dropdown", required = TRUE, options = unique(na.omit(data_in$tbl2$plot_label)), unique = TRUE, readOnly = TRUE), # calculated
-        plot_label = list(type = 'character', min_length = 1, max_length = 64, regex_pattern = NULL, readOnly = TRUE), # calculated
+        plot_label = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = NULL, readOnly = TRUE), # calculated
         suggested_plot_code = list(type = 'character', min_length = 1, max_length = 10, regex_pattern = NULL, readOnly = TRUE), # calculated
         tree_species = list(type = 'dropdown', required = TRUE, options = tree_species_droplist, readOnly = TRUE), # drop
         species_code = list(type = "dropdown", required = TRUE, options = species_code_droplist, readOnly = TRUE),
@@ -198,7 +198,7 @@ get_column_configs <- function(WB, WB_meta, dobs) {
         sample_apex_distance	= list(type = 'numeric', min_val = 0, max_val = 100),
         section_thickness	= list(type = 'numeric', min_val = 0, max_val = NULL),
         coupled_anatomical_data	= list(type = 'dropdown', required = TRUE, options = coupled_anatomical_data_droplist),
-        reaction_wood = list(type = 'dropdown', required = TRUE, options = reaction_wood_droplist),
+        reaction_wood = list(type = 'dropdown', options = reaction_wood_droplist),
         sample_comment	= list(type = 'character', min_length = 1, max_length = NULL)
       ),
       

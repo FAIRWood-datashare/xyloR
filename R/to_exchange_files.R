@@ -147,39 +147,48 @@ study_zone <- left_join(meta_sheet_data[["sample"]], meta_sheet_data[["tree"]] %
   summarise(n = n(), .groups = "drop") %>% 
   select(-n) 
 
-table_zone <- tibble(
-  zone_code = c(unique(study_zone$suggested_network_code), unique(study_zone$suggested_site_code), unique(study_zone$suggested_plot_code)),
-  zone_type = case_when(
-    zone_code %in% study_zone$suggested_network_code ~ "network",
-    zone_code %in% study_zone$suggested_site_code ~ "site",
-    zone_code %in% unique(study_zone$suggested_plot_code) ~ "plot"
+
+# Step 1: Compute hierarchy for each row
+study_zone <- study_zone %>%
+  mutate(
+    zone_hierarchy_network = suggested_network_code,
+    zone_hierarchy_site    = paste(suggested_network_code, suggested_site_code, sep = "."),
+    zone_hierarchy_plot    = paste(suggested_network_code, suggested_site_code, suggested_plot_code, sep = ".")
   )
-) %>%
-  mutate(
-    zone_hierarchy = case_when(
-      zone_type == "network" ~ zone_code,  # network_code directly
-      zone_type == "site" ~ paste(study_zone$suggested_network_code[match(zone_code, study_zone$suggested_site_code)], zone_code, sep = "."),  # network_code + site_code
-      zone_type == "plot" ~ paste(
-        study_zone$suggested_network_code[match(zone_code, study_zone$suggested_plot_code)],
-        study_zone$suggested_site_code[match(zone_code, study_zone$suggested_plot_code)],
-        zone_code,
-        sep = "."
-      )  # network_code + site_code + plot_code
-    )
-  ) %>%
-  mutate(
-    zone_name = case_when(
-      zone_type == "network" ~ unique(study_zone$suggested_network_code),  # network_code directly
-      zone_type == "site" ~ paste(study_zone$suggested_network_code[match(zone_code, study_zone$suggested_site_code)], zone_code, sep = "."),  # network_code + site_code
-      zone_type == "plot" ~ paste(
-        study_zone$suggested_network_code[match(zone_code, study_zone$suggested_plot_code)],
-        study_zone$site_label[match(zone_code, study_zone$suggested_plot_code)],
-        zone_code,
-        sep = "."
-      )  # network_code + site_code + plot_code
-    )
-  ) %>% 
-  select(zone_hierarchy, zone_code, zone_name, zone_type)
+
+# Step 2: Create separate tables for network, site, and plot
+table_network <- study_zone %>%
+  # emove cases where network == site
+  filter(suggested_network_code != suggested_site_code) %>%
+  distinct(suggested_network_code, zone_hierarchy_network) %>%
+  transmute(
+    zone_code = suggested_network_code,
+    zone_hierarchy = zone_hierarchy_network,
+    zone_name = zone_hierarchy_network,
+    zone_type = "network"
+  )
+
+table_site <- study_zone %>%
+  distinct(suggested_site_code, zone_hierarchy_site) %>%
+  transmute(zone_code = suggested_site_code,
+            zone_hierarchy = zone_hierarchy_site,
+            zone_name = zone_hierarchy_site,
+            zone_type = "site")
+
+table_plot <- study_zone %>%
+  # remove cases where plot == site
+  filter(suggested_plot_code != suggested_site_code) %>%
+  distinct(suggested_plot_code, suggested_site_code, zone_hierarchy_plot) %>%
+  transmute(
+    zone_code = suggested_plot_code,
+    zone_hierarchy = zone_hierarchy_plot,
+    zone_name = zone_hierarchy_plot,
+    zone_type = "plot"
+  )
+
+
+# Step 3: Combine into a single table
+table_zone <- bind_rows(table_network, table_site, table_plot)
 
 # save file on desktop
 # table_zone %>% 

@@ -556,44 +556,94 @@ mod_tab2_server <- function(id, out_tab1) {
       shiny::req(input$meta_file$datapath)
       meta_file_data <- input$meta_file$datapath
       
-      sheet_names <- setdiff(readxl::excel_sheets(meta_file_data), c("instructions", "DropList", "ListOfVariables"))
-      sheet_data <- setNames(lapply(sheet_names, function(sheet) readxl::read_excel(meta_file_data, sheet)[-1:-6,]), sheet_names)
+      sheet_names <- setdiff(
+        readxl::excel_sheets(meta_file_data),
+        c("instructions", "DropList", "ListOfVariables")
+      )
       
-      df_joined <- dplyr::left_join(sheet_data[["sample"]], sheet_data[["tree"]], by = "tree_label", relationship = "many-to-many") %>%
-        dplyr::left_join(sheet_data[["site"]], by = c("site_label", "plot_label"), relationship = "many-to-many") %>%
-        dplyr::group_by(network_label, site_label, plot_label, tree_label, year = lubridate::year(sample_date), sample_id) %>%
-        dplyr::summarise(n = n(), .groups = "drop") %>%
+      sheet_data <- setNames(
+        lapply(sheet_names, function(sheet) readxl::read_excel(meta_file_data, sheet)[-1:-6,]),
+        sheet_names
+      )
+      
+      df_joined <- dplyr::left_join(
+        sheet_data[["sample"]], 
+        sheet_data[["tree"]], 
+        by = "tree_label", relationship = "many-to-many"
+      ) %>%
+        dplyr::left_join(
+          sheet_data[["site"]], 
+          by = "site_label", relationship = "many-to-many"
+        ) %>%
         dplyr::mutate(
-          site_label = paste0(network_label, "__", site_label),
-          plot_label = paste0(site_label, "__", plot_label),
-          tree_label = paste0(plot_label, "__", tree_label),
-          year_label = paste0(tree_label, "__", year),
+          # Clean plot label
+          plot_label_clean = dplyr::coalesce(plot_label.x, plot_label.y),
+          
+          # Extract year
+          year = lubridate::year(sample_date),
+          
+          # Ensure network_label exists
+          network_label = dplyr::coalesce(network_label, site_label),
+          
+          # Site-level full ID: add "_site" if site == network
+          site_label_full = if_else(
+            site_label == network_label | is.na(site_label),
+            paste0(network_label, "_site"),
+            paste0(network_label, "__", site_label)
+          ),
+          
+          # Plot-level full ID: add "_plot" if plot == site
+          plot_label_full = if_else(
+            is.na(plot_label_clean) | plot_label_clean == site_label,
+            paste0(site_label_full, "_plot"),
+            paste0(site_label_full, "__", plot_label_clean)
+          ),
+          
+          # Tree-level full ID
+          tree_label_full = paste0(plot_label_full, "__", tree_label),
+          
+          # Year and sample-level IDs
+          year_label   = paste0(tree_label_full, "__", year),
           sample_label = paste0(year_label, "__", sample_id)
         )
       
+      # Tree-level
       df_tree <- df_joined %>%
-        dplyr::group_by(tree_label, plot_label) %>%
-        dplyr::summarise(value = sum(n), .groups = "drop") %>%
-        dplyr::rename(id = tree_label, parent = plot_label)
+        count(tree_label_full, plot_label_full, name = "value") %>%
+        rename(id = tree_label_full, parent = plot_label_full)
       
+      # Plot-level
       df_plot <- df_joined %>%
-        dplyr::distinct(plot_label, site_label, tree_label) %>%
-        dplyr::group_by(plot_label, site_label) %>%
-        dplyr::summarise(value = n(), .groups = "drop") %>%
-        dplyr::rename(id = plot_label, parent = site_label)
+        distinct(plot_label_full, site_label_full) %>%
+        count(plot_label_full, site_label_full, name = "value") %>%
+        rename(id = plot_label_full, parent = site_label_full)
       
+      # Site-level
       df_site <- df_joined %>%
-        dplyr::distinct(site_label, network_label) %>%
-        dplyr::group_by(site_label, network_label) %>%
-        dplyr::summarise(value = n(), .groups = "drop") %>%
-        dplyr::rename(id = site_label, parent = network_label)
+        distinct(site_label_full, network_label) %>%
+        count(site_label_full, network_label, name = "value") %>%
+        rename(id = site_label_full, parent = network_label)
       
-      dplyr::bind_rows(df_tree, df_plot, df_site) %>%
-        dplyr::distinct(id, parent, value) %>%
-        dplyr::arrange(parent, id) %>%
-        dplyr::mutate(label = sub(".*__", "", id),
-               text = paste0(label, " (", value, ")"))
+      # Network-level
+      df_network <- df_joined %>%
+        distinct(network_label) %>%
+        mutate(
+          id = network_label,
+          parent = "",
+          value = 1
+        )
+      
+      # Combine hierarchy
+      df_hierarchy <- bind_rows(df_network, df_site, df_plot, df_tree) %>%
+        distinct(id, parent, value) %>%
+        arrange(parent, id) %>%
+        mutate(
+          label = sub(".*__", "", id),
+          text  = paste0(label, " (", value, ")")
+        )
     })
+    
+    
     
     # Render the sunburst plot
     output$hierarchical_structure <- plotly::renderPlotly({
