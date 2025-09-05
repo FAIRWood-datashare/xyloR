@@ -210,7 +210,7 @@ mod_tab2_server <- function(id, out_tab1) {
           
           # Step 1: Define the template path
           shiny::setProgress(value = 0.1, detail = "Locating template file...")
-          template_path <- system.file("extdata", "Ltal.2007_xylo_meta_2025-06-22.xlsx", package = "xyloR")
+          template_path <- system.file("extdata", "Ltal.2007_xylo_meta_2025-09-01.xlsx", package = "xyloR")
           
           # Check if the template file exists
           if (template_path == "") {

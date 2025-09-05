@@ -450,7 +450,7 @@ mod_tab1_server <- function(id, session_global) {
           
           # Step 1: Define the template path for filled example observation
           shiny::setProgress(value = 0.1, detail = "Locating template file...")
-          template_path <- system.file("extdata", "Ltal.2007_xylo_data_2025-06-22.xlsx", package = "xyloR")
+          template_path <- system.file("extdata", "Ltal.2007_xylo_data_2025-09-01.xlsx", package = "xyloR")
           
           # Check if the template exists
           if (template_path == "") {
@@ -638,8 +638,39 @@ mod_tab1_server <- function(id, session_global) {
 
       df <- tryCatch(
         {
-          openxlsx::readWorkbook(wb, sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] %>%
-            dplyr::tibble()
+          header_df <- openxlsx::readWorkbook(
+            wb,
+            sheet = "Xylo_obs_data",
+            startRow = 1,
+            colNames = TRUE,
+            skipEmptyRows = FALSE,
+            skipEmptyCols = FALSE
+          )
+          
+          fixed_names <- names(header_df)[1:10]   # take first 10 colnames from file
+          
+          # Read everything without column names
+          raw <- openxlsx::readWorkbook(
+            wb,
+            sheet = "Xylo_obs_data",
+            startRow = 1,
+            colNames = FALSE,
+            skipEmptyRows = FALSE,
+            skipEmptyCols = FALSE
+          )
+          
+          # Take fallback names from row 7 of the sheet
+          fallback_names <- as.character(unlist(raw[7, ]))
+          other_names <- fallback_names[-(1:10)]
+          
+          # Final colnames
+          colnames_final <- c(fixed_names, other_names)
+          
+          # Drop metadata rows (1:7)
+          df <- raw[-(1:7), ]
+          colnames(df) <- colnames_final
+          
+          df <- as_tibble(df)
         },
         error = function(e) {
           shiny::showModal(modalDialog(
@@ -652,6 +683,10 @@ mod_tab1_server <- function(id, session_global) {
         }
       )
 
+      
+      # First read to capture the "real" header row
+ 
+      
 
       # Robust date parsing
       if (is.numeric(df$sample_date)) {
@@ -843,7 +878,7 @@ mod_tab1_server <- function(id, session_global) {
       # Load workbook and sheets
       wb <- openxlsx::loadWorkbook(input$obs_file$datapath) # Read the OBS file
       site_info <- openxlsx::readWorkbook(wb, sheet = "obs_data_info", startRow = 6, colNames = FALSE)
-      obs_data <- openxlsx::readWorkbook(wb, sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] %>%
+      obs_data <- openxlsx::readWorkbook(wb, sheet = "Xylo_obs_data", startRow = 1, skipEmptyCols = FALSE)[-(1:6), ] %>%
         tibble::tibble()
 
       # Check the number of columns in site_info
