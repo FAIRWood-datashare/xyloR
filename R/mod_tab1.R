@@ -740,8 +740,8 @@ mod_tab1_server <- function(id, session_global) {
         setNames(c("site_label", "latitude", "longitude", "elevation")) %>%
         dplyr::filter(site_label == input$site_filter) %>%
         dplyr::mutate(
-          latitude = as.numeric(latitude),
-          longitude = as.numeric(longitude),
+          latitude = round(as.numeric(latitude),4),
+          longitude = round(as.numeric(longitude),4),
           elevation = as.numeric(elevation)
         )
 
@@ -846,7 +846,11 @@ mod_tab1_server <- function(id, session_global) {
         
         # Compute average non-NA count per variable across sample groups
         group_by(measure_type, variable) %>%
-        summarise(avg_non_na = mean(non_na_count), .groups = "drop") %>%
+        summarise(avg_non_na = round(mean(non_na_count),4), .groups = "drop") %>%
+        
+        # enforce custom order
+        mutate(variable = factor(variable, levels = c("cz", "ez", "tz", "mz", "pr") )) %>%   
+        arrange(variable) %>%  
         
         # Reshape to wide format
         pivot_wider(names_from = variable, values_from = avg_non_na)

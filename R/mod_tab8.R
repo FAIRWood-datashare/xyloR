@@ -211,18 +211,83 @@ mod_tab8_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
     })
     
     # Render publication table
+    # output$tbl7 <- rhandsontable::renderRHandsontable({
+    #   shiny::req(out_tab4$data_meta$tbl7)
+    #   rhandsontable::rhandsontable(
+    #     out_tab4$data_meta$tbl7,
+    #     rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all', selectCallback = TRUE, height=150) %>%
+    #     hot_col_wrapper('first_author_last_name', out_tab3$column_configs()$tbl7$first_author_last_name) %>%
+    #     hot_col_wrapper('title', out_tab3$column_configs()$tbl7$title) %>%
+    #     hot_col_wrapper('publication_type', out_tab3$column_configs()$tbl7$publication_type) %>%
+    #     hot_col_wrapper('publication_year', out_tab3$column_configs()$tbl7$publication_year) %>%
+    #     hot_col_wrapper('journal', out_tab3$column_configs()$tbl7$journal) %>%
+    #     hot_col_wrapper('doi', out_tab3$column_configs()$tbl7$doi)
+    # })
+    # 
+    # Render publication table
     output$tbl7 <- rhandsontable::renderRHandsontable({
       shiny::req(out_tab4$data_meta$tbl7)
+      
       rhandsontable::rhandsontable(
         out_tab4$data_meta$tbl7,
-        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all', selectCallback = TRUE, height=150) %>%
+        rowHeaders = NULL, 
+        contextMenu = TRUE, 
+        stretchH = 'all', 
+        selectCallback = TRUE, 
+        height = 150
+      ) %>%
         hot_col_wrapper('first_author_last_name', out_tab3$column_configs()$tbl7$first_author_last_name) %>%
         hot_col_wrapper('title', out_tab3$column_configs()$tbl7$title) %>%
         hot_col_wrapper('publication_type', out_tab3$column_configs()$tbl7$publication_type) %>%
         hot_col_wrapper('publication_year', out_tab3$column_configs()$tbl7$publication_year) %>%
         hot_col_wrapper('journal', out_tab3$column_configs()$tbl7$journal) %>%
-        hot_col_wrapper('doi', out_tab3$column_configs()$tbl7$doi)
+        
+        # DOI column with conditional validation for articles only
+        rhandsontable::hot_col(
+          'doi',
+          renderer = htmlwidgets::JS("
+        function(instance, td, row, col, prop, value, cellProperties) {
+    if(td.hasOwnProperty('_tippy')) {
+      td._tippy.destroy();
+    }
+
+    var isValid = true;
+    var message = '';
+
+    // get publication_type in the same row (assuming it's in column 2, adjust index)
+    var pubType = instance.getDataAtRow(row)[2]; // index starts at 0 in Handsontable JS
+
+    if (pubType === 'article' && value) {
+      var regex = /^(10\\.\\d{4,9}\\/[-._;()/:A-Z0-9]+|10\\.1002\\/[^\\s]+)$/i;
+      if (!regex.test(value)) {
+        isValid = false;
+        message = 'DOI must be valid for articles';
+      }
+    }
+
+    if (!isValid) {
+      td.style.background = '#ff4c42';
+      tippy(td, { content: message });
+    } else {
+      td.style.background = '';
+    }
+
+    if (!cellProperties.readOnly) {
+      td.style.color = '#FFFF00';
+    } else {
+      td.style.color = '';
+    }
+
+    Handsontable.renderers.TextRenderer.apply(this, arguments);
+    return td;
+  }
+"),
+          readOnly = out_tab3$column_configs()$tbl7$doi$readOnly
+        )
     })
+    
+    
+    
     
     shiny::observeEvent(input$tbl7_select$select$r, {
       selected_row <- input$tbl7_select$select$r

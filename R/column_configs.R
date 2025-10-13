@@ -140,7 +140,7 @@ get_column_configs <- function(WB, WB_meta, dobs) {
         site_label = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = NULL, readOnly = TRUE), # calculated
         # tree_label = list(type = "dropdown", required = TRUE, options = unique(na.omit(data_in$tbl2$tree_label)), unique = TRUE, readOnly = TRUE),
         tree_label = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = NULL, unique = FALSE, unique.comp = TRUE, readOnly = TRUE),
-        suggested_tree_code = list(type = 'character', required = TRUE, min_length = 1, max_length = 10, regex_pattern = NULL, unique = FALSE, unique.comp = TRUE, readOnly = TRUE), # calculated
+        suggested_tree_code = list(type = 'character', required = TRUE, min_length = 1, max_length = 20, regex_pattern = NULL, unique = FALSE, unique.comp = TRUE, readOnly = TRUE), # calculated
         # plot_label = list(type = "dropdown", required = TRUE, options = unique(na.omit(data_in$tbl2$plot_label)), unique = TRUE, readOnly = TRUE), # calculated
         plot_label = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = NULL, readOnly = TRUE), # calculated
         suggested_plot_code = list(type = 'character', min_length = 1, max_length = 10, regex_pattern = NULL, readOnly = TRUE), # calculated
@@ -169,7 +169,7 @@ get_column_configs <- function(WB, WB_meta, dobs) {
         tree_ring_density_data = list(type = 'checkbox'),
         tree_ring_anatomical_data = list(type = 'checkbox'),
         tree_ring_isotope_data = list(type = 'checkbox'),
-        number_of_samples = list(type = 'numeric', required = TRUE, min_val = 0, max_val = NULL), # calculated
+        number_of_samples = list(type = 'numeric', required = TRUE, min_val = 0, max_val = 200), # calculated
         tree_comment = list(type = 'character', min_length = 1, max_length = NULL)
       ),
       
@@ -209,7 +209,7 @@ get_column_configs <- function(WB, WB_meta, dobs) {
         last_name = list(type = 'character', required = TRUE, min_length = 1, max_length = 64),
         first_name = list(type = 'character', required = TRUE, min_length = 1, max_length = 64),
         email = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"),
-        orcid = list(type = 'character', required = TRUE, min_length = 1, max_length = 19),# , regex_pattern = "^\\d{4}-\\d{4}-\\d{4}-\\d{3}[0-9X]{1}$"
+        orcid = list(type = 'character', required = FALSE, min_length = 1, max_length = 19),# , regex_pattern = "^\\d{4}-\\d{4}-\\d{4}-\\d{3}[0-9X]{1}$"
         main_organization_name = list(type = 'character', required = TRUE, min_length = 1, max_length = 128), # drop # calculated
         main_organization_registry = list(type = 'character', required = TRUE, min_length = 1, max_length = 64), # drop # calculated , regex_pattern = "^\\+?[0-9 ()-]{7,20}$"
         organization_name_finder = NULL, # empty
