@@ -217,7 +217,7 @@ table_zone %>%
 measure_zone_plotlevel <- table_zone %>%
   filter(zone_type == "plot") %>%
   # extract site label from zone_hierarchy
-  mutate(site_from_hierarchy = stringr::str_extract(zone_hierarchy, "^[^.]+\\.[^.]+")) %>%
+  mutate(site_from_hierarchy = stringr::str_extract(zone_hierarchy, "(?<=\\.)[^\\.]+(?=\\.)")) %>%
   # join using both plot code and site label
   left_join(
     meta_sheet_data[["site"]] %>%
