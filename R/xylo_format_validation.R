@@ -6,7 +6,7 @@
 #' 
 #' @examples
 #' \dontrun{
-#' xylo_file <- system.file("extdata", "Ltal.2007_xylo_data_2025-03-06_test.xlsx", package = "xyloR")
+#' xylo_file <- system.file("extdata", "Ltal.2007_xylo_data_2025-09-01.xlsx", package = "xyloR")
 #' report <- xylo_format_validation(xylo_file)
 #' }
 #' 
@@ -98,6 +98,7 @@ xylo_format_validation <- function(xylo_file) {
         range_values <- as.numeric(strsplit(gsub("Range: ", "", constraint_domain), " to ")[[1]])
         min_val <- range_values[1]
         max_val <- range_values[2]
+        data[[col]] <- as.numeric(ifelse(data[[col]] == "NA", NA, data[[col]]))
         numeric_values <- as.numeric(na.omit(data[[col]]))
         invalid_values <- numeric_values[numeric_values < min_val | numeric_values > max_val]
         if (length(invalid_values) > 0) {
@@ -133,10 +134,10 @@ xylo_format_validation <- function(xylo_file) {
  
   # 3. check sample_label in Xylo_obs_data are unique
   # Extract relevant columns, removing first 6 rows and NAs in any column
-  xylo_obs_sample_labels <- sheet_data[["Xylo_obs_data"]][-1:-6, c("sample_label", "measure_type", "measure_replication")] %>%
+  xylo_obs_sample_labels <- sheet_data[["Xylo_obs_data"]][-1:-6, c("sample_label", "measure_type", "measure_repetition")] %>%
     na.omit()
   if (any(duplicated(xylo_obs_sample_labels))) {
-    report[["Xylo_obs_data"]][["sample_label"]] <- "Combination of sample_label, measure_type, and measure_replication is not unique"
+    report[["Xylo_obs_data"]][["sample_label"]] <- "Combination of sample_label, measure_type, and measure_repetition is not unique"
   }
   
   

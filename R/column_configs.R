@@ -21,16 +21,16 @@ get_column_configs <- function(WB, WB_meta, dobs) {
     
     tbl2 = list(
       sample_date = list(type = "date", required = TRUE),
-      sample_id = list(type = "character", required = TRUE, min_length = 1, max_length = 64),
+      sample_id = list(type = "character", required = FALSE, min_length = 1, max_length = 64),
       tree_species = list(type = "character", required = TRUE, min_length = 1, max_length = 128, readOnly = TRUE),
       species_code = list(type = "dropdown", required = TRUE, options = species_code_droplist),
       tree_label = list(type = "character", required = TRUE, min_length = 1, max_length = 64),
       plot_label = list(type = "character", min_length = 1, max_length = 64),
       site_label = list(type = 'character', required = TRUE, min_length = 1, max_length = 5),
       network_label = list(type = "character", min_length = 1, max_length = 64),
-      sample_label = list(type = "character", required = TRUE, min_length = 1, max_length = 64, unique = TRUE),
+      sample_label = list(type = "character", required = TRUE, min_length = 1, max_length = 64, unique = FALSE),
       measure_type = list(type = "character", required = TRUE, min_length = 1, max_length = 64),
-      measure_replication = list(type = "character", required = TRUE, min_length = 1, max_length = 6),
+      measure_repetition = list(type = "character", required = TRUE, min_length = 1, max_length = 6),
       sample_comment = list(type = 'character', min_length = 1, max_length = NULL)
     )
   )
@@ -178,7 +178,7 @@ get_column_configs <- function(WB, WB_meta, dobs) {
         # tree_label = list(type = "dropdown", required = TRUE, options = unique(na.omit(data_in$tbl2$tree_label)), unique = TRUE, readOnly = TRUE), # calculated
         tree_label = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = NULL, readOnly = TRUE), # calculated
         # sample_id = list(type = "dropdown", required = TRUE, options = unique(na.omit(data_in$tbl2$sample_id)), unique = TRUE, readOnly = TRUE), # calculated
-        sample_id = list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = NULL, readOnly = TRUE), # calculated
+        sample_id = list(type = 'character', required = FALSE, min_length = 1, max_length = 64, regex_pattern = NULL, readOnly = TRUE), # calculated
         sample_date = list(type = "date", required = TRUE, readOnly = TRUE), # calculated
         #sample_label	= list(type = "dropdown", required = TRUE, options = unique(na.omit(data_in$tbl2$sample_label)), unique = TRUE, readOnly = TRUE), # calculated
         sample_label	= list(type = 'character', required = TRUE, min_length = 1, max_length = 64, regex_pattern = NULL, unique = TRUE, readOnly = TRUE), # calculated

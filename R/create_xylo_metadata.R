@@ -68,9 +68,33 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
     raster::extract(koppen_data, tibble::tibble(long, lat)) %>% as.data.frame()
   }
 
-  write_to_sheet <- function(wb, sheet, data) {
-    openxlsx::writeData(wb, sheet = sheet, x = data, startCol = 1, startRow = 8, colNames = FALSE, rowNames = FALSE)
+  # write_to_sheet <- function(wb, sheet, data) {
+  #   openxlsx::writeData(wb, sheet = sheet, x = data, startCol = 1, startRow = 8, colNames = FALSE, rowNames = FALSE)
+  # }
+  
+  write_to_sheet <- function(wb, sheet, data, startCol = 1, startRow = 8) {
+    openxlsx::writeData( wb, sheet = sheet, x = data, startCol = startCol, startRow = startRow, colNames = FALSE, rowNames = FALSE
+    )
+    
+    date_cols <- which(sapply(data, inherits, "Date"))
+    
+    if (length(date_cols) > 0) {
+      date_style <- openxlsx::createStyle(numFmt = "yyyy-mm-dd")
+      
+      for (col in date_cols) {
+        openxlsx::addStyle(
+          wb,
+          sheet = sheet,
+          style = date_style,
+          cols = startCol + col - 1,
+          rows = startRow:(startRow + nrow(data) - 1),
+          gridExpand = TRUE,
+          stack = TRUE
+        )
+      }
+    }
   }
+  
 
   write_to_sheet_person <- function(wb, sheet, data) {
     openxlsx::writeData(wb, sheet = sheet, x = data, startCol = 1, startRow = 8, colNames = FALSE, rowNames = FALSE)
@@ -252,7 +276,7 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
     dplyr::arrange(network_label, site_label, tree_label, sample_id, sample_date) %>%
     dplyr::transmute(tree_label,
                      sample_id,
-                     sample_date,
+                     sample_date = as.Date(sample_date, origin = "1899-12-30"),
                      sample_label,
                      suggested_sample_code = suppressWarnings(abbreviate(sample_label, 5)),
                      sample_organ = NA,

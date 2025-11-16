@@ -156,7 +156,7 @@ mod_tab1_ui <- function(id) {
 
         # Observations table
         bslib::card(
-          bslib::card_header("average replications per sample and measure_type"),
+          bslib::card_header("average repetition per sample and measure_type"),
           bslib::card_body(DT::DTOutput(ns("obs_table"))),
           style = "display: none;",
           id = ns("card_6")
@@ -450,7 +450,7 @@ mod_tab1_server <- function(id, session_global) {
           
           # Step 1: Define the template path for filled example observation
           shiny::setProgress(value = 0.1, detail = "Locating template file...")
-          template_path <- system.file("extdata", "Ltal.2007_xylo_data_2025-09-01.xlsx", package = "xyloR")
+          template_path <- system.file("extdata", "Ltal2007_xylo_data_2025-09-01.xlsx", package = "xyloR")
           
           # Check if the template exists
           if (template_path == "") {
@@ -528,6 +528,11 @@ mod_tab1_server <- function(id, session_global) {
           normalizePath(tempdir(), winslash = "/", mustWork = FALSE),
           paste0("GloboXylo_", input$dataset_name, "_", Sys.Date())
         )
+        # If folder exists, delete it and everything inside
+        if (dir.exists(tmp)) {
+          unlink(tmp, recursive = TRUE, force = TRUE)
+        }
+        
         dir.create(tmp, showWarnings = FALSE, recursive = TRUE)
         temp_folder(tmp)
         log_step("temp_folder created", tmp)
@@ -773,12 +778,12 @@ mod_tab1_server <- function(id, session_global) {
       to <- as.Date(max(df$sample_date, na.rm = TRUE), origin = "1899-12-30")
       n_trees <- length(unique(df$tree_label))
       n_dates <- length(unique(df$sample_date))
-      n_samples <- nrow(df)
+      n_samples <- length(unique(paste(df$sample_label,df$sample_id,sep ="_")))
 
       # Prepare the key information table
       key_info <- tibble(
-        "Owner" = paste(owner_lastname, owner_firstname, sep = ", "),
-        "Owner Email" = owner_email,
+        "PI" = paste(owner_lastname, owner_firstname, sep = ", "),
+        "PI Email" = owner_email,
         "Contact" = paste(contact_lastname, contact_firstname, sep = ", "),
         "Contact Email" = contact_email,
         "Network" = paste(network, collapse = ", "),
@@ -824,7 +829,7 @@ mod_tab1_server <- function(id, session_global) {
       excluded_cols <- c(
         "sample_date", "sample_id", "tree_species", "tree_label", "plot_label",
         "site_label", "network_label", "sample_label", "measure_type",
-        "measure_replication", "sample_comment"
+        "measure_repetition", "sample_comment"
       )
       
       # Dynamically get columns to include

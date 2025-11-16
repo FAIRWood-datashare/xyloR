@@ -1,0 +1,99 @@
+code;description;type;controle;units;missingvaluecode;missingvaluecodeexplanation;mandatory
+last_name;Last name (surname) of the person;String;Free text, max length: 64;;;;
+first_name;First name of the person;String;Free text, max length: 64;;;;
+email;Email address of the person;String;Regex: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$;;;;
+orcid;Orcid of the person;String;Regex: ^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$;;;;
+main_organization_name;Full name of the institution the person is affiliated with;String;Free text, max length: 64;;;;
+main_organization_registry;Research_organization_registry (see https://ror.org/);String;Regex: ^https?://[^\s]+$;;"""""";Empty cell: data not available or not applicable;mandatory
+department;Name of the department or division within the main oprganization;String;Free text, max length: 64;;;;
+street;Street address of the office where the person is located;String;Free text, max length: 64;;;;
+postal_code;Postal code of the office where the person is located;String;Regex: ^\d{1,10}$;;"""""";Empty cell: data not available or not applicable;
+city;City where the office of the person is located;String;Free text, max length: 64;;"""""";Empty cell: data not available or not applicable;
+organization_country;Full name of the country where the office of the person is located;Categorical;ISO 3166-1 country names;;"""""";Empty cell: data not available or not applicable;mandatory
+organization_country_code;Two-letter ISO 3166-1 alpha-2 country code. This is automatically generated;String;Regex: ^[A-Z]{2}$;;;;mandatory
+network_label;The original name of the Network. If network_label is empty cell in xylo_obs file, is automatically created as equal to site_lable;String;Free text, max length: 64;;;;
+site_country_code;Two-letter ISO 3166-1 alpha-2 country code. This is automatically generated;String;Regex: ^[A-Z]{2}$;;;;mandatory
+site_label;Descriptive name for the site as used by the user in Xylo_obs_file. This is automatically generated;String;Free text;;;;
+plot_label;A unique label for the plot the tree belongs to. If plot_label is empty cell  in xylo_obs file;;;;;;
+latitude;Latitude of the site in decimal degrees (WGS84);;;;;;
+longitude;Longitude of the site in decimal degrees (WGS84);;;;;;
+elevation;Elevation of the site above sea level in meter. This is automatically generated from Xylo_obs_file;Floating-point;Range: -100 to 9999;meter;;;mandatory
+koppen_climate_value;Koeppen climate classification value. This is automatically generated;Categorical;Enumerated: 1 to 22;;;;mandatory
+koppen_climate_code;Koeppen climate classification code. This is automatically generated;Categorical;Enumerated: ;;;;mandatory
+koppen_climate_classification;Koeppen climate classification. This is automatically generated;Categorical;Enumerated: ;;;;mandatory
+site_aspect;Slope orientation at the site expressed in degrees clockwise from geographic north;Floating-point;Range: 0 to 360;degree;"""""";Empty cell: Aspect not measured.;
+site_slope;Slope of the terrain at the site in degrees;Floating-point;Range: 0 to 90;degree;"""""";Empty cell: Slope not measured.;
+site_topography;Small-scale terrain features;Categorical;"Enumerated: ""flat""";;;;
+temp;Mean annual temperature over a 30-year period;;;;;;
+precip;Mean annual precipitation over a 30-year period;;;;;;
+soil_depth;Depth of the soil at the site;Categorical;"Enumerated: ""<20""";;;;
+soil_water_holding_capacity;Water holding capacity of the soil at the site;Categorical;"Enumerated: ""low""";;;;
+soil_moisture;Soil moisture at the site;Categorical;"Enumerated: ""low""";;;;
+forest_stand_composition;Type of forest stand;Categorical;Enumerated list of types;;"""""";Empty cell: Not provided if unavailable;
+forest_stand_structure;Structural description of the forest stand;Categorical;Enumerated list of structure;;"""""";Empty cell: Not provided if unavailable;
+forest_stand_age_structure;Structure of the forest stand age;Categorical;"Enumerated: ""evenage""";;;;
+forest_stand_age;Age class of the forest stand;Categorical;"Enumerated: ""<5""";;;;
+forest_stand_main_species_composition;Dominant tree species in the forest stand as in ITRDB species code;Categorical;Species ITRDB code;;"""""";Empty cell: Not provided if unavailable;
+forest_stand_management_intensity;Level of management applied at the site (e.g.;;;;;;
+in_stand_soil_description;Presence of soil description data;Boolean;TRUE/FALSE;;"""""";"Empty cell equals ""FALSE"":  no data available";
+in_stand_dendrometer_monitoring;Presence of dendrometer data within the stand;Boolean;TRUE/FALSE;;"""""";"Empty cell equals ""FALSE"":  no data available";
+in_stand_phloem_observation;Presence of phloem observation within the stand;Boolean;TRUE/FALSE;;"""""";"Empty cell equals ""FALSE"":  no data available";
+in_stand_sapflux_monitoring;Presence of sap flux data within the stand;Boolean;TRUE/FALSE;;"""""";"Empty cell equals ""FALSE"":  no data available";
+in_stand_primary_phenological_observation;Presence of primary phenological observations within the stand;Boolean;TRUE/FALSE;;"""""";"Empty cell equals ""FALSE"":  no data available";
+in_stand_weather_monitoring;Presence of monitoring weather data collection;Boolean;TRUE/FALSE;;"""""";"Empty cell equals ""FALSE"":  no data available";
+in_stand_soil_monitoring;Presence of monitoring soil data collection;Boolean;TRUE/FALSE;;"""""";"Empty cell equals ""FALSE"":  no data available";
+site_comment;Additional comments or metadata related to the site;String;Text;;"""""";Not provided if unavailable;
+phylogenetic_group;The type of wood of the tree;;;;;;
+leaf_habit;The habit or nature of the tree's leaves;;;;;;
+tree_ring_structure;Type of tree-ring structure;Categorical;"Enumerated: ""non-porous""";;;;
+tree_treatment;Indicates if the tree has been manipulated (e.g.;;;;;;
+tree_sampling_pattern;Indicates the sampling pattern applied on the tree stem during a growing season;Categorical;Enumerated: spiral;;;;
+tree_dbh;Diameter at breast height of the tree (measured at 1.3 meters above ground);Floating-point;Range: 0 to 500;centimeter;"""""";DBH not measured or recorded.;
+tree_height;The total height of the tree from the base to the topmost point;Floating-point;Range: 0 to 100;meter;"""""";Tree height not recorded.;
+tree_age;The age of the tree;;;;;;
+tree_sex;Sex of the tree (if applicable;;;;;;
+tree_social_status;Social status of the tree (e.g.;;;;;;
+tree_health_status;Health condition of the tree;Categorical;"Enumerated: ""healthy""";;;;
+tree_origin;The origin of the tree (e.g.;;;;;;
+tree_latitude;Latitude of the tree’s location;Float;Range: -90 to 90;degree;"""""";Not provided if unavailable;
+tree_longitude;Longitude of the tree’s location;Float;Range: -180 to 180;degree;"""""";Not provided if unavailable;
+on_tree_dendrometer_monitoring;Indicates if dendrometer data is available for the tree;Boolean;TRUE/FALSE;;"""""";"Empty cell equals ""FALSE"":  no data available";
+on_tree_sapflux_monitoring;Indicates if sap flux data is available for the tree;Boolean;TRUE/FALSE;;"""""";"Empty cell equals ""FALSE"":  no data available";
+on_tree_primary_phenological_observation;Indicates if phenological observations are available for the tree;Boolean;TRUE/FALSE;;"""""";"Empty cell equals ""FALSE"":  no data available";
+on_tree_weather_monitoring;Indicates if weather data is associated with the tree;Boolean;TRUE/FALSE;;"""""";"Empty cell equals ""FALSE"":  no data available";
+on_tree_shoot_growth_monitoring;Indicates if shoot growth data is available for the tree;Boolean;TRUE/FALSE;;"""""";"Empty cell equals ""FALSE"":  no data available";
+tree_ring_width_data;Indicates if tree-ring width data is available;Boolean;TRUE/FALSE;;"""""";"Empty cell equals ""FALSE"":  no data available";
+tree_ring_density_data;Indicates if tree-ring density data is available;Boolean;TRUE/FALSE;;"""""";"Empty cell equals ""FALSE"":  no data available";
+tree_ring_anatomical_data;Indicates if anatomical tree-ring data is available;Boolean;TRUE/FALSE;;"""""";"Empty cell equals ""FALSE"":  no data available";
+tree_ring_isotope_data;Indicates if isotopes tree-ring data is available;Boolean;TRUE/FALSE;;"""""";"Empty cell equals ""FALSE"":  no data available";
+tree_comment;Any additional notes or remarks related to the tree or measurement;String;Free text;;"""""";Remarks not provided.;
+sample_organ;Organ sampled from the tree;Categorical;"Enumerated: ""stem""";;;;
+sample_type;Type of sample collected;Categorical;"Enumerated: ""microcore""";;;;
+sample_embedding;Description of the method used to prepare the sample;Categorical;"Enumerated: ""paraffin embedding""";;;;
+sample_staining_method;Description of the staining method used;Categorical;"Enumerated: ""safranin_astrablue""";;;;
+sample_mounting_method;Description of the mounting method used;Categorical;"Enumerated: ""Euparal";;;;
+sample_observation_method;Description of the observation method used (e.g.;;;;;;
+sample_image_file_name;Name of the image file associated with the sample;String;Free text;;;;
+sample_section_archived;Indicates whether the sample section is archived;Boolean;TRUE/FALSE;;;;mandatory
+sample_archived;Indicates whether the entire sample is archived;Boolean;TRUE/FALSE;;;;mandatory
+sample_image_archived;Indicates whether the image is archived;Boolean;TRUE/FALSE;;;;mandatory
+sample_image_annotated;Indicates whether the image is annotated ;Boolean;TRUE/FALSE;;;;mandatory
+sampling_height;Height at which the sample was taken from the tree;Float;Range: 1 to 100;meter;"""""";Not provided if unavailable;
+sample_apex_distance;Distance from apex (tip pf tree or branch) in meters;Float;Range: 1 to 100;meter;"""""";Not provided if unavailable;
+section_thickness;Thickness of the microsection in micrometers;Float;Range: 1 to 100;micron;"""""";Not provided if unavailable;
+coupled_anatomical_data;Indicates if anatomical data near the sample are available;Boolean;TRUE/FALSE;;"""""";"Empty cell equals ""FALSE"":  no data available";
+reaction_wood;Indicates for presence or absence of reaction wood;Boolean;TRUE/FALSE;;"""""";"Empty cell equals ""FALSE"":  no data available";
+measure_type;The type of measurements characterising the observation;Categorical;"Enumerated: ""width (micron)"", ""binary (0/1)"", ""optical density"", ""area (squared micron)""), max length: 64";;;;mandatory
+cz;Measurement referring to the cambial zone;Floating-point;Range: 0 to 999999;;""""" or ""NA""";Empty cell or NA: data not available or not applicable;
+ez;Measurement referring to enlarging zone;Floating-point;Range: 0 to 999999;;""""" or ""NA""";Empty cell or NA: data not available or not applicable;
+ez_f;Measurement referring to the fibers of the enlarging zone;Floating-point;Range: 0 to 999999;;""""" or ""NA""";Empty cell or NA: data not available or not applicable;
+ez_v;Measurement referring to the vessels of enlarging zone;Floating-point;Range: 0 to 999999;;""""" or ""NA""";Empty cell or NA: data not available or not applicable;
+tz;Measurement referring to thickening zone;Floating-point;Range: 0 to 999999;;""""" or ""NA""";Empty cell or NA: data not available or not applicable;
+tz_f;Measurement referring to the fibers of thickening zone;Floating-point;Range: 0 to 999999;;""""" or ""NA""";Empty cell or NA: data not available or not applicable;
+tz_v;Measurement referring to the vessels of the thickening zone;Floating-point;Range: 0 to 999999;;""""" or ""NA""";Empty cell or NA: data not available or not applicable;
+mz;Measurement referring to mature zone;Floating-point;Range: 0 to 999999;;""""" or ""NA""";Empty cell or NA: data not available or not applicable;
+mz_f;Measurement referring to the fibers of mature zone;Floating-point;Range: 0 to 999999;;""""" or ""NA""";Empty cell or NA: data not available or not applicable;
+mz_v;Measurement referring to the vessels of the mature zone;Floating-point;Range: 0 to 999999;;""""" or ""NA""";Empty cell or NA: data not available or not applicable;
+cr;Measurement referring to current ring ;Floating-point;Range: 0 to 999999;;""""" or ""NA""";Empty cell or NA: data not available or not applicable;
+pr;Measurement referring to preprevious ring ;Floating-point;Range: 0 to 999999;;""""" or ""NA""";Empty cell or NA: data not available or not applicable;
+sample_comment;Any comment on the sample;Character;Free text;;"""""";Empty cell: no comments;

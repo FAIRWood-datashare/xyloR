@@ -210,7 +210,7 @@ mod_tab2_server <- function(id, out_tab1) {
           
           # Step 1: Define the template path
           shiny::setProgress(value = 0.1, detail = "Locating template file...")
-          template_path <- system.file("extdata", "Ltal.2007_xylo_meta_2025-09-01.xlsx", package = "xyloR")
+          template_path <- system.file("extdata", "Ltal2007_xylo_meta_2025-09-01.xlsx", package = "xyloR")
           
           # Check if the template file exists
           if (template_path == "") {
@@ -535,7 +535,25 @@ mod_tab2_server <- function(id, out_tab1) {
           files_to_zip <- gsub("//", "/", files_to_zip)
           
           # Create the ZIP file
-          zip::zipr(zipfile = file, files = files_to_zip)
+#          zip::zipr(zipfile = file, files = files_to_zip)
+          
+          # Split files
+          main_files <- files_to_zip[
+            basename(files_to_zip) %in% c("tree.csv", "variables.csv", "zone_etude.csv") |
+              grepl("xylo_data|xylo_meta", basename(files_to_zip))
+          ]
+          
+          exchange_files <- setdiff(files_to_zip, main_files)
+          
+          # Create exchange.zip first
+          zip::zipr(zipfile = "Exchange.zip", files = exchange_files)
+          
+          # Now create main_files.zip, including the three main files + exchange.zip
+          zip::zipr(zipfile = file, files = c(main_files, "Exchange.zip"))
+          
+          # Optional: remove standalone exchange.zip if you only want it nested
+          file.remove("Exchange.zip")
+          
           
           # Final progress update when the ZIP file is ready
           shiny::setProgress(value = 1, detail = "File ready for download")
@@ -565,6 +583,8 @@ mod_tab2_server <- function(id, out_tab1) {
         lapply(sheet_names, function(sheet) readxl::read_excel(meta_file_data, sheet)[-1:-6,]),
         sheet_names
       )
+      
+      sheet_data[["sample"]]$sample_date <- as.Date(as.numeric(sheet_data[["sample"]]$sample_date), origin = "1899-12-30")
       
       df_joined <- dplyr::left_join(
         sheet_data[["sample"]], 
@@ -677,7 +697,7 @@ mod_tab2_server <- function(id, out_tab1) {
       # Join sample, tree, and site data and group by relevant columns
       df_joined <- dplyr::left_join(sheet_data[["sample"]], sheet_data[["tree"]], by = "tree_label") %>%
         dplyr::left_join(sheet_data[["site"]], by = c("site_label", "plot_label")) %>%
-        dplyr::group_by(network_label, site_label, plot_label, tree_label, year = lubridate::year(sample_date), sample_id) %>%
+        dplyr::group_by(network_label, site_label, plot_label, tree_label, year = lubridate::year(as.numeric(sample_date)), sample_id) %>%
         dplyr::summarise(n = dplyr::n(), .groups = "drop")  # Ensure correct summarization
       
       # Capture selection from sunburst plot

@@ -243,7 +243,7 @@ mod_tab3_server <- function(id, out_tab1, out_tab2) {
         hot_col_wrapper('network_label', column_configs()$tbl2$network_label)%>%
         hot_col_wrapper('sample_label', column_configs()$tbl2$sample_label) %>%
         hot_col_wrapper('measure_type', column_configs()$tbl2$measure_type) %>%
-        hot_col_wrapper('measure_replication', column_configs()$tbl2$measure_replication) %>%
+        hot_col_wrapper('measure_repetition', column_configs()$tbl2$measure_repetition) %>%
         hot_col_wrapper('sample_comment', column_configs()$tbl2$sample_comment) %>%
         hot_cols(manualColumnResize = TRUE)
     })
