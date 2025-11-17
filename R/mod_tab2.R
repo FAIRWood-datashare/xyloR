@@ -697,7 +697,7 @@ mod_tab2_server <- function(id, out_tab1) {
       # Join sample, tree, and site data and group by relevant columns
       df_joined <- dplyr::left_join(sheet_data[["sample"]], sheet_data[["tree"]], by = "tree_label") %>%
         dplyr::left_join(sheet_data[["site"]], by = c("site_label", "plot_label")) %>%
-        dplyr::group_by(network_label, site_label, plot_label, tree_label, year = lubridate::year(as.numeric(sample_date)), sample_id) %>%
+        dplyr::group_by(network_label, site_label, plot_label, tree_label, year = lubridate::year(as.Date(as.numeric(sample_date), origin = "1899-12-30")), sample_id) %>%
         dplyr::summarise(n = dplyr::n(), .groups = "drop")  # Ensure correct summarization
       
       # Capture selection from sunburst plot
