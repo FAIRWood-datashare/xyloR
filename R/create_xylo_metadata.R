@@ -52,17 +52,38 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
   # }
 
   # Load country polygons for ISO code determination
-  countries <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
+  # countries <- rnaturalearth::ne_countries(scale = "large", returnclass = "sf")
 
   # Preload Köppen datasets
   koppen_data <- raster::brick(system.file("extdata", "CHELSA_kg1_1981-2010_V.2.1.tif", package = "xyloR"))
 
   # Helper Functions
+  # get_iso_country <- function(lat, lon) {
+  #   point <- sf::st_as_sf(data.frame(lon = lon, lat = lat), coords = c("lon", "lat"), crs = 4326)
+  #   country <- sf::st_join(point, countries, join = sf::st_intersects)
+  #   return(country$iso_a2)
+  # }
+  
   get_iso_country <- function(lat, lon) {
-    point <- sf::st_as_sf(data.frame(lon = lon, lat = lat), coords = c("lon", "lat"), crs = 4326)
-    country <- sf::st_join(point, countries, join = sf::st_within)
-    return(country$iso_a2)
+    url <- paste0(
+      "https://nominatim.openstreetmap.org/reverse?format=json&lat=",
+      lat,
+      "&lon=",
+      lon,
+      "&addressdetails=1"
+    )
+    
+    res <- GET(url, user_agent("R"))
+    data <- fromJSON(content(res, "text", encoding = "UTF-8"))
+    
+    # Extract country code
+    if(!is.null(data$address$country_code)) {
+      toupper(data$address$country_code)
+    } else {
+      NA
+    }
   }
+  
 
   extract_Koppen <- function(long, lat) {
     raster::extract(koppen_data, tibble::tibble(long, lat)) %>% as.data.frame()
@@ -174,7 +195,7 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = out_tab1$te
       network_label = coalesce(network_label, site_label),
       suggested_network_code = suppressWarnings(abbreviate(network_label, 5)),
       
-      site_country_code = get_iso_country(latitude, longitude),
+      site_country_code = map2_chr(latitude, longitude, get_iso_country),
       site_label,
       suggested_site_code = suppressWarnings(abbreviate(site_label, 5)), 
       
