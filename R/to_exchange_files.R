@@ -8,6 +8,9 @@
 #' @param meta_file_path Character. The file path to the metadata Excel file.
 #' @param dir Character. Directory where files should be saved. Defaults to tempdir().
 #' @param dataset_name Character. Name of the dataset. Defaults to NULL.
+#' @param version Numeric. Version number for the dataset. Defaults to 1.
+#' @param embargo Date. Embargo date for the dataset. Defaults to the current date.
+#' @param description Character. Description of the dataset. Defaults to "your dataset description".
 #'
 #' @return
 #' Saves processed data frames as Excel files in the specified directory.
@@ -27,7 +30,7 @@
 #' @importFrom readr write_csv
 #' @importFrom stringr str_extract
 #' @export
-to_exchange_files <- function(obs_file_path, meta_file_path, dir = tempdir(), dataset_name = "name_your_dataset") {
+to_exchange_files <- function(obs_file_path, meta_file_path, dir = tempdir(), dataset_name = "name_your_dataset", version = 1, embargo = Sys.Date(), description = "your dataset description") {
 
   # Ensure directory exists
   if (!dir.exists(dir)) {
@@ -83,12 +86,23 @@ sample_data <- left_join(meta_sheet_data[["sample"]],
   left_join(meta_sheet_data[["site"]] %>%
               distinct(site_label, .keep_all = TRUE),
             by = "site_label", relationship = "many-to-many") %>%
-  group_by(zone_hierarchy = paste(suggested_network_code, suggested_site_code, suggested_plot_code, sep = "."),
+  group_by(
+    zone_hierarchy = apply(
+      cbind(
+        ifelse(suggested_network_code == suggested_site_code, NA, suggested_network_code),
+        suggested_site_code,
+        ifelse(suggested_plot_code == suggested_site_code, NA, suggested_plot_code)
+      ),
+      1,
+      function(x) paste(na.omit(x), collapse = ".")
+    ),
            suggested_tree_code,
            suggested_sample_code,
            sampling_date = as.Date(sample_date, format = "%d/%m/%Y"),
            sample_label) %>%
   summarise(n = n(), .groups = "drop") %>%
+  # Optional: remove NA from the paste result
+#  mutate(zone_hierarchy = gsub("\\.NA$", "", zone_hierarchy)) %>%
   select(-n) %>%
   mutate(
     comment = NA,
@@ -115,7 +129,8 @@ measure_sample <- sample_data %>%
   ) %>%
   dplyr::relocate(Observation_measure, Date_measure, Precision_date_measure, measure_repetition, .after = sampling_date) %>% 
   dplyr::select(-sample_label, -sample_id, -tree_label, -sample_date, -tree_species, -plot_label, -site_label, -network_label) %>%
-  dplyr::relocate(sample_comment, .after = dplyr::last_col())
+  dplyr::relocate(sample_comment, .after = dplyr::last_col()) %>% 
+  dplyr::relocate(measure_type, .after = Precision_date_measure)
 
 # save file on dir
 # measure_sample %>% 
@@ -153,10 +168,26 @@ measure_sample_metainfo %>%
 # create data for excel 
 tree_data <- left_join(meta_sheet_data[["sample"]], meta_sheet_data[["tree"]] %>% select(-plot_label, -suggested_plot_code) %>% distinct(tree_label, .keep_all = TRUE), by = "tree_label", relationship = "many-to-many") %>%
   left_join(meta_sheet_data[["site"]], by = "site_label", relationship = "many-to-many") %>% 
-  group_by(zone_hierarchy = paste(suggested_network_code, suggested_site_code, suggested_plot_code, sep = "."), species_code = species_code, suggested_tree_code, tree_label) %>%
-  summarise(n = n(), .groups = "drop") %>% 
+  group_by(
+    zone_hierarchy = apply(
+      cbind(
+        ifelse(suggested_network_code == suggested_site_code, NA, suggested_network_code),
+        suggested_site_code,
+        ifelse(suggested_plot_code == suggested_site_code, NA, suggested_plot_code)
+      ),
+      1,
+      function(x) paste(na.omit(x), collapse = ".")
+    ),
+    species_code,
+    suggested_tree_code,
+    tree_label
+  ) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  # Optional: remove NA from the paste result
+  # mutate(zone_hierarchy = gsub("\\.NA$", "", zone_hierarchy)) %>% 
   select(-n) %>% 
   dplyr::mutate(comment = NA)
+
 # save file on dir
 # tree_data %>% 
 #   writexl::write_xlsx(., file.path(dir, paste0(dataset_name, "_tree_table_", Sys.Date(), ".xlsx")), col_names = TRUE)
@@ -229,7 +260,10 @@ study_zone <- left_join(meta_sheet_data[["sample"]], meta_sheet_data[["tree"]] %
 study_zone <- study_zone %>%
   mutate(
     zone_hierarchy_network = suggested_network_code,
-    zone_hierarchy_site    = paste(suggested_network_code, suggested_site_code, sep = "."),
+    zone_hierarchy_site    = ifelse(suggested_network_code == suggested_site_code, 
+                                suggested_site_code,
+                                paste(suggested_network_code, suggested_site_code, sep = ".")
+                                ),
     zone_hierarchy_plot    = paste(suggested_network_code, suggested_site_code, suggested_plot_code, sep = ".")
   )
 
@@ -328,22 +362,38 @@ measure_zone_networklevel <- table_zone %>%
     )
   )
 
+
+# 1. Determine whether "network" exists, otherwise use "site"
+zone_to_use <- if (any(table_zone$zone_type == "network")) "network" else "site"
+
+# 2. Extract PI info only once
+pi_idx <- grepl(
+  "Principal Investigator",
+  meta_sheet_data[["person"]]$person_role,
+  ignore.case = TRUE
+)
+
+# 3. Build measure_zone_networklevel1 with a single mutate
 measure_zone_networklevel1 <- table_zone %>%
-  filter(zone_type == "network") %>%
-  mutate(`last_name` = meta_sheet_data[["person"]]$last_name[grepl("Principal Investigator", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-         `first_name` = meta_sheet_data[["person"]]$first_name[grepl("Principal Investigator", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-    `email` = meta_sheet_data[["person"]]$email[grepl("Principal Investigator", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-    `orcid` = meta_sheet_data[["person"]]$orcid[grepl("Principal Investigator", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-    `main_organization_name` = meta_sheet_data[["person"]]$main_organization_name[grepl("Principal Investigator", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-    `main_organization_registry` = meta_sheet_data[["person"]]$main_organization_registry[grepl("Principal Investigator", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-    `department` = meta_sheet_data[["person"]]$department[grepl("Principal Investigator", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-    `street` = meta_sheet_data[["person"]]$street[grepl("Principal Investigator", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-    `postal_code` = meta_sheet_data[["person"]]$postal_code[grepl("Principal Investigator", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-    `city` = meta_sheet_data[["person"]]$city[grepl("Principal Investigator", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-    `organization_country` = meta_sheet_data[["person"]]$organization_country[grepl("Principal Investigator", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-    `organization_country_code` = meta_sheet_data[["person"]]$organization_country_code[grepl("Principal Investigator", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-    `site_comment` = meta_sheet_data[["site"]]$site_comment[match(zone_code, meta_sheet_data[["site"]]$suggested_site_code)]
+  dplyr::filter(zone_type == zone_to_use) %>%
+  dplyr::mutate(
+    last_name  = meta_sheet_data[["person"]]$last_name[pi_idx],
+    first_name = meta_sheet_data[["person"]]$first_name[pi_idx],
+    email      = meta_sheet_data[["person"]]$email[pi_idx],
+    orcid      = meta_sheet_data[["person"]]$orcid[pi_idx],
+    main_organization_name      = meta_sheet_data[["person"]]$main_organization_name[pi_idx],
+    main_organization_registry  = meta_sheet_data[["person"]]$main_organization_registry[pi_idx],
+    department = meta_sheet_data[["person"]]$department[pi_idx],
+    street     = meta_sheet_data[["person"]]$street[pi_idx],
+    postal_code = meta_sheet_data[["person"]]$postal_code[pi_idx],
+    city        = meta_sheet_data[["person"]]$city[pi_idx],
+    organization_country      = meta_sheet_data[["person"]]$organization_country[pi_idx],
+    organization_country_code = meta_sheet_data[["person"]]$organization_country_code[pi_idx],
+    site_comment = meta_sheet_data[["site"]]$site_comment[
+      match(zone_code, meta_sheet_data[["site"]]$suggested_site_code)
+    ]
   )
+
 
 
 measure_zone <- full_join(measure_zone_networklevel1 %>% select(-site_comment), rbind(measure_zone_networklevel, measure_zone_sitelevel, measure_zone_plotlevel),
@@ -439,20 +489,22 @@ measure_zone_metainfo %>%
 ### dataset.csv exchange files
 # create data 
 dataset <- tibble(
-  code = paste(dataset_name, "Exchange_Files", Sys.Date(), sep = "_"),
-  label = paste("The GloboXylo exchange files named", dataset_name, "created by", meta_sheet_data[["person"]]$first_name[grepl("Contact", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)], meta_sheet_data[["person"]]$last_name[grepl("Contact", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)], "using xyloR on", Sys.Date() ),
-  # contact_last_name = meta_sheet_data[["person"]]$last_name[grepl("Contact", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-  # contact_first_name = meta_sheet_data[["person"]]$first_name[grepl("Contact", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-  # contact_email = meta_sheet_data[["person"]]$email[grepl("Contact", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-  # contact_organization_name = meta_sheet_data[["person"]]$main_organization_name[grepl("Contact", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-  # contact_country_name_organization = meta_sheet_data[["person"]]$organization_country[grepl("Contact", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)],
-  note = NA
+  code = paste(meta_sheet_data[["person"]]$last_name[grepl("Contact", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)], dataset_name, sep = "_"),
+  label = paste("The GloboXylo exchange files named", dataset_name, "version", version, "created by", meta_sheet_data[["person"]]$first_name[grepl("Contact", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)], meta_sheet_data[["person"]]$last_name[grepl("Contact", meta_sheet_data[["person"]]$person_role, ignore.case = TRUE)], "using xyloR on", Sys.Date() ),
+  version = version,
+  embargo = format(as.Date(embargo), "%d/%m/%Y"),
+  description = description,
+  note = NA_character_
+
 )
+
+dataset$description <- gsub("\n", "\\\\n", dataset$description)
 
 # dataset %>% 
 #   readr::write_csv2(file.path(dir, paste0(dataset_name, "_dataset_", Sys.Date(), ".csv")), na = "")
 dataset %>% 
-  readr::write_csv2(file.path(dir, "dataset.csv"), na = "")
+  readr::write_csv2(file.path(dir, "dataset.csv"), na = "", 
+                    quote = "none")
 
 
 
@@ -472,11 +524,11 @@ work %>%
   readr::write_csv2(file.path(dir, "work.csv"), na = "")
 
 
-### variables.csv exchange files
-template_path <- system.file("extdata", "variables.csv", package = "xyloR")
-variables <- readr::read_csv2(template_path, na = c("", "NA"))
-variables %>% 
-  readr::write_csv2(file.path(dir, "variable.csv"), na = "")
+### variables.csv exchange files to activate if new variable are added
+# template_path <- system.file("extdata", "variables.csv", package = "xyloR")
+# variables <- readr::read_csv2(template_path, na = c("", "NA"))
+# variables %>% 
+#   readr::write_csv2(file.path(dir, "variable.csv"), na = "")
 
 
 # # Print list of saved files

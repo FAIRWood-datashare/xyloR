@@ -39,10 +39,10 @@ mod_tab1_ui <- function(id) {
         class = "bg-light p-2 border-end",
         style = "height: 100%;",
 
-        # 1.1 Dataset naming
+        # 1.1 Dataset framing
         bslib::card(
           bslib::card_header(
-            "1.1 Name your dataset",
+            "1.1 Framing your dataset",
             id = ns("card_header1_1"), class = "bg-danger",
             bslib::tooltip(
               bsicons::bs_icon("question-circle"),
@@ -51,11 +51,77 @@ mod_tab1_ui <- function(id) {
             )
           ),
           bslib::card_body(
-            shiny::p("Enter the name of your dataset. Should be alphanumeric, max 10 chars."),
-            shiny::textInput(ns("dataset_name"), "Enter the name of your dataset", value = ""),
-            shiny::actionButton(ns("submit"), "Validate name", class = "btn btn-primary")
+            
+            shiny::textInput(
+              ns("dataset_name"), 
+              "Enter the DATASET NAME. 
+          This must be alphanumeric, in uppercase letters, and 3–8 characters long", 
+              value = "", 
+              width = "100%", 
+              placeholder = "3-8 characters"
+            ) %>% 
+              shiny::tagAppendAttributes(maxlength = 8),
+            
+            # Add a horizontal line
+            shiny::tags$hr(style = "border-top: 2px solid #ccc;"),
+            
+            shiny::numericInput(
+              ns("version"),
+              "Enter the DATASET VERSION. 
+              This must be a number between 1 and 99.",
+              value = 1,
+              min = 1,
+              max = 99,
+              step = 1,
+              width = "100%"
+            ),
+            
+            shiny::p("Note: Creating a dataset with the same NAME but a higher VERSION (e.g., 2 after 1) will overwrite the file previously imported in the DataBase", style = "color:#ff8c00; font-style: italic;"),
+            
+            # Add a horizontal line
+            shiny::tags$hr(style = "border-top: 2px solid #ccc;"),
+            
+            shiny::dateInput(
+              ns("embargo"),
+              "Enter the EMBARGO END DATE. 
+              This should be maximally 10 years from today, by default set to today's date.",
+              value = Sys.Date(),       # default to today
+              min = Sys.Date(),       # optional lower bound
+              max = Sys.Date() + 3650,   # optional upper bound
+              format = "yyyy-mm-dd",    # display format
+              width = "100%"
+            ),
+            
+            # Add a horizontal line
+            shiny::tags$hr(style = "border-top: 2px solid #ccc;"),
+            
+            shiny::textAreaInput(
+              ns("description"),            # input ID
+              label = shiny::div(
+                "Enter a DATASET DESCRIPTION.",
+                bslib::tooltip(
+                  bsicons::bs_icon("question-circle"),
+                  "Describe what the dataset is about, its scope, and any key details relevant to understanding its content and purpose. 
+                  HERE a potential template:
+                  The dataset was collected between [start year] and [end year] as part of a study designed to investigate [main research question or objective]. The study included [number] sites and focused on [number] species of trees, selected according to [sampling or selection criteria].
+              
+              Data recorded include [measurements, observations, or variables collected, e.g., tree height, diameter, species identity, phenology], along with metadata about the sites such as [environmental conditions, location coordinates, etc.]. The study design ensured consistent sampling across all sites to allow comparison of [key parameters, e.g., growth rates, biodiversity, ecological trends].
+              
+              This dataset can be used for [research applications, modeling, or monitoring purposes], providing insights into [ecosystem processes, forest dynamics, or other study-specific focus].",
+                  placement = "right"
+                )
+              ),
+              value = "",                   # initial content
+              width = "100%",               # full width
+              height = "500px",             # enough height for 2-3 paragraphs
+              placeholder = "The dataset ..."
+            ),
+            
+            shiny::p("Note: click on the questinonmark for a description template. This should be at least 50 chracters long to be validated. this will be uded to provide a short description text on the database webpage", style = "color:#ff8c00; font-style: italic;"),
+            
+            shiny::actionButton(ns("submit"), "Validate", class = "btn btn-primary")
           )
-        ),
+          ),
 
         # 1.2 Template download
         bslib::card(
@@ -215,37 +281,82 @@ mod_tab1_server <- function(id, session_global) {
     ### CARD 1.1 with the DATASET NAME
 
     # Listen for submit button click and perform validation
-    shiny::observeEvent(input$submit,
-      {
-        name <- shiny::isolate(input$dataset_name)
-
-        # Check if the dataset name is empty
-        if (is.null(name) || name == "") {
-          shiny::showNotification("Dataset name is required.", type = "error")
-          return() # Stop execution if validation fails
-        }
-
-        # Check if the dataset name contains only valid characters
-        if (!grepl("^[a-zA-Z0-9_-]+$", name)) {
-          shiny::showNotification("Dataset name must contain only letters, numbers, underscores, or dashes.", type = "error")
-          return() # Stop execution if validation fails
-        }
-
-        # If validation passes, continue with the rest of your logic
-        # For example, you can show a success notification or proceed to the next step
-        shiny::showNotification("Dataset name is valid!", type = "message")
-
-        # shinyjs::addClass("card_header1_1", "bg-success")  # Green header
-        # shinyjs::removeClass("card_header1_1", "bg-danger")
-
-        # Show the cards after validation
-        shinyjs::show("card_1")
-        shinyjs::show("card_2")
-      },
-      ignoreNULL = TRUE,
-      ignoreInit = TRUE
-    )
-
+    shiny::observe({
+      dataset_name <- input$dataset_name
+      version      <- input$version
+      description  <- gsub("[\r\n]+", " ", input$description)
+      
+      name_valid <- nchar(dataset_name) >= 3 &&
+        nchar(dataset_name) <= 8 &&
+        grepl("^[A-Z0-9]+$", dataset_name)
+      
+      version_valid <- !is.null(version) &&
+        is.numeric(version) &&
+        version >= 1 && version <= 99
+      
+      description_valid <- !is.null(description) &&
+        nchar(trimws(description)) >= 50
+      
+      update_card_header_class(name_valid && version_valid && description_valid)
+    })
+    
+    
+    shiny::observeEvent(input$submit, {
+      
+      dataset_name <- isolate(input$dataset_name)
+      version      <- isolate(input$version)
+      description  <- isolate(input$description)
+      
+      # ---- NAME ----
+      if (is.null(dataset_name) || dataset_name == "") {
+        showNotification("Dataset NAME is required.", type = "error")
+        return()
+      }
+      
+      if (nchar(dataset_name) < 3 || nchar(dataset_name) > 8) {
+        showNotification("Dataset NAME must be 3–8 characters long.", type = "error")
+        return()
+      }
+      
+      if (!grepl("^[A-Z0-9]+$", dataset_name)) {
+        showNotification(
+          "Dataset NAME must contain only uppercase letters and numbers.",
+          type = "error"
+        )
+        return()
+      }
+      
+      # ---- VERSION ----
+      if (is.na(suppressWarnings(as.numeric(version)))) {
+        showNotification("VERSION must be numeric.", type = "error")
+        return()
+      }
+      
+      version_num <- as.numeric(version)
+      if (version_num < 1 || version_num > 99) {
+        showNotification("VERSION must be between 1 and 99.", type = "error")
+        return()
+      }
+      
+      # ---- DESCRIPTION ----
+      description_clean <- gsub("[\r\n]+", " ", description)
+      if (nchar(trimws(description_clean)) < 50) {
+        showNotification(
+          "DESCRIPTION must contain at least 50 characters.",
+          type = "error"
+        )
+        return()
+      }
+      
+      # ---- SUCCESS ----
+      showNotification("Dataset NAME, VERSION, and DESCRIPTION are valid!", type = "message")
+      
+      shinyjs::show("card_1")
+      shinyjs::show("card_2")
+    })
+    
+    
+    
     # Run validation when Enter is pressed (simulate submit on Enter key press)
     shinyjs::runjs("
   $('#dataset_name').keypress(function(e) {
@@ -258,13 +369,53 @@ mod_tab1_server <- function(id, session_global) {
     # Listen for changes in the dataset name field and update header color if empty
     shiny::observe({
       dataset_name <- input$dataset_name
-      if (nchar(dataset_name) == 0) {
-        update_card_header_class(FALSE) # Set to red if input is empty
+      version <- input$version
+      embargo <- input$embargo
+      description <- gsub("[\r\n]+", " ", input$description)
+      
+      # Conditions for a valid dataset name
+      name_valid <- nchar(dataset_name) >= 3 &&
+        nchar(dataset_name) <= 8 &&
+        grepl("^[A-Z0-9]+$", dataset_name)  # only uppercase letters and numbers
+      
+      # Condition for a valid version
+      version_valid <- !is.null(version) && is.numeric(version) &&
+        version >= 1 && version <= 99
+      
+      # Condition for a valid description (at least 50 characters)
+      description_valid <- !is.null(description) &&
+        is.character(description) &&
+        nchar(trimws(description)) >= 50
+      
+      # Update header color
+      if (name_valid && version_valid && description_valid) {
+        update_card_header_class(TRUE)  # green
       } else {
-        # Update the header to show a valid input (e.g., set the color to green or reset to default)
-        update_card_header_class(TRUE)
+        update_card_header_class(FALSE) # red
       }
     })
+    
+    # Listen for changes in the dataset name
+    observeEvent(input$submit, {
+      version <- isolate(input$version)
+      
+      # Check numeric
+      if (is.na(suppressWarnings(as.numeric(version)))) {
+        showNotification("Version must be a number.", type = "error")
+        return()
+      }
+      
+      version_num <- as.numeric(version)
+      
+      # Check positive & 1–99
+      if (version_num < 1 || version_num > 99) {
+        showNotification("Version must be a positive number between 1 and 99.", type = "error")
+        return()
+      }
+      
+      showNotification("Version is valid!", type = "message")
+    })
+    
 
 
 
@@ -490,7 +641,9 @@ mod_tab1_server <- function(id, session_global) {
       }
     )
     
-
+    # Reactive storage for the metadata sheet
+    obs_metadata <- reactiveVal(NULL)
+    
 
     ### CARD 1.3 with the UPLOAD OBSERVATION FILE
     # Upload FILLED OBSERVATION FILE and RENDER INFORMATION
@@ -522,6 +675,9 @@ mod_tab1_server <- function(id, session_global) {
         }
       )
 
+      meta <- openxlsx::readWorkbook(wb, sheet = "obs_data_info", colNames = FALSE)
+      obs_metadata(meta)
+      
       # create the temp_folder
       shiny::observeEvent(input$dataset_name, {
         tmp <- file.path(
@@ -718,6 +874,21 @@ mod_tab1_server <- function(id, session_global) {
       return(df)
     })
 
+    contact_lastname <- reactive({
+      req(input$obs_file)
+      wb <- openxlsx::loadWorkbook(input$obs_file$datapath)
+      
+      as.character(
+        openxlsx::readWorkbook(
+          wb,
+          sheet = "obs_data_info",
+          rows = 2,
+          cols = 2,
+          colNames = FALSE
+        )
+      )
+    })
+    
 
     output$key_info_table <- DT::renderDataTable({
       shiny::req(input$obs_file) # Ensure the file is uploaded
@@ -754,7 +925,8 @@ mod_tab1_server <- function(id, session_global) {
       owner_lastname <- as.character(openxlsx::readWorkbook(wb, sheet = "obs_data_info", rows = 2, cols = 4, colNames = FALSE))
       owner_firstname <- as.character(openxlsx::readWorkbook(wb, sheet = "obs_data_info", rows = 1, cols = 4, colNames = FALSE))
       owner_email <- as.character(openxlsx::readWorkbook(wb, sheet = "obs_data_info", rows = 3, cols = 4, colNames = FALSE))
-      contact_lastname <- as.character(openxlsx::readWorkbook(wb, sheet = "obs_data_info", rows = 2, cols = 2, colNames = FALSE))
+      # contact_lastname <- as.character(openxlsx::readWorkbook(wb, sheet = "obs_data_info", rows = 2, cols = 2, colNames = FALSE))
+      contact_lastname_val <- contact_lastname()
       contact_firstname <- as.character(openxlsx::readWorkbook(wb, sheet = "obs_data_info", rows = 1, cols = 2, colNames = FALSE))
       contact_email <- as.character(openxlsx::readWorkbook(wb, sheet = "obs_data_info", rows = 3, cols = 2, colNames = FALSE))
 
@@ -784,7 +956,7 @@ mod_tab1_server <- function(id, session_global) {
       key_info <- tibble(
         "PI" = paste(owner_lastname, owner_firstname, sep = ", "),
         "PI Email" = owner_email,
-        "Contact" = paste(contact_lastname, contact_firstname, sep = ", "),
+        "Contact" = paste(contact_lastname_val, contact_firstname, sep = ", "),
         "Contact Email" = contact_email,
         "Network" = paste(network, collapse = ", "),
         "Site" = paste(site, collapse = ", "),
@@ -1014,14 +1186,18 @@ mod_tab1_server <- function(id, session_global) {
     # # Make reactives accessible to other modules
     # shared$xylo_obs <- xylo_obs
     # shared$dataset_name <- reactive(input$dataset_name)
-
+    
 
     return(
       list(
         dataset_name = reactive(input$dataset_name),
         obs_file = reactive(input$obs_file),
         temp_folder = temp_folder,
-        site_filter = reactive(input$site_filter)
+        site_filter = reactive(input$site_filter),
+        contact_lastname = contact_lastname,
+        version = reactive(input$version),
+        embargo = reactive(input$embargo),
+        description = reactive(input$description)
       )
     )
   })

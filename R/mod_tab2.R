@@ -469,7 +469,7 @@ mod_tab2_server <- function(id, out_tab1) {
     output$download_zip <- shiny::downloadHandler(
       filename = function() {
         shiny::req(out_tab1$dataset_name())  # Ensure the dataset name is available
-        paste(out_tab1$dataset_name(), "_Exchange_Files_", Sys.Date(), ".zip", sep = "")
+        paste(out_tab1$contact_lastname(), "_", out_tab1$dataset_name(), "_", out_tab1$version(), "_", Sys.Date(), ".zip", sep = "")
       },
       
       content = function(file) {
@@ -514,7 +514,7 @@ mod_tab2_server <- function(id, out_tab1) {
           
           # Process and save the exchange files
           result <- tryCatch({
-            to_exchange_files(obs_file_saved, meta_file_saved, dir = out_tab1$temp_folder(), dataset_name = out_tab1$dataset_name())  # Process the files
+            to_exchange_files(obs_file_saved, meta_file_saved, dir = out_tab1$temp_folder(), dataset_name = out_tab1$dataset_name(), version = out_tab1$version(), embargo = out_tab1$embargo(), description = out_tab1$description())  # Process the files
           }, error = function(e) {
             shiny::showModal(modalDialog(
               title = "Error",
