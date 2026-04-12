@@ -4,7 +4,7 @@
 \alias{meta_format_validation}
 \title{Metadata Format Validation}
 \usage{
-meta_format_validation(meta_file)
+meta_format_validation(meta_input)
 }
 \arguments{
 \item{meta_file}{Path to the metadata Excel file.}

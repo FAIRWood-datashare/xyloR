@@ -17,7 +17,7 @@ Xylodata Format Validation
 }
 \examples{
 \dontrun{
-xylo_file <- system.file("extdata", "Ltal.2007_xylo_data_2025-03-06_test.xlsx", package = "xyloR")
+xylo_file <- system.file("extdata", "Ltal.2007_xylo_data_2025-09-01.xlsx", package = "xyloR")
 report <- xylo_format_validation(xylo_file)
 }
 

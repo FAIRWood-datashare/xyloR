@@ -1,5 +1,6 @@
 
 
+#' @export
 build_metadata_hierarchy <- function(meta_file_path) {
   
   sheet_names <- setdiff(

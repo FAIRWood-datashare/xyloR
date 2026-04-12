@@ -1,5 +1,6 @@
 
 
+#' @export
 create_exchange_zip <- function(
     obs_file,
     meta_file,

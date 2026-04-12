@@ -1,5 +1,6 @@
 
 
+#' @export
 validate_metadata_pipeline <- function(meta_path, obs_path = NULL) {
   
   meta_results <- meta_format_validation(meta_path)

@@ -267,17 +267,37 @@ mod_tab2_server <- function(id, out_tab1) {
       
       shiny::withProgress(message = 'Validating metadata...', value = 0, {
         
-        shiny::setProgress(value = 0.2, detail = "Loading file...")
+        shiny::setProgress(value = 0.2, detail = "Loading files...")
         
+        # ----------------------------
+        # LOAD OBS OBJECT
+        # ----------------------------
         obs_file_data <- out_tab1$obs_file()
         
-        has_valid_obs <- !is.null(obs_file_data) &&
-          !is.null(obs_file_data$datapath) &&
-          file.exists(obs_file_data$datapath)
+        obs <- if (!is.null(obs_file_data) &&
+                   !is.null(obs_file_data$datapath) &&
+                   file.exists(obs_file_data$datapath)) {
+          
+          load_xylo_obs_clean(obs_file_data$datapath)
+          
+        } else {
+          NULL
+        }
         
-        tbl_validation <- validate_metadata_pipeline(
-          meta_path = input$meta_file$datapath,
-          obs_path  = if (has_valid_obs) obs_file_data$datapath else NULL
+        # ----------------------------
+        # LOAD META OBJECT
+        # ----------------------------
+        meta <- load_xylo_metadata_clean(input$meta_file$datapath)
+        meta <- normalize_xylo_metadata(meta)
+        
+        shiny::setProgress(value = 0.5, detail = "Running validation...")
+        
+        # ----------------------------
+        # RUN PIPELINE
+        # ----------------------------
+        tbl_validation <- validate_xylo_pipeline(
+          obs  = obs,
+          meta = meta
         )
         
         validation_results(tbl_validation)
@@ -470,99 +490,78 @@ mod_tab2_server <- function(id, out_tab1) {
     
     output$download_zip <- shiny::downloadHandler(
       filename = function() {
-        shiny::req(out_tab1$dataset_name())  # Ensure the dataset name is available
-        paste(out_tab1$contact_lastname(), "_", out_tab1$dataset_name(), "_", out_tab1$version(), "_", Sys.Date(), ".zip", sep = "")
+        shiny::req(out_tab1$dataset_name())
+        
+        paste0(
+          out_tab1$contact_lastname(), "_",
+          out_tab1$dataset_name(), "_",
+          out_tab1$version(), "_",
+          Sys.Date(),
+          ".zip"
+        )
       },
       
       content = function(file) {
-        # Ensure the required files are present in the temp folder
-        shiny::withProgress(message = 'Preparing the exchange files...', value = 0, {
+        
+        shiny::withProgress(message = "Preparing exchange files...", value = 0, {
           
-          # Initialize progress
-          shiny::setProgress(value = 0.1, detail = "Getting file paths...")
+          setProgress(0.2, "Checking files")
           
-          # Get the paths to the uploaded final files from the reactive temp folder
-          obs_file_saved <- file.path(out_tab1$temp_folder(), basename(out_tab1$obs_file()$name))
-          meta_file_saved <- file.path(out_tab1$temp_folder(), basename(input$meta_file$name))
+          obs_file_saved <- file.path(
+            out_tab1$temp_folder(),
+            basename(out_tab1$obs_file()$name)
+          )
           
-          # Print paths for debugging (optional)
-          print("obs_file_saved")
-          print(obs_file_saved)
-          print("meta_file_saved")
-          print(meta_file_saved)
+          meta_file_saved <- file.path(
+            out_tab1$temp_folder(),
+            basename(input$meta_file$name)
+          )
           
-          # Check if the files exist in the temporary folder
+          # safety check (KEEP THIS in Shiny, NOT in function)
           if (!file.exists(obs_file_saved)) {
             shiny::showModal(modalDialog(
               title = "Error",
-              "Observation file is missing or not found.",
-              easyClose = TRUE,
-              footer = NULL
+              "Observation file missing.",
+              easyClose = TRUE
             ))
-            return(NULL)  # Exit function if the file doesn't exist
+            return()
           }
+          
           if (!file.exists(meta_file_saved)) {
             shiny::showModal(modalDialog(
               title = "Error",
-              "Metadata file is missing or not found.",
-              easyClose = TRUE,
-              footer = NULL
+              "Metadata file missing.",
+              easyClose = TRUE
             ))
-            return(NULL)  # Exit function if the file doesn't exist
+            return()
           }
           
-          # Provide progress feedback for processing files
-          shiny::setProgress(value = 0.3, detail = "Processing files...")
+          setProgress(0.5, "Building exchange files")
           
-          # Process and save the exchange files
-          result <- tryCatch({
-            to_exchange_files(obs_file_saved, meta_file_saved, dir = out_tab1$temp_folder(), dataset_name = out_tab1$dataset_name(), version = out_tab1$version(), embargo = out_tab1$embargo(), description = out_tab1$description())  # Process the files
+          tryCatch({
+            
+            create_exchange_zip(
+              obs_file = obs_file_saved,
+              meta_file = meta_file_saved,
+              output_zip = file,
+              temp_dir = out_tab1$temp_folder(),
+              dataset_name = out_tab1$dataset_name(),
+              version = out_tab1$version(),
+              embargo = out_tab1$embargo(),
+              description = out_tab1$description()
+            )
+            
           }, error = function(e) {
+            
             shiny::showModal(modalDialog(
               title = "Error",
-              paste("Error processing files:", e$message),
-              easyClose = TRUE,
-              footer = NULL
+              paste("Processing failed:", e$message),
+              easyClose = TRUE
             ))
-            return(NULL)  # Exit function on error
+            
           })
           
-          # Provide feedback that the files are being zipped
-          shiny::setProgress(value = 0.6, detail = "Creating ZIP archive...")
-          
-          # List all files inside the folder without the parent directory
-          files_to_zip <- list.files(out_tab1$temp_folder(), full.names = TRUE, recursive = TRUE)
-          
-          # Clean the file paths, removing any redundant slashes
-          files_to_zip <- gsub("//", "/", files_to_zip)
-          
-          # Create the ZIP file
-#          zip::zipr(zipfile = file, files = files_to_zip)
-          
-          # Split files
-          main_files <- files_to_zip[
-            basename(files_to_zip) %in% c("tree.csv", "variables.csv", "zone_etude.csv") |
-              grepl("xylo_data|xylo_meta", basename(files_to_zip))
-          ]
-          
-          exchange_files <- setdiff(files_to_zip, main_files)
-          
-          # Create exchange.zip first
-          zip::zipr(zipfile = "Exchange.zip", files = exchange_files)
-          
-          # Now create main_files.zip, including the three main files + exchange.zip
-          zip::zipr(zipfile = file, files = c(main_files, "Exchange.zip"))
-          
-          # Optional: remove standalone exchange.zip if you only want it nested
-          file.remove("Exchange.zip")
-          
-          
-          # Final progress update when the ZIP file is ready
-          shiny::setProgress(value = 1, detail = "File ready for download")
-          
-          # Optionally, update the UI card to show success
-          shinyjs::addClass(id = "card_header", class = "bg-success")
-          shinyjs::removeClass(id = "card_header", class = "bg-danger")
+          setProgress(1, "Done")
         })
       }
     )
@@ -572,104 +571,16 @@ mod_tab2_server <- function(id, out_tab1) {
     # CARD 2.4: Hierarchical plotting from metadata (sunburst plot)
     # ============================================================================
     
-    df_hierarchy_reactive <- reactive({
-      shiny::req(input$meta_file$datapath)
-      meta_file_data <- input$meta_file$datapath
-      
-      sheet_names <- setdiff(
-        readxl::excel_sheets(meta_file_data),
-        c("instructions", "DropList", "ListOfVariables")
-      )
-      
-      sheet_data <- setNames(
-        lapply(sheet_names, function(sheet) readxl::read_excel(meta_file_data, sheet)[-1:-6,]),
-        sheet_names
-      )
-      
-      sheet_data[["sample"]]$sample_date <- as.Date(as.numeric(sheet_data[["sample"]]$sample_date), origin = "1899-12-30")
-      
-      df_joined <- dplyr::left_join(
-        sheet_data[["sample"]], 
-        sheet_data[["tree"]], 
-        by = "tree_label", relationship = "many-to-many"
-      ) %>%
-        dplyr::left_join(
-          sheet_data[["site"]], 
-          by = "site_label", relationship = "many-to-many"
-        ) %>%
-        dplyr::mutate(
-          # Clean plot label
-          plot_label_clean = dplyr::coalesce(plot_label.x, plot_label.y),
-          
-          # Extract year
-          year = lubridate::year(sample_date),
-          
-          # Ensure network_label exists
-          network_label = dplyr::coalesce(network_label, site_label),
-          
-          # Site-level full ID: add "_site" if site == network
-          site_label_full = if_else(
-            site_label == network_label | is.na(site_label),
-            paste0(network_label, "_site"),
-            paste0(network_label, "__", site_label)
-          ),
-          
-          # Plot-level full ID: add "_plot" if plot == site
-          plot_label_full = if_else(
-            is.na(plot_label_clean) | plot_label_clean == site_label,
-            paste0(site_label_full, "_plot"),
-            paste0(site_label_full, "__", plot_label_clean)
-          ),
-          
-          # Tree-level full ID
-          tree_label_full = paste0(plot_label_full, "__", tree_label),
-          
-          # Year and sample-level IDs
-          year_label   = paste0(tree_label_full, "__", year),
-          sample_label = paste0(year_label, "__", sample_id)
-        )
-      
-      # Tree-level
-      df_tree <- df_joined %>%
-        count(tree_label_full, plot_label_full, name = "value") %>%
-        rename(id = tree_label_full, parent = plot_label_full)
-      
-      # Plot-level
-      df_plot <- df_joined %>%
-        distinct(plot_label_full, site_label_full) %>%
-        count(plot_label_full, site_label_full, name = "value") %>%
-        rename(id = plot_label_full, parent = site_label_full)
-      
-      # Site-level
-      df_site <- df_joined %>%
-        distinct(site_label_full, network_label) %>%
-        count(site_label_full, network_label, name = "value") %>%
-        rename(id = site_label_full, parent = network_label)
-      
-      # Network-level
-      df_network <- df_joined %>%
-        distinct(network_label) %>%
-        mutate(
-          id = network_label,
-          parent = "",
-          value = 1
-        )
-      
-      # Combine hierarchy
-      df_hierarchy <- bind_rows(df_network, df_site, df_plot, df_tree) %>%
-        distinct(id, parent, value) %>%
-        arrange(parent, id) %>%
-        mutate(
-          label = sub(".*__", "", id),
-          text  = paste0(label, " (", value, ")")
-        )
+    df_hierarchy <- reactive({
+      req(input$meta_file$datapath)
+      build_metadata_hierarchy(input$meta_file$datapath)
     })
     
     
     
     # Render the sunburst plot
     output$hierarchical_structure <- plotly::renderPlotly({
-      df_hierarchy <- df_hierarchy_reactive()
+      df_hierarchy <- df_hierarchy()
       plotly::plot_ly(
         data = df_hierarchy, 
         ids = ~id, 
@@ -708,7 +619,7 @@ mod_tab2_server <- function(id, out_tab1) {
       # Filter data based on selection
       if (!is.null(selection)) {
         point_number <- selection$pointNumber
-        df_hierarchy <- df_hierarchy_reactive()  # Access the reactive df_hierarchy
+        df_hierarchy <- df_hierarchy()  # Access the reactive df_hierarchy
         selected_row <- df_hierarchy[point_number + 1, ]  # Adding 1 because point Number is 0-based
         
         # Split the 'id' of the selected row into components

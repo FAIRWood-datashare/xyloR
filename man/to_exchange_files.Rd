@@ -8,7 +8,10 @@ to_exchange_files(
   obs_file_path,
   meta_file_path,
   dir = tempdir(),
-  dataset_name = "name_your_dataset"
+  dataset_name = "name_your_dataset",
+  version = 1,
+  embargo = Sys.Date(),
+  description = "your dataset description"
 )
 }
 \arguments{
@@ -19,6 +22,12 @@ to_exchange_files(
 \item{dir}{Character. Directory where files should be saved. Defaults to tempdir().}
 
 \item{dataset_name}{Character. Name of the dataset. Defaults to NULL.}
+
+\item{version}{Numeric. Version number for the dataset. Defaults to 1.}
+
+\item{embargo}{Date. Embargo date for the dataset. Defaults to the current date.}
+
+\item{description}{Character. Description of the dataset. Defaults to "your dataset description".}
 }
 \value{
 Saves processed data frames as Excel files in the specified directory.
@@ -29,8 +38,8 @@ It loads observation and metadata data, processes the data frames, and generates
 }
 \examples{
 \dontrun{
-obs_file_path <- system.file("extdata", "Ltal.2007_xylo_data_2025-03-06.xlsx", package = "xyloR")
-meta_file_path <- system.file("extdata", "Ltal.2007_xylo_meta_2025-03-08.xlsx", package = "xyloR")
+obs_file_path <- system.file("extdata", "Ltal.2007_xylo_data_2025-06-22.xlsx", package = "xyloR")
+meta_file_path <- system.file("extdata", "Ltal.2007_xylo_meta_2025-06-22.xlsx", package = "xyloR")
 dir <- tempdir()
 dataset_name <- "test"
 to_exchange_files(obs_file_path, meta_file_path)

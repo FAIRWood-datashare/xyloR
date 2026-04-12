@@ -7,7 +7,7 @@
 create_xylo_metadata(
   xylo_file,
   template_meta,
-  destdir = tempdir(),
+  destdir = out_tab1$temp_folder(),
   output_name = NULL
 )
 }
@@ -28,7 +28,7 @@ This function prepares metadata from standardized xylo files.
 }
 \examples{
 \dontrun{
-xylo_file <- system.file("extdata", "Ltal.2007_xylo_data_2025-03-06.xlsx", package = "xyloR")
+xylo_file <- system.file("extdata", "Datasetname_xylo_data_yyyy-mm-dd.xlsx", package = "xyloR")
 template_meta <- system.file("extdata", "Datasetname_xylo_meta_yyyy-mm-dd.xlsx", package = "xyloR")
 destdir <- "~/Desktop/"  # tempdir()  # Use a temporary directory for output
 create_xylo_metadata(xylo_file, template_meta, destdir = destdir, output_name = "test.xlsx")
