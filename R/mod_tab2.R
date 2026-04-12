@@ -246,50 +246,52 @@ mod_tab2_server <- function(id, out_tab1) {
     validation_results <- shiny::reactiveVal(NULL)
     
     shiny::observeEvent(input$meta_file, {
+      
       shiny::req(input$meta_file)
       
       meta_file_saved <- normalizePath(
         file.path(out_tab1$temp_folder(), input$meta_file$name),
         winslash = "/", mustWork = FALSE
       )
+      
       log_step("meta_file_saved", meta_file_saved)
       
-      # Copy file if it doesn't exist
       if (!file.exists(meta_file_saved)) {
         file.copy(input$meta_file$datapath, meta_file_saved, overwrite = TRUE)
       }
       
-      # Abort if copy failed
       if (!file.exists(meta_file_saved)) {
         shiny::showNotification("Metadata file path is invalid", type = "error")
         return()
       }
       
-      # Start validation with progress
       shiny::withProgress(message = 'Validating metadata...', value = 0, {
+        
         shiny::setProgress(value = 0.2, detail = "Loading file...")
         
         obs_file_data <- out_tab1$obs_file()
+        
         has_valid_obs <- !is.null(obs_file_data) &&
           !is.null(obs_file_data$datapath) &&
           file.exists(obs_file_data$datapath)
         
-        tbl_validation <- if (has_valid_obs) {
-          shiny::setProgress(value = 0.5, detail = "Validating observation file...")
-          rbind(
-            xylo_format_validation(obs_file_data$datapath),
-            meta_format_validation(input$meta_file$datapath)
-          )
-        } else {
-          shiny::showNotification("Observation file is missing or invalid", type = "error")
-          meta_format_validation(input$meta_file$datapath)
-        }
+        tbl_validation <- validate_metadata_pipeline(
+          meta_path = input$meta_file$datapath,
+          obs_path  = if (has_valid_obs) obs_file_data$datapath else NULL
+        )
         
         validation_results(tbl_validation)
-        shinyjs::addClass(id = "card_header2_2", class = "bg-success")
-        shinyjs::removeClass(id = "card_header2_2", class = "bg-danger")
-        shinyjs::show("card_8")
+        
+        shiny::setProgress(value = 1, detail = "Done")
       })
+      
+      if (!has_valid_obs) {
+        shiny::showNotification("Observation file is missing or invalid", type = "warning")
+      }
+      
+      shinyjs::addClass(id = "card_header2_2", class = "bg-success")
+      shinyjs::removeClass(id = "card_header2_2", class = "bg-danger")
+      shinyjs::show("card_8")
     })
     
     
