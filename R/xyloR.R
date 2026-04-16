@@ -20,7 +20,10 @@ xyloR <- function() {
   # ======================================================
   # UI
   # ======================================================
+
   ui <- shiny::fluidPage(
+    
+    shinyjs::useShinyjs(),
     
     theme = bslib::bs_theme(
       bootswatch = "darkly",
@@ -36,8 +39,6 @@ xyloR <- function() {
     
     htmltools::includeCSS("www/custom_styles.css"),
     htmltools::includeScript("www/custom_scripts.js"),
-    
-    shinyjs::useShinyjs(),
     
     shiny::titlePanel("GloboXylo Data Collector"),
     

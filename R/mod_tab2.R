@@ -79,6 +79,25 @@ mod_tab2_ui <- function(id) {
             shiny::textOutput(ns("meta_validation_status")),
             shiny::verbatimTextOutput(ns("meta_validation_errors"))
           )
+        ),
+        
+        # =========================
+        # VALIDATION CARD
+        # =========================
+        bslib::card(
+          id = ns("validation_card"),
+          style = "display: none; margin-top: 10px;",
+          
+          bslib::card_header(
+            "Validation Report",
+            id = ns("card_header2_3"),
+            class = "bg-danger"
+          ),
+          
+          bslib::card_body(
+            DT::DTOutput(ns("validation_table")),
+            shiny::uiOutput(ns("validation_message"))
+          )
         )
       ),
       
@@ -106,25 +125,13 @@ mod_tab2_ui <- function(id) {
       shiny::column(
         12,
         
-        bslib::card(
-          id = ns("validation_card"),
-          style = "display: none;",
-          bslib::card_header(
-            "Validation Report",
-            id = ns("card_header2_3"),
-            class = "bg-danger"
-          ),
-          bslib::card_body(
-            DT::DTOutput(ns("validation_table")),
-            shiny::uiOutput(ns("validation_message"))
-          )
-        ),
-        
-        br(),
-        
+        # =========================
+        # ZIP CARD (THIS WAS MISSING)
+        # =========================
         bslib::card(
           id = ns("zip_card"),
           style = "display: none; text-align: center;",
+          
           bslib::card_body(
             shiny::downloadButton(
               ns("download_zip"),
@@ -353,52 +360,52 @@ mod_tab2_server <- function(id, ctx, meta_template_r) {
     # =========================================================
     observe({
       
-      state <- tab2_state()
-      message("📊 TAB2 STATE: ", state)
+      tbl <- validation_results()
+      
+      message("VALIDATION CHECK")
       
       # =====================================================
-      # ZIP BUTTON (ONLY VALID STATE)
+      # RESET
       # =====================================================
-      if (identical(state, "valid")) {
-        shinyjs::show("download_zip")
-      } else {
-        shinyjs::hide("download_zip")
-      }
+      shinyjs::hide("validation_card")
+      shinyjs::hide("zip_card")
+      
+      shinyjs::removeClass("card_header2_3", "bg-success")
+      shinyjs::removeClass("card_header2_3", "bg-danger")
       
       # =====================================================
-      # CARD VISIBILITY (ALWAYS SHOW AFTER ANY ACTION)
+      # NO DATA YET
       # =====================================================
-      if (state == "empty") {
-        
-        shinyjs::hide("zip_card")
-        
-      } else {
-        
-        if (identical(state, "valid")) {
-          shinyjs::show("zip_card")
-        } else {
-          shinyjs::hide("zip_card")
-        }
-      }
+      if (is.null(tbl)) return()
+      
+      # show validation box whenever we have results
+      shinyjs::show("validation_card")
       
       # =====================================================
-      # HEADER COLOR (safe version)
+      # VALID CASE
       # =====================================================
-      if (state == "valid") {
+      if (is.data.frame(tbl) && nrow(tbl) == 0) {
+        
+        message("VALID → SHOW ZIP")
         
         shinyjs::addClass("card_header2_3", "bg-success")
-        shinyjs::removeClass("card_header2_3", "bg-danger")
+        shinyjs::show("zip_card")
         
-      } else if (state == "invalid") {
+        return()
+      }
+      
+      # =====================================================
+      # INVALID CASE
+      # =====================================================
+      if (is.data.frame(tbl) && nrow(tbl) > 0) {
+        
+        message("INVALID → NO ZIP")
         
         shinyjs::addClass("card_header2_3", "bg-danger")
-        shinyjs::removeClass("card_header2_3", "bg-success")
         
-      } else {
-        
-        shinyjs::removeClass("card_header2_3", "bg-success")
-        shinyjs::removeClass("card_header2_3", "bg-danger")
+        return()
       }
+      
     })
     
     # =========================================================
