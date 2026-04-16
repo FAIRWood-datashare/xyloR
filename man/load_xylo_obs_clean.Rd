@@ -4,7 +4,7 @@
 \alias{load_xylo_obs_clean}
 \title{Load XYLO observation data}
 \usage{
-load_xylo_obs_clean(obs_file_path)
+load_xylo_obs_clean(file)
 }
 \arguments{
 \item{obs_file_path}{path to file}

@@ -70,150 +70,78 @@ mod_tab4_ui <- function(id) {
 #' @importFrom magrittr %>%
 #' 
 #' 
-mod_tab4_server <- function(id, out_tab1, out_tab2, out_tab3) {
+mod_tab4_server <- function(id, ctx) {
   moduleServer(id, function(input, output, session) {
     
-    # Accessing shared elements
-    
-    # TAB 4 site: -------------------------------------------------------------------
-    
-    #### dsite ####
-    dsite <- shiny::reactiveVal()
-    
-    shiny::observe({
-      shiny::req(out_tab2$meta_file())  # Ensure file is uploaded
-      
-      # Read the dataset
-      site_meta_info <- openxlsx::readWorkbook(out_tab3$WB_meta(), sheet = "site", startRow = 1, colNames = TRUE)[-(1:6), ] %>%
-        tibble::tibble()
-      dsite(site_meta_info)  # Store in reactive value
+    # =========================================================
+    # WORKBOOK (CTX ONLY)
+    # =========================================================
+    WB <- reactive({
+      req(ctx$files$wb_meta)
+      ctx$files$wb_meta
     })
     
-    # # INITIALIZE REACTIVE INPUT DATA
-    data_meta <- shiny::reactiveValues()
+    # =========================================================
+    # STATE
+    # =========================================================
+    tbl4_data <- reactiveVal(NULL)
     
-    # Reactive context to store initial data and ensure it's updated in a proper context
+    # =========================================================
+    # INITIAL LOAD
+    # =========================================================
     observe({
-      data_meta$tbl3 <- dsite()  # Access dsite in a valid reactive context
+      req(WB())
+      
+      df <- crud_load_excel(
+        wb = WB(),
+        sheet = "Xylo_obs_data",   # adjust if needed
+        skip_rows = ctx$config$skip_rows_excel
+      )
+      
+      tbl4_data(df)
+      ctx$data$tbl4 <- df
     })
     
-    # FROM MARA!!!!!!!!!!
-    # observe({
-    #   data_meta$tbl3$latitude <- out_tab3$data_in$tbl1 %>% dplyr::pull(latitude)
-    # })
-    
-    
-    
-    # Koppen_family
-    koppen_family <- shiny::reactiveVal()
-    
-    # Read the initial data for Koppen families
-    shiny::observe({
-      shiny::req(out_tab3$WB_meta())
-      df <- openxlsx::readWorkbook(out_tab3$WB_meta(), sheet = "DropList", colNames = TRUE) %>%
-        dplyr::select(koppen_climate_value, koppen_climate_code, koppen_climate_classification) %>%
-        dplyr::mutate(koppen_climate_value = as.character(koppen_climate_value)) %>%
-        data.frame(stringsAsFactors = FALSE)
-      koppen_family(df)
-    })
-    
-    # Function to synchronize Koppen climate data
-    sync_koppen_code <- function(df, koppen_family, remove_na = TRUE) {
-      df <- df %>%
-        dplyr::mutate(koppen_climate_value = as.character(koppen_climate_value))
+    # =========================================================
+    # RENDER
+    # =========================================================
+    output$tbl4 <- rhandsontable::renderRHandsontable({
+      req(tbl4_data())
       
-      if (remove_na) {
-        df <- df %>%
-          dplyr::filter(!is.na(koppen_climate_value) & koppen_climate_value != "")
-      }
-      
-      updated <- df %>%
-        dplyr::left_join(
-          koppen_family %>%
-            dplyr::mutate(koppen_climate_value = as.character(koppen_climate_value)),
-          by = "koppen_climate_value",
-          suffix = c("", "_from_list")
-        ) %>%
-        dplyr::mutate(
-          koppen_climate_code = koppen_climate_code_from_list,
-          koppen_climate_classification = koppen_climate_classification_from_list
-        ) %>%
-        dplyr::select(-dplyr::ends_with("_from_list"))
-      
-      return(updated)
-    }
-    
-    
-    # RENDER TABLES
-    output$tbl3 <- rhandsontable::renderRHandsontable({
-      shiny::req(data_meta$tbl3)  # Ensure data is available
       rhandsontable::rhandsontable(
-        data_meta$tbl3, 
-        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all', height=150) %>%
-        hot_col_wrapper('network_label', out_tab3$column_configs()$tbl3$network_label) %>%
-        hot_col_wrapper('suggested_network_code', out_tab3$column_configs()$tbl3$suggested_network_code) %>%
-        hot_col_wrapper('site_country_code', out_tab3$column_configs()$tbl3$site_country_code) %>%
-        hot_col_wrapper('site_label', out_tab3$column_configs()$tbl3$site_label) %>%
-        hot_col_wrapper('suggested_site_code', out_tab3$column_configs()$tbl3$suggested_site_code) %>%
-        hot_col_wrapper('plot_label', out_tab3$column_configs()$tbl3$plot_label) %>%
-        hot_col_wrapper('suggested_plot_code', out_tab3$column_configs()$tbl3$suggested_plot_code) %>%
-        hot_col_wrapper('latitude', out_tab3$column_configs()$tbl3$latitude) %>%
-        hot_col_wrapper('longitude', out_tab3$column_configs()$tbl3$longitude) %>%
-        hot_col_wrapper('elevation', out_tab3$column_configs()$tbl3$elevation) %>%
-        hot_col_wrapper('koppen_climate_value', out_tab3$column_configs()$tbl3$koppen_climate_value) %>%
-        hot_col_wrapper('koppen_climate_code', out_tab3$column_configs()$tbl3$koppen_climate_code) %>%
-        hot_col_wrapper('koppen_climate_classification', out_tab3$column_configs()$tbl3$koppen_climate_classification) %>%
-        hot_col_wrapper('site_aspect', out_tab3$column_configs()$tbl3$site_aspect) %>%
-        hot_col_wrapper('site_slope', out_tab3$column_configs()$tbl3$site_slope) %>%
-        hot_col_wrapper('site_topography', out_tab3$column_configs()$tbl3$site_topography) %>%
-        hot_col_wrapper('temp', out_tab3$column_configs()$tbl3$temp) %>%
-        hot_col_wrapper('precip', out_tab3$column_configs()$tbl3$precip) %>%
-        hot_col_wrapper('soil_depth', out_tab3$column_configs()$tbl3$soil_depth) %>%
-        hot_col_wrapper('soil_water_holding_capacity', out_tab3$column_configs()$tbl3$soil_water_holding_capacity) %>%
-        hot_col_wrapper('soil_moisture', out_tab3$column_configs()$tbl3$soil_moisture) %>%
-        hot_col_wrapper('forest_stand_composition', out_tab3$column_configs()$tbl3$forest_stand_composition) %>%
-        hot_col_wrapper('forest_stand_structure', out_tab3$column_configs()$tbl3$forest_stand_structure) %>%
-        hot_col_wrapper('forest_stand_age_structure', out_tab3$column_configs()$tbl3$forest_stand_age_structure) %>%
-        hot_col_wrapper('forest_stand_age', out_tab3$column_configs()$tbl3$forest_stand_age) %>%
-        hot_col_wrapper('forest_stand_main_species_composition', out_tab3$column_configs()$tbl3$forest_stand_main_species_composition) %>%
-        hot_col_wrapper('forest_stand_management_intensity', out_tab3$column_configs()$tbl3$forest_stand_management_intensity) %>%
-        hot_col_wrapper('in_stand_soil_description', out_tab3$column_configs()$tbl3$in_stand_soil_description) %>%
-        hot_col_wrapper('in_stand_dendrometer_monitoring', out_tab3$column_configs()$tbl3$in_stand_dendrometer_monitoring) %>%
-        hot_col_wrapper('in_stand_phloem_observation', out_tab3$column_configs()$tbl3$in_stand_phloem_observation) %>%
-        hot_col_wrapper('in_stand_sapflux_monitoring', out_tab3$column_configs()$tbl3$in_stand_sapflux_monitoring) %>%
-        hot_col_wrapper('in_stand_primary_phenological_observation', out_tab3$column_configs()$tbl3$in_stand_primary_phenological_observation) %>%
-        hot_col_wrapper('in_stand_weather_monitoring', out_tab3$column_configs()$tbl3$in_stand_weather_monitoring) %>%
-        hot_col_wrapper('in_stand_soil_monitoring', out_tab3$column_configs()$tbl3$in_stand_soil_monitoring) %>%
-        hot_col_wrapper('number_of_trees', out_tab3$column_configs()$tbl3$number_of_trees) %>%
-        hot_col_wrapper('site_comment', out_tab3$column_configs()$tbl3$site_comment)
+        tbl4_data(),
+        rowHeaders = NULL,
+        contextMenu = TRUE,
+        stretchH = "all",
+        selectCallback = TRUE
+      )
     })
     
-    # Sync data on user input
-    shiny::observeEvent(input$tbl3, {
-      shiny::req(input$tbl3)
-      user_data <- rhandsontable::hot_to_r(input$tbl3)
-      updated_data <- sync_koppen_code(user_data, koppen_family())
-      # Update the reactive data object
-      isolate({data_meta$tbl3 <- updated_data
-      })
+    # =========================================================
+    # SYNC
+    # =========================================================
+    observeEvent(input$tbl4, {
+      req(input$tbl4)
       
+      df <- rhandsontable::hot_to_r(input$tbl4)
+      
+      tbl4_data(df)
+      ctx$data$tbl4 <- df
     })
     
-    observeEvent(input$save_site, {
+    # =========================================================
+    # SAVE
+    # =========================================================
+    observeEvent(input$save_tab4, {
+      
       save_and_validate(
-        data_reactive = data_meta$tbl3,
-        sheet_name = "site",
-        wb_reactive = out_tab3$WB_meta,
-        temp_folder = out_tab1$temp_folder,
-        update_validation = out_tab2$validation_results
+        data_reactive = tbl4_data(),
+        sheet_name = "Xylo_obs_data",   # ⚠️ confirm this
+        wb_reactive = ctx$files$wb_meta,
+        temp_folder = ctx$files$temp_folder,
+        update_validation = ctx$validation$results
       )
     })
-    
-    return(
-      list(
-        data_meta = data_meta
-      )
-    )
     
   })
 }

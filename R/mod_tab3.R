@@ -90,207 +90,168 @@ mod_tab3_ui <- function(id) {
 #' @importFrom htmltools tagList div
 #' @importFrom bsicons bs_icon
 #' 
-mod_tab3_server <- function(id, out_tab1, out_tab2) {
+mod_tab3_server <- function(id, ctx) {
   moduleServer(id, function(input, output, session) {
     
-    # TAB 3 observations: ---------------------------------------------------------------------
-    
-
-    WB <- shiny::reactive({
-      shiny::req(out_tab1$obs_file(), out_tab1$site_filter())
-      loadWorkbook(out_tab1$obs_file()$datapath)
+    # =========================================================
+    # WORKBOOK (CTX ONLY)
+    # =========================================================
+    WB <- reactive({
+      req(ctx$files$wb_meta)
+      ctx$files$wb_meta
     })
     
-    WB_meta <- shiny::reactive({
-      shiny::req(out_tab2$meta_file())
-      openxlsx::loadWorkbook(out_tab2$meta_file()$datapath)
-    })
+    # =========================================================
+    # CRUD STATE (LOCAL CACHE)
+    # =========================================================
+    tbl3_info <- reactiveVal(NULL)
+    tbl3_obs  <- reactiveVal(NULL)
     
-    tab_ids <- c("Observations", "Site", "Tree", "Sample", "Person", "Publication")
-    lapply(tab_ids, function(id) shinyjs::disable(selector = sprintf("a[data-value='%s']", id)))
-    
-    shiny::observe({
-      shiny::req(WB_meta())
-      try(openxlsx::readWorkbook(WB_meta(), sheet = "site"), silent = TRUE)
-      lapply(tab_ids, function(id) shinyjs::enable(selector = sprintf("a[data-value='%s']", id)))
-    })
-    
-    
-    #### dinfo  #### 
-    dinfo <- shiny::reactiveVal()
-    
-    shiny::observe({
-      shiny::req(out_tab1$obs_file())  # Ensure file is uploaded
+    # =========================================================
+    # LOAD INFO TABLE
+    # =========================================================
+    observe({
+      req(WB())
       
-      # Read the dataset
-      site_info <- openxlsx::readWorkbook(WB(), sheet = "obs_data_info", startRow = 6, colNames = FALSE) %>%
-        tibble::tibble()
-      obs_data <- openxlsx::readWorkbook(WB(), sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] %>%
-        tibble::tibble()
+      site_info <- crud_load_excel(
+        wb = WB(),
+        sheet = "obs_data_info",
+        skip_rows = ctx$config$skip_rows_excel
+      )
       
-      # Check the number of columns
+      obs_data <- crud_load_excel(
+        wb = WB(),
+        sheet = "Xylo_obs_data",
+        skip_rows = ctx$config$skip_rows_excel
+      )
+      
       if (ncol(site_info) == 3) {
-        site_label <- unique(obs_data$site_label) %>% tibble::tibble() %>% dplyr::filter(!is.na(.))  # Extract unique site labels
-        site_info <- cbind(site_label, site_info)   # Add it as the first column
+        site_label <- obs_data$site_label |>
+          unique() |>
+          tibble::tibble() |>
+          dplyr::filter(!is.na(.))
+        
+        site_info <- cbind(site_label, site_info)
+        
       } else if (ncol(site_info) != 4) {
-        stop("Error: Expected 3 or 4 columns in 'Xylo_obs_data'. Please check your data format.")
+        stop("Invalid obs_data_info format")
       }
       
-      # Apply column names only if the check passes
-      site_info <- setNames(site_info, c("site_label", "latitude", "longitude", "elevation")) %>% 
-        dplyr::mutate(
-          elevation = as.integer(elevation)
-        )
-      dinfo(site_info)  # Store in reactive value
+      site_info <- setNames(
+        site_info,
+        c("site_label", "latitude", "longitude", "elevation")
+      )
+      
+      site_info$elevation <- as.integer(site_info$elevation)
+      
+      tbl3_info(site_info)
+      ctx$data$tbl3_info <- site_info
     })
     
-    drop_species <- shiny::reactive({
-      shiny::req(WB())  # Ensure the workbook is available
-      drop_species <- openxlsx::readWorkbook(WB(), sheet = "DropList", colNames = TRUE) %>% 
-        dplyr::mutate(species_code = species_code) %>% 
-        dplyr::select(tree_species, species_code) %>%
+    # =========================================================
+    # DROP LIST
+    # =========================================================
+    drop_species <- reactive({
+      req(WB())
+      
+      openxlsx::readWorkbook(WB(), sheet = "DropList") |>
+        dplyr::select(tree_species, species_code) |>
         dplyr::filter(!is.na(tree_species))
     })
     
-    #### dobs ####
-    dobs <- shiny::reactiveVal()
-    
-    shiny::observe({
-      req(out_tab1$obs_file)  # Ensure file is uploaded
+    # =========================================================
+    # OBS DATA
+    # =========================================================
+    observe({
+      req(WB())
       
-      # Read data from Excel, skipping first 6 rows
-      data <- openxlsx::readWorkbook(WB(), sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] %>%
-        tibble::tibble() %>% 
-        dplyr::left_join(drop_species(), by = "tree_species") %>%
-        dplyr::relocate(species_code, .after = tree_species)
-      
-      # Check if sample_date is numeric and convert to Date
-      data <- data %>%
+      df <- crud_load_excel(
+        wb = WB(),
+        sheet = "Xylo_obs_data",
+        skip_rows = ctx$config$skip_rows_excel
+      ) |>
+        dplyr::left_join(drop_species(), by = "tree_species") |>
+        dplyr::relocate(species_code, .after = tree_species) |>
         dplyr::mutate(
-          sample_date = dplyr::case_when(
-            # If sample_date is numeric (Excel date format)
-            !is.na(sample_date) & is.numeric(as.numeric(sample_date)) ~
-              as.Date(as.numeric(sample_date), origin = "1899-12-30"),
-            
-            TRUE ~ as.Date(NA)  # Handle NAs
+          sample_date = as.character(
+            as.Date(as.numeric(sample_date), origin = "1899-12-30")
           )
-        ) %>% 
-        dplyr::mutate(sample_date = as.character(sample_date))
-      dobs(data)  # Store in reactive value
+        )
+      
+      tbl3_obs(df)
+      ctx$data$tbl3_obs <- df
     })
     
-    # # INITALIZE REACTIVE INPUT DATA
-    data_in <- shiny::reactiveValues()
-    
-    # Reactive context to store initial data and ensure it's updated in a proper context
-    shiny::observe({
-      data_in$tbl1 <- dinfo()  # Access dinfo in a valid reactive context
-      data_in$tbl2 <- dobs()   # Access dobs in a valid reactive context
-    })
-    
-    column_configs <- shiny::reactive({
-      shiny::req(WB())  # Ensure the workbook is available
-      get_column_configs(WB(), WB_meta(), dobs())
-    })
-    
-    
+    # =========================================================
     # RENDER TABLES
+    # =========================================================
     output$tbl1 <- rhandsontable::renderRHandsontable({
-      shiny::req(data_in$tbl1)  # Ensure data is available
-      shiny::req(data_in$tbl2)
+      req(tbl3_info())
+      
       rhandsontable::rhandsontable(
-        data_in$tbl1,
-        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all') %>% # , overflow = 'visible'
-       hot_col_wrapper('site_label', column_configs()$tbl1$site_label) %>%
-       hot_col_wrapper('latitude', column_configs()$tbl1$latitude) %>%
-       hot_col_wrapper('longitude', column_configs()$tbl1$longitude) %>%
-       hot_col_wrapper('elevation', column_configs()$tbl1$elevation)
+        tbl3_info(),
+        rowHeaders = NULL,
+        contextMenu = TRUE,
+        stretchH = "all"
+      ) |>
+        apply_rules_to_table("tbl1", rules)
     })
-    
-    # Function to synchronize Species data
-    sync_species_itrdb <- function(df, drop_species, remove_na = TRUE) {
-      if (remove_na) {
-        df <- df %>%
-          dplyr::filter(!is.na(tree_species) & tree_species != "")
-      }
-      
-      updated <- df %>%
-        dplyr::left_join(
-          drop_species,
-          by = "species_code",
-          suffix = c("", "_from_list")
-        ) %>%
-        dplyr::mutate(
-          tree_species = tree_species_from_list
-        ) %>%
-        dplyr::select(-dplyr::ends_with("_from_list"))
-      
-      return(updated)
-    }
     
     output$tbl2 <- rhandsontable::renderRHandsontable({
-      shiny::req(data_in$tbl2)  # Ensure data is available
-        rhandsontable::rhandsontable(
-        data_in$tbl2,
-        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all', height = '300px') %>% # overflow = 'visible',
-        hot_col_wrapper('sample_date', column_configs()$tbl2$sample_date) %>%
-        hot_col_wrapper('sample_id', column_configs()$tbl2$sample_id) %>%
-        hot_col_wrapper('tree_species', column_configs()$tbl2$tree_species) %>%
-        hot_col_wrapper('species_code', column_configs()$tbl2$species_code) %>%
-        hot_col_wrapper('tree_label', column_configs()$tbl2$tree_label) %>%
-        hot_col_wrapper('plot_label', column_configs()$tbl2$plot_label) %>%
-        hot_col_wrapper('site_label', column_configs()$tbl2$site_label) %>%
-        hot_col_wrapper('network_label', column_configs()$tbl2$network_label)%>%
-        hot_col_wrapper('sample_label', column_configs()$tbl2$sample_label) %>%
-        hot_col_wrapper('measure_type', column_configs()$tbl2$measure_type) %>%
-        hot_col_wrapper('measure_repetition', column_configs()$tbl2$measure_repetition) %>%
-        hot_col_wrapper('sample_comment', column_configs()$tbl2$sample_comment) %>%
-        hot_cols(manualColumnResize = TRUE)
-    })
-
-    # Sync tbl1 data on user input
-    shiny::observeEvent(input$tbl1, {
-      shiny::req(input$tbl1)
-      data_in$tbl1 <- hot_to_r(input$tbl1)
-      # Update the reactive data object
+      req(tbl3_obs())
+      
+      rhandsontable::rhandsontable(
+        tbl3_obs(),
+        rowHeaders = NULL,
+        contextMenu = TRUE,
+        stretchH = "all",
+        height = "300px"
+      ) |>
+        apply_rules_to_table("sample", rules)
     })
     
-    # Sync tbl2 data on user input
-    shiny::observeEvent(input$tbl2, {
-      shiny::req(input$tbl2)
-      user_data <- rhandsontable::hot_to_r(input$tbl2)
-      updated_data <- sync_species_itrdb(user_data, drop_species())
-      # Update the reactive data object
-      data_in$tbl2 <- updated_data
+    # =========================================================
+    # SYNC EDITS
+    # =========================================================
+    observeEvent(input$tbl1, {
+      req(input$tbl1)
+      
+      df <- rhandsontable::hot_to_r(input$tbl1)
+      tbl3_info(df)
+      ctx$data$tbl3_info <- df
     })
     
-    shiny::observeEvent(input$save_obs, {
+    observeEvent(input$tbl2, {
+      req(input$tbl2)
+      
+      df <- rhandsontable::hot_to_r(input$tbl2) |>
+        sync_species_itrdb(drop_species())
+      
+      tbl3_obs(df)
+      ctx$data$tbl3_obs <- df
+    })
+    
+    # =========================================================
+    # SAVE
+    # =========================================================
+    observeEvent(input$save_obs, {
+      
       save_and_validate(
-        data_reactive = data_in$tbl1,
+        data_reactive = tbl3_info(),
         sheet_name = "obs_data_info",
-        wb_reactive = WB,
-        temp_folder = out_tab1$temp_folder,
-        update_validation = out_tab2$validation_results
+        wb_reactive = ctx$files$wb_meta,
+        temp_folder = ctx$files$temp_folder,
+        update_validation = ctx$validation$results
       )
       
       save_and_validate(
-        data_reactive = data_in$tbl2 %>% dplyr::select(-species_code),
+        data_reactive = tbl3_obs() |> dplyr::select(-species_code),
         sheet_name = "Xylo_obs_data",
-        wb_reactive = WB,
-        temp_folder = out_tab1$temp_folder,
-        update_validation = out_tab2$validation_results
+        wb_reactive = ctx$files$wb_meta,
+        temp_folder = ctx$files$temp_folder,
+        update_validation = ctx$validation$results
       )
     })
     
-    return(
-      list(
-        WB = WB,
-        WB_meta = WB_meta,
-        data_in = data_in,
-        column_configs = column_configs
-      )
-    )
-    
   })
-  
 }

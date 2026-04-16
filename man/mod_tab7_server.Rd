@@ -4,7 +4,7 @@
 \alias{mod_tab7_server}
 \title{Server Logic for the person Metadata Tab}
 \usage{
-mod_tab7_server(id, out_tab1, out_tab2, out_tab3, out_tab4)
+mod_tab7_server(id, ctx)
 }
 \arguments{
 \item{id}{A string representing the unique identifier for the module UI.}

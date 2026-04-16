@@ -20,45 +20,57 @@
 mod_tab2_ui <- function(id) {
   ns <- shiny::NS(id)
   
-  # TAB 2: Upload Metadata -----------------------------------------------
-  bslib::nav_panel(
-    title = htmltools::div(id = ns("upload_metadata"), "2. Upload metadata"),
-    value = "upload_metadata",
+  shiny::tagList(
     
     shiny::fluidRow(
-      # Sidebar (left panel)
+      
+      # =========================================================
+      # LEFT PANEL
+      # =========================================================
       shiny::column(
         3, class = "bg-light p-2 border-end", style = "height: 100%;",
         
-        # 2.1 Download Metadata Template
         bslib::card(
           bslib::card_header(
             "2.1 Download prefilled metadata template",
-            id    = ns("card_header2_1"), class = "bg-warning",
+            id = ns("card_header2_1"),
+            class = "bg-warning",
             tooltip(
               bsicons::bs_icon("question-circle"),
-              "Click 'Download Metadata Template' to save a prefilled Excel file with metadata based on your observations. Click 'Download filled example' to view a filled-in example. Then continue to 2.2 to upload your completed file.",
+              "Download a prefilled Excel template.",
               placement = "right"
             )
           ),
           bslib::card_body(
             shiny::fluidRow(
-              shiny::column(6, shiny::downloadButton(ns("download_meta_template"), "Download Metadata Template", class = "btn btn-primary")),
-              shiny::column(6, shiny::downloadButton(ns("download_example_meta"),   "Download filled example",     class = "btn btn-secondary"))
+              shiny::column(
+                6,
+                shiny::downloadButton(
+                  ns("download_meta_template"),
+                  "Download Metadata Template",
+                  class = "btn btn-primary"
+                )
+              ),
+              shiny::column(
+                6,
+                shiny::downloadButton(
+                  ns("download_example_meta"),
+                  "Download filled example",
+                  class = "btn btn-secondary"
+                )
+              )
             )
-          ),
-          id    = ns("card_2_1"),
-          style = ""
+          )
         ),
         
-        # 2.2 Load completed metadata for validation
         bslib::card(
           bslib::card_header(
             "2.2 Load completed metadata for validation",
-            id    = ns("card_header2_2"), class = "bg-danger",
+            id = ns("card_header2_2"),
+            class = "bg-danger",
             bslib::tooltip(
               bsicons::bs_icon("question-circle"),
-              "Upload your filled metadata Excel file. A sunburst plot and hierarchical table will appear. Fix any validation issues shown in red, then re-upload until all issues are resolved and the 'Download Exchange Files' button activates.",
+              "Upload your completed metadata Excel file.",
               placement = "right"
             )
           ),
@@ -66,35 +78,15 @@ mod_tab2_ui <- function(id) {
             shiny::fileInput(ns("meta_file"), label = NULL, accept = c(".xlsx")),
             shiny::textOutput(ns("meta_validation_status")),
             shiny::verbatimTextOutput(ns("meta_validation_errors"))
-          ),
-          id    = ns("card_2_2"),
-          style = ""
-        ),
-        
-        # Validation report
-        bslib::card(
-          id    = ns("card_8"),
-          style = "display: none; height: fit-content; overflow: hidden;",
-          bslib::card_header(
-            "Report of validation check!",
-            id    = ns("card_header2_3"), class = "bg-danger",
-            bslib::tooltip(
-              bsicons::bs_icon("question-circle"),
-              "Green = All good! You can proceed. Red = Problems to fix in your metadata file. Return to 2.2, correct the file, and re-upload until all rows are green.",
-              placement = "right"
-            )
-          ),
-          bslib::card_body(
-            DT::DTOutput(ns("validation_table")),
-            shiny::uiOutput(ns("validation_message")),
-            style = "min-height: 0; padding: 10px;"
           )
         )
       ),
       
-      # Main content (right panel)
+      # =========================================================
+      # RIGHT PANEL
+      # =========================================================
       shiny::column(
-        9, style = "height: 100%;",
+        9,
         bslib::card(
           bslib::card_header("Overview of data structure"),
           bslib::card_body(
@@ -102,24 +94,44 @@ mod_tab2_ui <- function(id) {
           ),
           bslib::card_body(
             DT::DTOutput(ns("meta_table"))
-          ),
-          id    = ns("card_2_main"),
-          style = ""
+          )
         )
       )
     ),
-    br(),
     
-    # Download ZIP section (below full width)
+    # =========================================================
+    # VALIDATION + ZIP SECTION
+    # =========================================================
     shiny::fluidRow(
       shiny::column(
         12,
+        
         bslib::card(
-          id    = ns("card_9"),
-          class = "border border-0 text-center",
+          id = ns("validation_card"),
           style = "display: none;",
-          shiny::downloadButton(ns("download_zip"), "2.3 Download Exchange Files as ZIP", class = "btn btn-primary"),
-          shiny::uiOutput(ns("modal_ui"))
+          bslib::card_header(
+            "Validation Report",
+            id = ns("card_header2_3"),
+            class = "bg-danger"
+          ),
+          bslib::card_body(
+            DT::DTOutput(ns("validation_table")),
+            shiny::uiOutput(ns("validation_message"))
+          )
+        ),
+        
+        br(),
+        
+        bslib::card(
+          id = ns("zip_card"),
+          style = "display: none; text-align: center;",
+          bslib::card_body(
+            shiny::downloadButton(
+              ns("download_zip"),
+              "2.3 Download Exchange Files as ZIP",
+              class = "btn btn-primary"
+            )
+          )
         )
       )
     )
@@ -155,169 +167,245 @@ mod_tab2_ui <- function(id) {
 #' @importFrom lubridate year
 #' @importFrom tibble tibble
 #' 
-mod_tab2_server <- function(id, out_tab1) {
+mod_tab2_server <- function(id, ctx, meta_template_r) {
+  
   moduleServer(id, function(input, output, session) {
-
-    output$download_meta_template <- shiny::downloadHandler(
+    
+    # =========================================================
+    # STATE MACHINE
+    # =========================================================
+    tab2_state <- reactiveVal("empty")
+    validation_results <- reactiveVal(NULL)
+    
+    # =========================================================
+    # SAFETY: ensure temp folder exists
+    # =========================================================
+    observe({
+      if (is.null(ctx$files$temp_folder) || !dir.exists(ctx$files$temp_folder)) {
+        ctx$files$temp_folder <- tempdir()
+        message("📁 temp_folder set to: ", ctx$files$temp_folder)
+      }
+    })
+    
+    # =========================================================
+    # DEBUG
+    # =========================================================
+    observe({
+      message("📍 TAB2 CTX CHECK")
+      
+      if (is.null(ctx$files$obs_file)) {
+        message("❌ obs_file is NULL in TAB2")
+      } else {
+        message("✅ obs_file EXISTS in TAB2")
+      }
+    })
+    
+    # =========================================================
+    # FILE PATHS
+    # =========================================================
+    obs_file_path <- reactive({
+      req(ctx$files$obs_file)
+      ctx$files$obs_file$datapath
+    })
+    
+    meta_file_path <- reactive({
+      req(input$meta_file)
+      input$meta_file$datapath
+    })
+    
+    # =========================================================
+    # TEMPLATE DOWNLOAD
+    # =========================================================
+    output$download_meta_template <- downloadHandler(
       filename = function() {
-        paste0(out_tab1$dataset_name(), "_xylo_meta_", Sys.Date(), ".xlsx")
+        req(ctx$state$dataset_name)
+        paste0(ctx$state$dataset_name, "_xylo_meta_", Sys.Date(), ".xlsx")
       },
       content = function(file) {
-        shiny::withProgress(message = 'Processing metadata...', value = 0, {
-          shiny::setProgress(value = 0.2, detail = "Loading the template...")
-          
-          template_path <- system.file("extdata", "Datasetname_xylo_meta_yyyy-mm-dd.xlsx", package = "xyloR")
-          
-          shiny::setProgress(value = 0.5, detail = "Prefilling the template...")
-          meta_template <- create_xylo_metadata(out_tab1$obs_file()$datapath, template_path, destdir = out_tab1$temp_folder())
-          
-          shiny::setProgress(value = 0.8, detail = "Saving the file...")
-          
-            openxlsx::saveWorkbook(meta_template, file, overwrite = TRUE)
-          
-          
-          shiny::setProgress(value = 1, detail = "File ready for download")
-          shinyjs::addClass(id = "card_header2_1", class = "bg-success")
-          shinyjs::removeClass(id = "card_header2_1", class = "bg-danger")
-        })
+        
+        message("=== DOWNLOAD TRIGGERED ===")
+        message("CTX ID: ", ctx$.id)
+        
+        wb <- meta_template_r()
+        req(wb)
+        
+        openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
       }
     )
     
-    # output$download_example_meta <- shiny::downloadHandler(
-    #   filename = function() {
-    #     paste0("Example_Filled_Meta.xlsx")
-    #   },
-    #   content = function(file) {
-    #     # Define the template path
-    #     template_path <- system.file("extdata", "Ltal.2007_xylo_meta_2025-03-08.xlsx", package = "xyloR")
-    #     
-    #     # Load the template
-    #     obs_template <- openxlsx::loadWorkbook(template_path)
-    #     
-    #     # Save directly to the user-selected location
-    #       openxlsx::saveWorkbook(obs_template, file, overwrite = TRUE)
-    #   }
-    # )
-    # 
-    output$download_example_meta <- shiny::downloadHandler(
-      filename = function() {
-        # Define the filename dynamically, if needed
-        paste0("Example_xylo_meta.xlsx")
-      },
-      content = function(file) {
-        # Provide progress feedback to the user
-        shiny::withProgress(message = "Preparing the metadata file...", value = 0, {
-          
-          # Step 1: Define the template path
-          shiny::setProgress(value = 0.1, detail = "Locating template file...")
-          template_path <- system.file("extdata", "Ltal2007_xylo_meta_2025-09-01.xlsx", package = "xyloR")
-          
-          # Check if the template file exists
-          if (template_path == "") {
-            showNotification("Template file not found. Please contact support.", type = "error")
-            return(NULL)
-          }
-          
-          # Step 2: Load the template
-          shiny::setProgress(value = 0.5, detail = "Loading template...")
-          obs_template <- openxlsx::loadWorkbook(template_path)
-          
-          # Step 3: Save the workbook to the user-selected location
-          shiny::setProgress(value = 0.8, detail = "Saving file...")
-          openxlsx::saveWorkbook(obs_template, file, overwrite = TRUE)
-          
-          # Final step: Complete the progress bar
-          shiny::setProgress(value = 1, detail = "Download complete!")
-        })
-      }
-    )
-    
-    
-    # ============================================================================
-    # CARD 2.2: Validate uploaded metadata and observation files
-    # ============================================================================
-    
-    # Logging helper
-    log_step <- function(label, value = NULL) {
-      cat(paste0("[", Sys.time(), "] ", label, "\n"))
-      if (!is.null(value)) print(value)
-    }
-    
-    validation_results <- shiny::reactiveVal(NULL)
-    
-    shiny::observeEvent(input$meta_file, {
+    # =========================================================
+    # CREATE TEMPLATE
+    # =========================================================
+    observeEvent(ctx$files$obs_file, {
       
-      shiny::req(input$meta_file)
+      req(ctx$files$obs_file)
       
-      meta_file_saved <- normalizePath(
-        file.path(out_tab1$temp_folder(), input$meta_file$name),
-        winslash = "/", mustWork = FALSE
-      )
-      
-      log_step("meta_file_saved", meta_file_saved)
-      
-      if (!file.exists(meta_file_saved)) {
-        file.copy(input$meta_file$datapath, meta_file_saved, overwrite = TRUE)
-      }
-      
-      if (!file.exists(meta_file_saved)) {
-        shiny::showNotification("Metadata file path is invalid", type = "error")
+      # prevent loop
+      if (!is.null(ctx$files$meta_template)) {
+        message("⚠️ meta_template already exists → skipping")
         return()
       }
       
-      shiny::withProgress(message = 'Validating metadata...', value = 0, {
-        
-        shiny::setProgress(value = 0.2, detail = "Loading files...")
-        
-        # ----------------------------
-        # LOAD OBS OBJECT
-        # ----------------------------
-        obs_file_data <- out_tab1$obs_file()
-        
-        obs <- if (!is.null(obs_file_data) &&
-                   !is.null(obs_file_data$datapath) &&
-                   file.exists(obs_file_data$datapath)) {
-          
-          load_xylo_obs_clean(obs_file_data$datapath)
-          
-        } else {
-          NULL
-        }
-        
-        # ----------------------------
-        # LOAD META OBJECT
-        # ----------------------------
-        meta <- load_xylo_metadata_clean(input$meta_file$datapath)
-        meta <- normalize_xylo_metadata(meta)
-        
-        shiny::setProgress(value = 0.5, detail = "Running validation...")
-        
-        # ----------------------------
-        # RUN PIPELINE
-        # ----------------------------
-        tbl_validation <- validate_xylo_pipeline(
-          obs  = obs,
-          meta = meta
+      message("⚙️ Creating metadata template...")
+      
+      template_path <- system.file(
+        "extdata",
+        "Datasetname_xylo_meta_yyyy-mm-dd.xlsx",
+        package = "xyloR"
+      )
+      
+      ctx$files$meta_template <- tryCatch({
+        create_xylo_metadata(
+          ctx$files$obs_file$datapath,
+          template_path,
+          destdir = ctx$files$temp_folder
         )
+      }, error = function(e) {
+        message("❌ meta load failed: ", e$message)
         
-        validation_results(tbl_validation)
+        tab2_state("invalid")
         
-        shiny::setProgress(value = 1, detail = "Done")
+        # ✅ ADD THIS
+        shinyjs::removeClass("card_header2_2", "bg-success")
+        shinyjs::addClass("card_header2_2", "bg-danger")
+        
+        return(NULL)
+      })
+    }, ignoreInit = TRUE)
+    
+    # =========================================================
+    # VALIDATION
+    # =========================================================
+    observeEvent(input$meta_file, {
+      
+      req(input$meta_file)
+      
+      message("📥 TAB2: metadata uploaded")
+      
+      tab2_state("meta_loaded")
+      
+      # ✅ ADD THIS (2.2 COLOR FIX)
+      shinyjs::removeClass("card_header2_2", "bg-danger")
+      shinyjs::addClass("card_header2_2", "bg-success")
+      
+      obs <- if (!is.null(ctx$files$obs_file)) {
+        load_xylo_obs_clean(ctx$files$obs_file$datapath)
+      } else NULL
+      
+      meta_raw <- tryCatch({
+        load_xylo_metadata_clean(meta_file_path())
+      }, error = function(e) {
+        message("❌ meta load failed: ", e$message)
+        tab2_state("invalid")
+        return(NULL)
       })
       
-      if (!has_valid_obs) {
-        shiny::showNotification("Observation file is missing or invalid", type = "warning")
-      }
+      if (is.null(meta_raw)) return()
       
-      shinyjs::addClass(id = "card_header2_2", class = "bg-success")
-      shinyjs::removeClass(id = "card_header2_2", class = "bg-danger")
-      shinyjs::show("card_8")
+      tbl <- tryCatch({
+        
+        obs_val <- tryCatch({
+          xylo_format_validation(obs_file_path())
+        }, error = function(e) {
+          message("❌ obs validation failed: ", e$message)
+          data.frame(issue = "Observation validation failed")
+        })
+        
+        meta_val <- tryCatch({
+          meta_format_validation(meta_file_path())
+        }, error = function(e) {
+          
+          full_msg <- paste(capture.output(print(e)), collapse = " | ")
+          
+          message("❌ FULL meta validation error: ", full_msg)
+          
+          data.frame(
+            issue = "Metadata validation crashed",
+            detail = full_msg
+          )
+        })
+        
+        # ensure both are data.frames
+        if (is.null(obs_val))  obs_val  <- data.frame()
+        if (is.null(meta_val)) meta_val <- data.frame()
+        
+        rbind(obs_val, meta_val)
+        
+      }, error = function(e) {
+        message("❌ rbind failed: ", e$message)
+        data.frame(issue = "Validation failed (internal error)")
+      })
+      
+      validation_results(tbl)
+      
+      # =====================================================
+      # STATE DECISION
+      # =====================================================
+      if (is.null(tbl) || nrow(tbl) == 0) {
+        tab2_state("valid")
+      } else {
+        tab2_state("invalid")
+      }
     })
     
+    # =========================================================
+    # UI CONTROLLER (FIXED & COMPLETE)
+    # =========================================================
+    observe({
+      
+      state <- tab2_state()
+      message("📊 TAB2 STATE: ", state)
+      
+      # =====================================================
+      # ZIP BUTTON (ONLY VALID STATE)
+      # =====================================================
+      if (identical(state, "valid")) {
+        shinyjs::show("download_zip")
+      } else {
+        shinyjs::hide("download_zip")
+      }
+      
+      # =====================================================
+      # CARD VISIBILITY (ALWAYS SHOW AFTER ANY ACTION)
+      # =====================================================
+      if (state == "empty") {
+        
+        shinyjs::hide("zip_card")
+        
+      } else {
+        
+        if (identical(state, "valid")) {
+          shinyjs::show("zip_card")
+        } else {
+          shinyjs::hide("zip_card")
+        }
+      }
+      
+      # =====================================================
+      # HEADER COLOR (safe version)
+      # =====================================================
+      if (state == "valid") {
+        
+        shinyjs::addClass("card_header2_3", "bg-success")
+        shinyjs::removeClass("card_header2_3", "bg-danger")
+        
+      } else if (state == "invalid") {
+        
+        shinyjs::addClass("card_header2_3", "bg-danger")
+        shinyjs::removeClass("card_header2_3", "bg-success")
+        
+      } else {
+        
+        shinyjs::removeClass("card_header2_3", "bg-success")
+        shinyjs::removeClass("card_header2_3", "bg-danger")
+      }
+    })
     
-    # Render DT VALIDATION table
+    # =========================================================
+    # VALIDATION TABLE
+    # =========================================================
     output$validation_table <- DT::renderDataTable({
-      shiny::req(validation_results(), nrow(validation_results()) > 0)
+      req(validation_results(), nrow(validation_results()) > 0)
       
       DT::datatable(
         validation_results(),
@@ -342,26 +430,36 @@ mod_tab2_server <- function(id, out_tab1) {
       )
     })
     
-    # Render OUTPUT VALIDATION REPORT
-    output$validation_message <- shiny::renderUI({
-      tbl <- validation_results()
+    # =========================================================
+    # VALIDATION MESSAGE
+    # =========================================================
+    output$validation_message <- renderUI({
       
-      if (is.null(tbl) || nrow(tbl) == 0) {
-        # Apply success styling
-        shinyjs::addClass(id = "card_header2.3", class = "bg-success")
-        shinyjs::removeClass(id = "card_header2.3", class = "bg-danger")
-        shinyjs::show("card_9")
+      tbl <- validation_results()
+      state <- tab2_state()
+      
+      # ❌ NOTHING YET
+      if (state == "empty") {
+        return(NULL)
+      }
+      
+      # ✅ SUCCESS
+      if (!is.null(tbl) && nrow(tbl) == 0) {
+        
+        shinyjs::addClass("card_header2_3", "bg-success")
+        shinyjs::removeClass("card_header2_3", "bg-danger")
+        shinyjs::show("zip_card")
         
         return(
           htmltools::div(
-            class = "alert alert-success p-3 rounded",  # Bootstrap alert with padding
+            class = "alert alert-success p-3 rounded",
             shiny::tags$h4(
-              shiny::icon("check-circle"),  # Success icon
-              " Success!", 
+              shiny::icon("check-circle"),
+              " Success!",
               class = "mb-2"
             ),
             shiny::tags$p(
-              "Congratulations! Your files are ready to be submitted.", 
+              "Congratulations! Your files are ready to be submitted.",
               class = "mb-2"
             ),
             shiny::tags$p(
@@ -371,297 +469,125 @@ mod_tab2_server <- function(id, out_tab1) {
             )
           )
         )
-      } else {
-        # Apply error styling
-        shinyjs::addClass(id = "card_header2.3", class = "bg-danger")
-        shinyjs::removeClass(id = "card_header2.3", class = "bg-success")
+      }
+      
+      # ⚠️ ERRORS
+      if (!is.null(tbl) && nrow(tbl) > 0) {
+        
+        shinyjs::addClass("card_header2_3", "bg-danger")
+        shinyjs::removeClass("card_header2_3", "bg-success")
+        shinyjs::show("zip_card")
         
         return(
           htmltools::div(
-            class = "alert alert-danger p-3 rounded",  # Bootstrap alert for errors
+            class = "alert alert-danger p-3 rounded",
             shiny::tags$h4(
-              shiny::icon("exclamation-triangle"),  # Error icon
-              " Validation Issues Found!", 
+              shiny::icon("exclamation-triangle"),
+              " Validation Issues Found!",
               class = "mb-2"
             ),
             shiny::tags$p(
               "Please review the validation issues listed above, before proceeding.",
               class = "mb-3"
-            ),
-           )
+            )
+          )
         )
       }
-    })
-    
-    # ============================================================================
-    # CARD 2.3: Validation message box
-    # ============================================================================
-    
-    output$validation_message <- shiny::renderUI({
-      tbl <- validation_results()
       
-      if (is.null(tbl) || nrow(tbl) == 0) {
-        shinyjs::addClass(id = "card_header2_3", class = "bg-success")
-        shinyjs::removeClass(id = "card_header2_3", class = "bg-danger")
-        shinyjs::show("card_9")
+      # ⏳ LOADING STATE
+      if (state == "meta_loaded") {
         
-        htmltools::div(
-          class = "alert alert-success p-3 rounded",
-          shiny::tags$h4(icon("check-circle"), " Success!", class = "mb-2"),
-          shiny::tags$p("Congratulations! Your files are ready to be submitted.", class = "mb-2"),
-          shiny::tags$p("You can now click on the button ",
-                        shiny::tags$b("'Download exchange files as ZIP'!"), class = "mb-0")
-        )
-      } else {
-        shinyjs::addClass(id = "card_header2_3", class = "bg-danger")
-        shinyjs::removeClass(id = "card_header2_3", class = "bg-success")
+        shinyjs::show("zip_card")
         
-        htmltools::div(
-          class = "alert alert-danger p-3 rounded",
-          shiny::tags$h4(icon("exclamation-triangle"), " Validation Issues Found!", class = "mb-2"),
-          shiny::tags$p("Please review the validation issues listed before proceeding.", class = "mb-3")
+        return(
+          htmltools::div(
+            class = "alert alert-info p-3 rounded",
+            shiny::tags$h4("Processing..."),
+            shiny::tags$p("Running validation...")
+          )
         )
       }
     })
     
-    
-    # ============================================================================
-    # CARD 2.4: Hierarchical plotting from metadata (sunburst plot)
-    # ============================================================================
-
-    # Enable submit button only if validation is successful
-    shiny::observe({
-      tbl <- validation_results()
-      shinyjs::toggleState(id = "download_zip", condition = !is.null(tbl) && nrow(tbl) == 0)
+    # =========================================================
+    # HIERARCHY
+    # =========================================================
+    df_hierarchy_reactive <- reactive({
+      req(meta_file_path())
+      meta_raw <- load_xylo_metadata_clean(meta_file_path())
+      build_xylo_hierarchy(meta_raw)
     })
     
-    # Folder path where the files will be saved
-    # output$download_zip <- shiny::downloadHandler(
-    #   filename = function() {
-    #     shiny::req(out_tab1$dataset_name())
-    #     paste(out_tab1$dataset_name(), "_Exchange_Files_", Sys.Date(), ".zip", sep = "")
-    #   },
-    #   
-    #   content = function(file) {
-    #     
-    #     # Get the paths to the uploaded final files
-    #     # req(input$obs_file, input$meta_file)
-    #     # obs_file_path <- input$obs_file$name
-    #     # meta_file_path <- input$meta_file$name
-    #     # Define paths to the saved files in the reactive temp folder
-    #     obs_file_saved <- file.path(out_tab1$temp_folder(), basename(out_tab1$obs_file()$name))
-    #     meta_file_saved <- file.path(out_tab1$temp_folder(), basename(input$meta_file$name))
-    #     
-    #     
-    #     # Call the function to process and save the exchange files
-    #     result <- tryCatch({
-    #       print("obs_file_saved")
-    #       print(obs_file_saved)
-    #       print("meta_file_saved")
-    #       print(meta_file_saved)
-    #       print("out_tab1$temp_folder()")
-    #       print(out_tab1$temp_folder())
-    #       print("out_tab1$dataset_name()")
-    #       print(out_tab1$dataset_name())
-    #       
-    #       to_exchange_files(obs_file_saved, meta_file_saved, dir = out_tab1$temp_folder(), dataset_name = out_tab1$dataset_name())  # Process the files
-    #     }, error = function(e) {
-    #       stop(paste("Error: ", e$message))
-    #     })
-    #     
-    #     # print(list.files(temp_folder()))
-    #     
-    #     # List all files inside the folder without the parent directory
-    #     files_to_zip <- list.files(out_tab1$temp_folder(), full.names = TRUE, recursive = TRUE)
-    #     
-    #     # Clean the file paths, removing any redundant slashes
-    #     files_to_zip <- gsub("//", "/", files_to_zip)
-    #     
-    #     # Compress the files into a ZIP file, avoiding the parent folder structure
-    #     zip::zipr(zipfile = file, files = files_to_zip)      
-    #   }
-    # )
-    # 
-    # # Placeholder for modal UI output (if needed)
-    # output$modal_ui <- renderUI({
-    #   NULL
-    # })
-    # 
+    output$hierarchical_structure <- renderPlotly({
+      
+      df <- df_hierarchy_reactive()
+      
+      plotly::plot_ly(
+        data = df,
+        ids = ~id,
+        labels = ~text,
+        parents = ~parent,
+        values = ~value,
+        type = "sunburst"
+      ) %>%
+        layout(
+          paper_bgcolor = "#1E1E1E",
+          plot_bgcolor  = "#1E1E1E",
+          font = list(color = "white")
+        )
+    })
     
-    output$download_zip <- shiny::downloadHandler(
+    # =========================================================
+    # META TABLE
+    # =========================================================
+    output$meta_table <- DT::renderDataTable({
+      
+      meta_raw <- load_xylo_metadata_clean(meta_file_path())
+      
+      df_joined <- dplyr::left_join(
+        meta_raw[["sample"]],
+        meta_raw[["tree"]],
+        by = "tree_label"
+      ) |>
+        dplyr::left_join(meta_raw[["site"]], by = "site_label")
+      
+      DT::datatable(df_joined, filter = "top", class = "table-dark")
+    })
+    
+    # =========================================================
+    # ZIP DOWNLOAD (FIXED SAFETY)
+    # =========================================================
+    output$download_zip <- downloadHandler(
       filename = function() {
-        shiny::req(out_tab1$dataset_name())
-        
-        paste0(
-          out_tab1$contact_lastname(), "_",
-          out_tab1$dataset_name(), "_",
-          out_tab1$version(), "_",
-          Sys.Date(),
-          ".zip"
-        )
+        req(ctx$state$dataset_name)
+        paste0(ctx$state$dataset_name, "_", Sys.Date(), ".zip")
       },
-      
       content = function(file) {
         
-        shiny::withProgress(message = "Preparing exchange files...", value = 0, {
-          
-          setProgress(0.2, "Checking files")
-          
-          obs_file_saved <- file.path(
-            out_tab1$temp_folder(),
-            basename(out_tab1$obs_file()$name)
-          )
-          
-          meta_file_saved <- file.path(
-            out_tab1$temp_folder(),
-            basename(input$meta_file$name)
-          )
-          
-          # safety check (KEEP THIS in Shiny, NOT in function)
-          if (!file.exists(obs_file_saved)) {
-            shiny::showModal(modalDialog(
-              title = "Error",
-              "Observation file missing.",
-              easyClose = TRUE
-            ))
-            return()
-          }
-          
-          if (!file.exists(meta_file_saved)) {
-            shiny::showModal(modalDialog(
-              title = "Error",
-              "Metadata file missing.",
-              easyClose = TRUE
-            ))
-            return()
-          }
-          
-          setProgress(0.5, "Building exchange files")
-          
-          tryCatch({
-            
-            create_exchange_zip(
-              obs_file = obs_file_saved,
-              meta_file = meta_file_saved,
-              output_zip = file,
-              temp_dir = out_tab1$temp_folder(),
-              dataset_name = out_tab1$dataset_name(),
-              version = out_tab1$version(),
-              embargo = out_tab1$embargo(),
-              description = out_tab1$description()
-            )
-            
-          }, error = function(e) {
-            
-            shiny::showModal(modalDialog(
-              title = "Error",
-              paste("Processing failed:", e$message),
-              easyClose = TRUE
-            ))
-            
-          })
-          
-          setProgress(1, "Done")
-        })
+        obs_file <- obs_file_path()
+        meta_file <- meta_file_path()
+        
+        req(file.exists(obs_file), file.exists(meta_file))
+        
+        if (is.null(ctx$files$temp_folder) || !dir.exists(ctx$files$temp_folder)) {
+          stop("temp_folder is missing or invalid")
+        }
+        
+        to_exchange_files(
+          obs_file,
+          meta_file,
+          dir = ctx$files$temp_folder,
+          dataset_name = ctx$state$dataset_name,
+          version = ctx$state$version,
+          embargo = ctx$state$embargo,
+          description = ctx$state$description
+        )
+        
+        files <- list.files(ctx$files$temp_folder, full.names = TRUE)
+        zip::zipr(file, files)
       }
     )
     
-    
-    # ============================================================================
-    # CARD 2.4: Hierarchical plotting from metadata (sunburst plot)
-    # ============================================================================
-    
-    df_hierarchy <- reactive({
-      req(input$meta_file$datapath)
-      build_metadata_hierarchy(input$meta_file$datapath)
-    })
-    
-    
-    
-    # Render the sunburst plot
-    output$hierarchical_structure <- plotly::renderPlotly({
-      df_hierarchy <- df_hierarchy()
-      plotly::plot_ly(
-        data = df_hierarchy, 
-        ids = ~id, 
-        labels = ~text, 
-        parents = ~parent, 
-        values = ~value, 
-        type = "sunburst",
-        source = "sunburst_selection"
-      ) %>%
-        plotly::layout(paper_bgcolor = "#1E1E1E")
-    })
-    
-    
-    # ============================================================================
-    # CARD 2.4: View data table
-    # ============================================================================
-    
-    # Render the summary table based on selection
-    output$meta_table <- DT::renderDataTable({
-      shiny::req(input$meta_file$datapath)
-      
-      # Load the meta file
-      meta_file <- input$meta_file$datapath
-      sheet_names <- setdiff(readxl::excel_sheets(meta_file), c("instructions", "DropList", "ListOfVariables"))
-      sheet_data <- setNames(lapply(sheet_names, function(sheet) readxl::read_excel(meta_file, sheet = sheet)[-1:-6,]), sheet_names)
-      
-      # Join sample, tree, and site data and group by relevant columns
-      df_joined <- dplyr::left_join(sheet_data[["sample"]], sheet_data[["tree"]], by = "tree_label") %>%
-        dplyr::left_join(sheet_data[["site"]], by = c("site_label", "plot_label")) %>%
-        dplyr::group_by(network_label, site_label, plot_label, tree_label, year = lubridate::year(as.Date(as.numeric(sample_date), origin = "1899-12-30")), sample_id) %>%
-        dplyr::summarise(n = dplyr::n(), .groups = "drop")  # Ensure correct summarization
-      
-      # Capture selection from sunburst plot
-      selection <- plotly::event_data("plotly_click", source = "sunburst_selection")
-      
-      # Filter data based on selection
-      if (!is.null(selection)) {
-        point_number <- selection$pointNumber
-        df_hierarchy <- df_hierarchy()  # Access the reactive df_hierarchy
-        selected_row <- df_hierarchy[point_number + 1, ]  # Adding 1 because point Number is 0-based
-        
-        # Split the 'id' of the selected row into components
-        site_label_split <- strsplit(as.character(selected_row$id), "__")[[1]][2]  # Site label (2nd element)
-        plot_label_split <- strsplit(as.character(selected_row$id), "__")[[1]][3]  # Plot label (3rd element)
-        tree_label_split <- strsplit(as.character(selected_row$id), "__")[[1]][4]  # Tree label (4th element)
-        
-        # Filter df_joined based on selected row in df_hierarchy
-        df_joined <- df_joined %>%
-          dplyr::filter(
-            (is.na(site_label_split) | site_label == site_label_split) &
-              (is.na(plot_label_split) | plot_label == plot_label_split) &
-              (is.na(tree_label_split) | tree_label == tree_label_split)
-          )
-      }
-      
-      # Render the table with filtered data
-      DT::datatable(
-        df_joined,
-        options = list(
-          paging = TRUE,
-          searching = TRUE,
-          autoWidth = TRUE,
-          dom = 'Blfrtip',  # Show table (no search/pagination)
-          scrollX = FALSE,
-          scrollY = TRUE,
-          columnDefs = list(
-            list(className = 'dt-center', targets = "_all")  # Center-align all columns
-          )
-        ),
-        filter = "top",
-        class = "table-dark"  # Apply dark theme
-      )
-    })
-    
-    return(
-      list(
-        meta_file = reactive(input$meta_file),
-        validation_results = validation_results
-      )
-    )
-
   })
 }
 

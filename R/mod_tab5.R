@@ -66,123 +66,73 @@ mod_tab5_ui <- function(id) {
 #' @importFrom magrittr %>%
 #' 
 #' @export
-mod_tab5_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
+mod_tab5_server <- function(id, ctx) {
   moduleServer(id, function(input, output, session) {
     
-    # TAB 5 tree: -------------------------------------------------------------------
+    # =========================================================
+    # LOCAL STATE
+    # =========================================================
+    tbl5_data <- shiny::reactiveVal(NULL)
     
-
-    #### dtree  ####
-    dtree <- shiny::reactiveVal()
-    
-    shiny::observe({
-      shiny::req(out_tab2$meta_file)  # Ensure file is uploaded
+    # =========================================================
+    # INITIAL LOAD
+    # =========================================================
+    observe({
       
-      # Read the dataset
-      tree_meta_info <- openxlsx::readWorkbook(out_tab3$WB_meta(), sheet = "tree", startRow = 1, colNames = TRUE)[-(1:6), ] %>%
-        tibble::tibble() 
-      dtree(tree_meta_info)  # Store in reactive value
+      req(ctx$files$wb_meta)
+      
+      df <- openxlsx::readWorkbook(
+        ctx$files$wb_meta,
+        sheet = "tab5",
+        startRow = 1,
+        colNames = TRUE
+      )
+      
+      df <- df[-(1:ctx$config$skip_rows_excel), , drop = FALSE] |>
+        tibble::as_tibble()
+      
+      tbl5_data(df)
+      ctx$data$tbl5 <- df
     })
     
-    # # INITALIZE REACTIVE INPUT DATA
-    # data_meta <- reactiveValues()
-    
-    # Reactive context to store initial data and ensure it's updated in a proper context
-    shiny::observe({
-      out_tab4$data_meta$tbl4 <- dtree()  # Access dinfo in a valid reactive context
+    # =========================================================
+    # SYNC TABLE EDITS
+    # =========================================================
+    observeEvent(input$tbl5, {
+      req(input$tbl5)
       
+      df <- rhandsontable::hot_to_r(input$tbl5)
+      
+      tbl5_data(df)
+      ctx$data$tbl5 <- df
     })
     
-    # Species_family
-    species_family <- shiny::reactiveVal()
-    
-    # Read the initial data for Species families
-    shiny::observe({
-      shiny::req(out_tab3$WB_meta())
-      df <- openxlsx::readWorkbook(out_tab3$WB_meta(), sheet = "DropList", colNames = TRUE) %>%
-        dplyr::select(tree_species,	species_code,	phylogenetic_group,	leaf_habit,	tree_ring_structure) %>%
-        data.frame(stringsAsFactors = FALSE)
-      species_family(df)
-    })
-    
-    # Function to synchronize Species data
-    sync_species_code <- function(df, species_family, remove_na = TRUE) {
-      if (remove_na) {
-        df <- df %>%
-          dplyr::filter(!is.na(tree_species) & tree_species != "")
-      }
+    # =========================================================
+    # RENDER TABLE
+    # =========================================================
+    output$tbl5 <- rhandsontable::renderRHandsontable({
+      req(tbl5_data())
       
-      updated <- df %>%
-        dplyr::left_join(
-          species_family,
-          by = "tree_species",
-          suffix = c("", "_from_list")
-        ) %>%
-        dplyr::mutate(
-          species_code = species_code_from_list,	
-          phylogenetic_group = phylogenetic_group_from_list,
-          leaf_habit = leaf_habit_from_list,
-          tree_ring_structure = tree_ring_structure_from_list
-        ) %>%
-        dplyr::select(-dplyr::ends_with("_from_list"))
-      
-      return(updated)
-    }
-    
-    # RENDER TABLES
-    output$tbl4 <- rhandsontable::renderRHandsontable({
-      shiny::req(out_tab4$data_meta$tbl4)  # Ensure data is available
       rhandsontable::rhandsontable(
-        out_tab4$data_meta$tbl4,
-        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all') %>%
-        hot_col_wrapper('site_label', out_tab3$column_configs()$tbl4$site_label) %>%
-        hot_col_wrapper('tree_label', out_tab3$column_configs()$tbl4$tree_label) %>%
-        hot_col_wrapper('suggested_tree_code', out_tab3$column_configs()$tbl4$suggested_tree_code) %>%
-        hot_col_wrapper('plot_label', out_tab3$column_configs()$tbl4$plot_label) %>%
-        hot_col_wrapper('suggested_plot_code', out_tab3$column_configs()$tbl4$suggested_plot_code) %>%
-        hot_col_wrapper('tree_species', out_tab3$column_configs()$tbl4$tree_species) %>%
-        hot_col_wrapper('species_code', out_tab3$column_configs()$tbl4$species_code) %>%
-        hot_col_wrapper('phylogenetic_group', out_tab3$column_configs()$tbl4$phylogenetic_group) %>%
-        hot_col_wrapper('leaf_habit', out_tab3$column_configs()$tbl4$leaf_habit) %>%
-        hot_col_wrapper('tree_ring_structure', out_tab3$column_configs()$tbl4$tree_ring_structure) %>%
-        hot_col_wrapper('tree_treatment', out_tab3$column_configs()$tbl4$tree_treatment) %>%
-        hot_col_wrapper('tree_sampling_pattern', out_tab3$column_configs()$tbl4$tree_sampling_pattern) %>%
-        hot_col_wrapper('tree_dbh', out_tab3$column_configs()$tbl4$tree_dbh) %>%
-        hot_col_wrapper('tree_height', out_tab3$column_configs()$tbl4$tree_height) %>%
-        hot_col_wrapper('tree_age', out_tab3$column_configs()$tbl4$tree_age) %>%
-        hot_col_wrapper('tree_sex', out_tab3$column_configs()$tbl4$tree_sex) %>% 
-        hot_col_wrapper('tree_social_status', out_tab3$column_configs()$tbl4$tree_social_status) %>%
-        hot_col_wrapper('tree_health_status', out_tab3$column_configs()$tbl4$tree_health_status) %>%
-        hot_col_wrapper('tree_origin', out_tab3$column_configs()$tbl4$tree_origin) %>%
-        hot_col_wrapper('tree_latitude', out_tab3$column_configs()$tbl4$tree_latitude) %>% 
-        hot_col_wrapper('tree_longitude', out_tab3$column_configs()$tbl4$tree_longitude) %>%
-        hot_col_wrapper('on_tree_dendrometer_monitoring', out_tab3$column_configs()$tbl4$on_tree_dendrometer_monitoring) %>%
-        hot_col_wrapper('on_tree_sapflux_monitoring', out_tab3$column_configs()$tbl4$on_tree_sapflux_monitoring) %>%
-        hot_col_wrapper('on_tree_primary_phenological_observation', out_tab3$column_configs()$tbl4$on_tree_primary_phenological_observation) %>%
-        hot_col_wrapper('on_tree_weather_monitoring', out_tab3$column_configs()$tbl4$on_tree_weather_monitoring) %>%
-        hot_col_wrapper('on_tree_shoot_growth_monitoring', out_tab3$column_configs()$tbl4$on_tree_shoot_growth_monitoring) %>%
-        hot_col_wrapper('tree_ring_width_data', out_tab3$column_configs()$tbl4$tree_ring_width_data) %>%
-        hot_col_wrapper('tree_ring_density_data', out_tab3$column_configs()$tbl4$tree_ring_density_data) %>%
-        hot_col_wrapper('tree_ring_anatomical_data', out_tab3$column_configs()$tbl4$tree_ring_anatomical_data) %>%
-        hot_col_wrapper('tree_ring_isotope_data', out_tab3$column_configs()$tbl4$tree_ring_isotope_data) %>%
-        hot_col_wrapper('number_of_samples', out_tab3$column_configs()$tbl4$number_of_samples) %>%
-        hot_col_wrapper('tree_comment', out_tab3$column_configs()$tbl4$tree_comment)
+        tbl5_data(),
+        rowHeaders = NULL,
+        stretchH = "all",
+        selectCallback = TRUE,
+        height = 150
+      )
     })
     
-    # Sync data on user input
-    shiny::observeEvent(input$tbl4, {
-      shiny::req(input$tbl4)
-      user_data <- rhandsontable::hot_to_r(input$tbl4)
-      out_tab4$data_meta$tbl4 <- sync_species_code(user_data, species_family())
-    })
-    
-    shiny::observeEvent(input$save_tree, {
+    # =========================================================
+    # SAVE
+    # =========================================================
+    observeEvent(input$save_tab5, {
+      
       save_and_validate(
-        data_reactive = out_tab4$data_meta$tbl4,
-        sheet_name = "tree",
-        wb_reactive = out_tab3$WB_meta,
-        temp_folder = out_tab1$temp_folder,
-        update_validation = out_tab2$validation_results
+        data_reactive = ctx$data$tbl5,
+        sheet_name = "tab5",
+        wb_reactive = ctx$files$wb_meta,
+        temp_folder = ctx$files$temp_folder,
+        update_validation = ctx$validation$results
       )
     })
     

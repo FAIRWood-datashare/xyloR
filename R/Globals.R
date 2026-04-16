@@ -6,6 +6,12 @@ library(shinyjs)
 library(bslib)
 library(openxlsx)
 
+
+source("R/rules.R")
+source("R/rule_engine_ui.R")
+
+
+
 # 2) Pure helper functions (no `input`, no `reactive()`)
 hot_col_wrapper <- function(ht, col, col_config) {
   readOnly <- ifelse(is.null(col_config$readOnly), FALSE, col_config$readOnly)

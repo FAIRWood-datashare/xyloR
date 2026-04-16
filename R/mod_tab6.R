@@ -69,93 +69,160 @@ mod_tab6_ui <- function(id) {
 #' 
 #' 
 #' @export
-mod_tab6_server <- function(id, out_tab1, out_tab2, out_tab3, out_tab4) {
+mod_tab6_server <- function(id, ctx) {
   moduleServer(id, function(input, output, session) {
     
-
-    # TAB 6 sample: -------------------------------------------------------------------
+    # =========================================================
+    # LOCAL STATE (SOURCE OF TRUTH INSIDE MODULE)
+    # =========================================================
+    tbl6_data <- shiny::reactiveVal(NULL)
+    selected_row <- shiny::reactiveVal(NULL)
     
-    #### dsample  ####
-    dsample <- shiny::reactiveVal()
-    
-    shiny::observe({
-      req(out_tab2$meta_file)  # Ensure file is uploaded
-      
-      # Read the dataset
-      sample_meta_info <- openxlsx::readWorkbook(out_tab3$WB_meta(), sheet = "sample", startRow = 1, colNames = TRUE)[-(1:6), ] %>%
-        tibble::tibble()
-      
-      # Check if sample_date is numeric and convert to Date
-      sample_meta_info <- sample_meta_info %>%
-        dplyr::mutate(
-          sample_date = dplyr::case_when(
-            # If sample_date is numeric (Excel date format)
-            !is.na(sample_date) & is.numeric(as.numeric(sample_date)) ~
-              as.Date(as.numeric(sample_date), origin = "1899-12-30"),
-            
-            TRUE ~ as.Date(NA)  # Handle NAs
-          )
-        ) %>% 
-        dplyr::mutate(sample_date = as.character(sample_date))
-      
-      dsample(sample_meta_info)  # Store in reactive value
-    })
-    
-    # # INITALIZE REACTIVE INPUT DATA
-    # data_meta <- reactiveValues()
-    
-    # Reactive context to store initial data and ensure it's updated in a proper context
+    # =========================================================
+    # INITIAL LOAD
+    # =========================================================
     observe({
-      out_tab4$data_meta$tbl5 <- dsample()  # Access dinfo in a valid reactive context
+      req(ctx$files$wb_meta)
+      
+      df <- openxlsx::readWorkbook(
+        ctx$files$wb_meta,
+        sheet = "person",
+        startRow = 1,
+        colNames = TRUE
+      )
+      
+      df <- df[-(1:ctx$config$skip_rows_excel), , drop = FALSE] |>
+        tibble::as_tibble()
+      
+      tbl6_data(df)
+      
+      # SAFE WRITE TO CTX (OK)
+      ctx$data$tbl6 <- df
     })
     
-    # RENDER TABLES
-    output$tbl5 <- rhandsontable::renderRHandsontable({
-      shiny::req(out_tab4$data_meta$tbl5)  # Ensure data is available
+    # =========================================================
+    # SYNC TABLE EDITS
+    # =========================================================
+    observeEvent(input$tbl6, {
+      req(input$tbl6)
+      
+      df <- rhandsontable::hot_to_r(input$tbl6)
+      
+      tbl6_data(df)
+      
+      # SAFE WRITE ONLY
+      ctx$data$tbl6 <- df
+    })
+    
+    # =========================================================
+    # SELECTION
+    # =========================================================
+    observeEvent(input$tbl6_select$select$r, {
+      selected_row(input$tbl6_select$select$r)
+    })
+    
+    # =========================================================
+    # ADD / UPDATE
+    # =========================================================
+    observeEvent(input$add_person, {
+      
+      req(tbl6_data())
+      
+      new_row <- tibble::tibble(
+        person_role = input$person_role,
+        person_order = as.integer(input$person_order),
+        last_name = input$last_name,
+        first_name = input$first_name,
+        email = input$email,
+        orcid = input$orcid,
+        main_organization_name = input$main_organization_name,
+        main_organization_registry = input$main_organization_registry,
+        department = input$department,
+        street = input$street,
+        postal_code = input$postal_code,
+        city = input$city,
+        organization_country = input$organization_country,
+        organization_country_code = input$organization_country_code
+      )
+      
+      df <- tbl6_data()
+      
+      if (!is.null(selected_row())) {
+        df[selected_row(), ] <- new_row
+      } else {
+        df <- dplyr::bind_rows(df, new_row)
+      }
+      
+      tbl6_data(df)
+      ctx$data$tbl6 <- df
+      
+      selected_row(NULL)
+    })
+    
+    # =========================================================
+    # DELETE
+    # =========================================================
+    observeEvent(input$delete_person, {
+      
+      req(selected_row())
+      
+      df <- tbl6_data()
+      i <- selected_row()
+      
+      if (!is.null(i) && i <= nrow(df)) {
+        df <- df[-i, , drop = FALSE]
+      }
+      
+      tbl6_data(df)
+      ctx$data$tbl6 <- df
+      
+      selected_row(NULL)
+    })
+    
+    # =========================================================
+    # ORDER
+    # =========================================================
+    observeEvent(input$apply_order, {
+      
+      df <- tbl6_data()
+      
+      df$person_order <- as.integer(df$person_order)
+      df <- df[order(df$person_order), , drop = FALSE]
+      df$person_order <- seq_len(nrow(df))
+      
+      tbl6_data(df)
+      ctx$data$tbl6 <- df
+    })
+    
+    # =========================================================
+    # RENDER
+    # =========================================================
+    output$tbl6 <- rhandsontable::renderRHandsontable({
+      
+      req(tbl6_data())
+      
       rhandsontable::rhandsontable(
-        out_tab4$data_meta$tbl5,
-        rowHeaders = NULL, contextMenu = TRUE, stretchH = 'all') %>%
-        hot_col_wrapper('tree_label', out_tab3$column_configs()$tbl5$tree_label) %>%
-        hot_col_wrapper('sample_id', out_tab3$column_configs()$tbl5$sample_id) %>%
-        hot_col_wrapper('sample_date', out_tab3$column_configs()$tbl5$sample_date) %>%
-        hot_col_wrapper('sample_label', out_tab3$column_configs()$tbl5$sample_label) %>%
-        hot_col_wrapper('suggested_sample_code', out_tab3$column_configs()$tbl5$suggested_sample_code) %>%
-        hot_col_wrapper('sample_organ', out_tab3$column_configs()$tbl5$sample_organ) %>%
-        hot_col_wrapper('sample_type', out_tab3$column_configs()$tbl5$sample_type) %>%
-        hot_col_wrapper('sample_embedding', out_tab3$column_configs()$tbl5$sample_embedding) %>%
-        hot_col_wrapper('sample_staining_method', out_tab3$column_configs()$tbl5$sample_staining_method) %>%
-        hot_col_wrapper('sample_mounting_method', out_tab3$column_configs()$tbl5$sample_mounting_method) %>%
-        hot_col_wrapper('sample_observation_method', out_tab3$column_configs()$tbl5$sample_observation_method) %>%
-        hot_col_wrapper('sample_image_file_name', out_tab3$column_configs()$tbl5$sample_image_file_name) %>%
-        hot_col_wrapper('sample_section_archived', out_tab3$column_configs()$tbl5$sample_section_archived) %>%
-        hot_col_wrapper('sample_archived', out_tab3$column_configs()$tbl5$sample_archived) %>%
-        hot_col_wrapper('sample_image_archived', out_tab3$column_configs()$tbl5$sample_image_archived) %>%
-        hot_col_wrapper('sample_image_annotated', out_tab3$column_configs()$tbl5$sample_image_annotated) %>%
-        hot_col_wrapper('sampling_height', out_tab3$column_configs()$tbl5$sampling_height) %>%
-        hot_col_wrapper('sample_apex_distance', out_tab3$column_configs()$tbl5$sample_apex_distance) %>%
-        hot_col_wrapper('section_thickness', out_tab3$column_configs()$tbl5$section_thickness) %>%
-        hot_col_wrapper('coupled_anatomical_data', out_tab3$column_configs()$tbl5$coupled_anatomical_data) %>%
-        hot_col_wrapper('reaction_wood', out_tab3$column_configs()$tbl5$reaction_wood) %>%
-        hot_col_wrapper('sample_comment', out_tab3$column_configs()$tbl5$sample_comment)
-    }) 
-    
-    # Sync data on user input
-    shiny::observeEvent(input$tbl5, {
-      shiny::req(input$tbl5)
-      out_tab4$data_meta$tbl5 <- rhandsontable::hot_to_r(input$tbl5)
-      # Update the reactive data object
+        tbl6_data(),
+        rowHeaders = NULL,
+        stretchH = "all",
+        selectCallback = TRUE,
+        height = 150
+      )
     })
     
-    shiny::observeEvent(input$save_sample, {
+    # =========================================================
+    # SAVE
+    # =========================================================
+    observeEvent(input$save_person, {
+      
       save_and_validate(
-        data_reactive = out_tab4$data_meta$tbl5,
-        sheet_name = "sample",
-        wb_reactive = out_tab3$WB_meta,
-        temp_folder = out_tab1$temp_folder,
-        update_validation = out_tab2$validation_results
+        data_reactive = tbl6_data(),   # 👈 IMPORTANT FIX
+        sheet_name = "person",
+        wb_reactive = ctx$files$wb_meta,
+        temp_folder = ctx$files$temp_folder,
+        update_validation = ctx$validation$results
       )
     })
     
   })
-  
 }

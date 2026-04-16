@@ -7,7 +7,7 @@
 create_xylo_metadata(
   xylo_file,
   template_meta,
-  destdir = out_tab1$temp_folder(),
+  destdir = NULL,
   output_name = NULL
 )
 }
