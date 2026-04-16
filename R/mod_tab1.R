@@ -28,11 +28,7 @@
 mod_tab1_ui <- function(id) {
   ns <- shiny::NS(id)
 
-  # ─── Panel wrapper ──────────────────────────────────────────────
-  bslib::nav_panel(
-    title = shiny::div(id = ns("upload_observation"), "1. Upload observation"),
-    value = "Upload observation",
-    shiny::fluidRow(
+   shiny::fluidRow(
       # ─── Left column: Upload section ─────────────────────────────
       shiny::column(
         width = 3,
@@ -146,7 +142,7 @@ mod_tab1_ui <- function(id) {
 
         # 1.3 Upload file
         bslib::card(
-          card_header(
+          bslib::card_header(
             "1.3 Upload the filled observation data file!",
             id = ns("card_header1_3"), class = "bg-danger",
             bslib::tooltip(
@@ -227,7 +223,6 @@ mod_tab1_ui <- function(id) {
           style = "display: none;",
           id = ns("card_6")
         )
-      )
     ),
     shiny::br()
   )
@@ -255,70 +250,413 @@ mod_tab1_ui <- function(id) {
 #' @importFrom shinyjs addClass removeClass show runjs
 #' @importFrom openxlsx loadWorkbook saveWorkbook readWorkbook
 #' @importFrom dplyr tibble filter
-mod_tab1_server <- function(id, ctx) {
+mod_tab1_server <- function(id, ctx, parent_session) {
+  
   moduleServer(id, function(input, output, session) {
     
-    observe({
-      cat("\n🔥 TAB1 DEBUG STATE 🔥\n")
-      print(ctx$state)
-      print(ctx$files)
-    })
+    # =========================================================
+    # STATE SYNC
+    # =========================================================
+    observeEvent(input$dataset_name, ctx$state$dataset_name <- input$dataset_name)
+    observeEvent(input$version,      ctx$state$version      <- input$version)
+    observeEvent(input$description,  ctx$state$description  <- input$description)
+    observeEvent(input$embargo,      ctx$state$embargo      <- input$embargo)
     
     # =========================================================
-    # METADATA (SAFE UPDATE)
+    # SAFE NUMERIC
     # =========================================================
-    observeEvent(input$dataset_name, {
-      ctx$state$dataset_name <- input$dataset_name
-    })
-    
-    observeEvent(input$version, {
-      ctx$state$version <- input$version
-    })
-    
-    observeEvent(input$description, {
-      ctx$state$description <- input$description
-    })
-    
-    observeEvent(input$embargo, {
-      ctx$state$embargo <- input$embargo
-    })
-    
-    observeEvent(input$contact_lastname, {
-      ctx$state$contact_lastname <- input$contact_lastname
-    })
+    safe_numeric <- function(x) {
+      x <- suppressWarnings(as.numeric(x))
+      ifelse(is.na(x), NA_real_, x)
+    }
     
     # =========================================================
-    # TEMP FOLDER (SINGLE SOURCE OF TRUTH)
+    # VALIDATION (METADATA ONLY)
     # =========================================================
-    observe({
-      req(input$dataset_name)
+    validation <- reactive({
       
-      tmp <- file.path(tempdir(), input$dataset_name)
-      if (!dir.exists(tmp)) dir.create(tmp, recursive = TRUE)
+      dataset_name <- input$dataset_name %||% ""
+      version      <- safe_numeric(input$version)
+      description  <- input$description %||% ""
       
-      ctx$files$temp_folder <- tmp
+      name_valid <- nzchar(dataset_name) &&
+        nchar(dataset_name) >= 3 &&
+        nchar(dataset_name) <= 8 &&
+        grepl("^[A-Z0-9]+$", dataset_name)
+      
+      version_valid <- !is.na(version) &&
+        version >= 1 &&
+        version <= 99
+      
+      description_valid <- nzchar(trimws(description)) &&
+        nchar(trimws(description)) >= 50
+      
+      list(
+        ok = isTRUE(name_valid && version_valid && description_valid),
+        name_valid = name_valid,
+        version_valid = version_valid,
+        description_valid = description_valid
+      )
     })
     
     # =========================================================
-    # OBS FILE
+    # FILE PATH (SINGLE SOURCE OF TRUTH)
+    # =========================================================
+    obs_file_path <- reactive({
+      req(input$obs_file)
+      input$obs_file$datapath
+    })
+    
+    # =========================================================
+    # SITE INFO (FROM IO LAYER)
+    # =========================================================
+    site_info <- reactive({
+      req(obs_file_path())
+      extract_site_info(obs_file_path())
+    })
+    
+    observe({
+      req(site_info())
+      updateSelectInput(
+        session,
+        "site_filter",
+        choices = unique(site_info()$site_label)
+      )
+    })
+    
+    # =========================================================
+    # OBS DATA (FROM IO LAYER)
+    # =========================================================
+    xylo_obs <- reactive({
+      
+      req(obs_file_path(), input$site_filter)
+      
+      df <- load_xylo_obs_clean(obs_file_path())
+      
+      df <- df[df$site_label == input$site_filter, , drop = FALSE]
+      
+      df
+    })
+    
+    # =========================================================
+    # HEADER COLOR UPDATE
+    # =========================================================
+    observe({
+      if (validation()$ok) {
+        shinyjs::removeClass("card_header1_1", "bg-danger")
+        shinyjs::addClass("card_header1_1", "bg-success")
+      } else {
+        shinyjs::removeClass("card_header1_1", "bg-success")
+        shinyjs::addClass("card_header1_1", "bg-danger")
+      }
+    })
+    
+    observe({
+      if (isTRUE(input$validate_observation)) {
+        shinyjs::removeClass("card_header1_4", "bg-danger")
+        shinyjs::addClass("card_header1_4", "bg-success")
+      } else {
+        shinyjs::removeClass("card_header1_4", "bg-success")
+        shinyjs::addClass("card_header1_4", "bg-danger")
+      }
+    })
+    
+    # =========================================================
+    # SUBMIT BUTTON
+    # =========================================================
+    observeEvent(input$submit, {
+      req(validation()$ok)
+      shinyjs::show("card_1")
+      shinyjs::show("card_2")
+    })
+    
+    # =========================================================
+    # NEXT BUTTON LOGIC
+    # =========================================================
+    can_proceed <- reactive({
+      validation()$ok &&
+        isTRUE(input$validate_location) &&
+        isTRUE(input$validate_data_coverage) &&
+        isTRUE(input$validate_observation)
+    })
+    
+    observe({
+      if (can_proceed()) {
+        shinyjs::enable("next_btn")
+      } else {
+        shinyjs::disable("next_btn")
+      }
+    })
+    
+    observeEvent(input$next_btn, {
+      req(can_proceed())
+      
+      bslib::nav_select(
+        id = "tabs",
+        selected = "tab2",
+        session = parent_session
+      )
+    })
+    
+    
+    # =========================================================
+    # DOWNLOAD TEMPLATE
+    # =========================================================
+    output$download_template <- downloadHandler(
+      filename = function() {
+        req(input$dataset_name)
+        paste0(input$dataset_name, "_xylo_data_", Sys.Date(), ".xlsx")
+      },
+      content = function(file) {
+        
+        template_path <- system.file(
+          "extdata",
+          "Datasetname_xylo_data_yyyy-mm-dd.xlsx",
+          package = "xyloR"
+        )
+        
+        file.copy(template_path, file, overwrite = TRUE)
+      }
+    )
+    
+    observeEvent(ctx$files$obs_file, {
+      
+      req(ctx$files$obs_file)
+      
+      message("📥 TAB1: file received")
+      
+      # =========================================================
+      # STEP 2 FIX: prevent duplicate metadata regeneration
+      # =========================================================
+      
+      if (!is.null(ctx$files$meta_template)) {
+        message("⚠️ meta_template already exists → skipping regeneration")
+        return()
+      }
+      
+      template_path <- system.file(
+        "extdata",
+        "Datasetname_xylo_meta_yyyy-mm-dd.xlsx",
+        package = "xyloR"
+      )
+      
+      message("⚙️ Creating metadata...")
+      
+      result <- tryCatch({
+        
+        create_xylo_metadata(
+          ctx$files$obs_file$datapath,
+          template_path,
+          destdir = ctx$files$temp_folder
+        )
+        
+      }, error = function(e) {
+        
+        message("❌ Metadata creation FAILED: ", e$message)
+        NULL
+        
+      })
+      
+      ctx$files$meta_template <- result
+      
+      message("✅ Metadata creation SUCCESS")
+      message("📦 meta_template is NULL? ", is.null(ctx$files$meta_template))
+      
+    }, ignoreInit = TRUE)
+    
+    # =========================================================
+    # DOWNLOAD EXAMPLE
+    # =========================================================
+    output$download_example_obs <- downloadHandler(
+      filename = function() {
+        "Example_xylo_data.xlsx"
+      },
+      content = function(file) {
+        
+        template_path <- system.file(
+          "extdata",
+          "Ltal2007_xylo_data_2025-09-01.xlsx",
+          package = "xyloR"
+        )
+        
+        file.copy(template_path, file, overwrite = TRUE)
+      }
+    )
+    
+    # =========================================================
+    # OBS FILE UPLOADED STYLE
     # =========================================================
     observeEvent(input$obs_file, {
+      
       req(input$obs_file)
       
-      req(ctx$files$temp_folder)
+      message("📥 TAB1 upload triggered")
       
-      file_path <- file.path(
-        ctx$files$temp_folder,
-        input$obs_file$name
+      # =========================================================
+      # STEP 1 FIX: avoid re-trigger loops
+      # =========================================================
+      
+      previous <- ctx$files$obs_file
+      
+      is_same_file <- !is.null(previous) &&
+        identical(previous$name, input$obs_file$name) &&
+        identical(previous$size, input$obs_file$size)
+      
+      if (is_same_file) {
+        message("⚠️ Same file detected → skipping ctx update")
+        return()
+      }
+      
+      # =========================================================
+      # STORE IN CTX (SAFE)
+      # =========================================================
+      isolate({
+        ctx$files$obs_file <- input$obs_file
+      })
+      
+      message("📦 assigned to ctx")
+      
+      # UI updates
+      shinyjs::removeClass("card_header1_3", "bg-danger")
+      shinyjs::addClass("card_header1_3", "bg-success")
+      
+    }, ignoreInit = TRUE)
+    
+    # =========================================================
+    # KEY INFO TABLE
+    # =========================================================
+    output$key_info_table <- DT::renderDataTable({
+      
+      df <- xylo_obs()
+      req(nrow(df) > 0)
+      
+      si <- site_info() %>%
+        dplyr::filter(site_label == input$site_filter)
+      
+      file <- obs_file_path()
+      
+      owner_lastname   <- read_xylo_cell(file, "obs_data_info", 2, 4)
+      owner_firstname  <- read_xylo_cell(file, "obs_data_info", 1, 4)
+      owner_email      <- read_xylo_cell(file, "obs_data_info", 3, 4)
+      
+      contact_lastname  <- read_xylo_cell(file, "obs_data_info", 2, 2)
+      contact_firstname <- read_xylo_cell(file, "obs_data_info", 1, 2)
+      contact_email     <- read_xylo_cell(file, "obs_data_info", 3, 2)
+      
+      key_info <- tibble::tibble(
+        "PI" = paste(owner_lastname, owner_firstname),
+        "PI Email" = owner_email,
+        "Contact" = paste(contact_lastname, contact_firstname),
+        "Contact Email" = contact_email,
+        "Network" = paste(unique(df$network_label), collapse = ", "),
+        "Site" = si$site_label,
+        "Coordinates" = paste(
+          "Lat =", round(as.numeric(si$latitude), 4),
+          "Long =", round(as.numeric(si$longitude), 4)
+        ),
+        "Elevation" = as.numeric(si$elevation),
+        "Date From" = format(min(df$sample_date), "%Y-%m-%d"),
+        "Date To"   = format(max(df$sample_date), "%Y-%m-%d"),
+        "n_Trees"   = length(unique(df$tree_label)),
+        "n_Dates"   = length(unique(df$sample_date)),
+        "n_Samples" = length(unique(paste(df$sample_label, df$sample_id)))
+      ) %>%
+        t() %>%
+        setNames("Key Info")
+      
+      DT::datatable(key_info, options = list(dom = "t"), class = "table-dark")
+    })
+    
+    # =========================================================
+    # COVERAGE TABLE
+    # =========================================================
+    output$obs_table <- DT::renderDataTable({
+      
+      df <- xylo_obs()
+      
+      excluded <- c(
+        "sample_date","sample_id","tree_species","tree_label",
+        "plot_label","site_label","network_label",
+        "sample_label","measure_type","measure_repetition",
+        "sample_comment"
       )
       
-      file.copy(input$obs_file$datapath, file_path, overwrite = TRUE)
+      cols <- setdiff(names(df), excluded)
       
-      ctx$files$obs_file <- list(
-        datapath = file_path,
-        name = input$obs_file$name
-      )
+      summary <- df %>%
+        dplyr::filter(dplyr::if_any(dplyr::all_of(cols), ~ !is.na(.))) %>%
+        tidyr::pivot_longer(cols = dplyr::all_of(cols)) %>%
+        dplyr::filter(!is.na(value)) %>%
+        dplyr::group_by(measure_type, sample_label, sample_id, name) %>%
+        dplyr::summarise(n = n(), .groups = "drop") %>%
+        dplyr::group_by(measure_type, name) %>%
+        dplyr::summarise(avg = mean(n), .groups = "drop") %>%
+        tidyr::pivot_wider(names_from = name, values_from = avg)
+      
+      DT::datatable(summary, options = list(dom = "t"), class = "table-dark")
+    })
+    
+    # =========================================================
+    # MAP
+    # =========================================================
+    output$mymap <- leaflet::renderLeaflet({
+      
+      si <- site_info() %>%
+        dplyr::filter(site_label == input$site_filter)
+      
+      leaflet::leaflet() %>%
+        leaflet::addTiles() %>%
+        leaflet::addMarkers(
+          lng = as.numeric(si$longitude),
+          lat = as.numeric(si$latitude),
+          popup = si$site_label
+        )
+    })
+    
+    # =========================================================
+    # PLOT
+    # =========================================================
+    output$data_coverage_plot <- plotly::renderPlotly({
+      
+      df <- xylo_obs()
+      req(input$color)
+      
+      plotly::plot_ly(
+        df,
+        x = ~sample_date,
+        y = ~tree_label,
+        color = as.factor(df[[input$color]]),
+        type = "scatter",
+        mode = "markers",
+        text = ~paste(
+          "Tree:", tree_label,
+          "<br>Date:", sample_date,
+          "<br>", input$color, ":", df[[input$color]]
+        ),
+        hoverinfo = "text"
+      ) %>%
+        layout(
+          plot_bgcolor = "#2e2e2e",
+          paper_bgcolor = "#2e2e2e",
+          font = list(color = "white")
+        )
+    })
+    
+    # =========================================================
+    # UI VISIBILITY
+    # =========================================================
+    observe({
+      req(input$obs_file)
+      
+      shinyjs::show("card_3")
+      shinyjs::show("card_4")
+      shinyjs::show("card_5")
+      shinyjs::show("card_6")
+      shinyjs::show("card_7")
     })
     
   })
 }
+
+
+
