@@ -123,45 +123,74 @@ mod_tab1_ui <- function(id) {
 #' @importFrom shinyjs addClass removeClass show runjs
 #' @importFrom openxlsx loadWorkbook saveWorkbook readWorkbook
 #' @importFrom dplyr tibble filter
-mod_tab1_server <- function(id, ctx, parent_session) {
+mod_tab1_server <- function(id, ctx, session) {
   
   moduleServer(id, function(input, output, session) {
     
     ns <- session$ns
     
-    # =========================================================
-    # 1. LIVE VALIDATION STATE (THIS IS THE ONLY SOURCE OF TRUTH)
-    # =========================================================
-    validation <- reactive({
+    # =====================================================
+    # 1. PURE VALIDATION (NO SIDE EFFECTS)
+    # =====================================================
+    validate_tab1 <- function() {
       
       name <- input$dataset_name %||% ""
       version <- suppressWarnings(as.numeric(input$version))
       desc <- input$description %||% ""
       
-      name_ok <- nzchar(name) &&
-        nchar(name) >= 3 &&
-        nchar(name) <= 8 &&
-        grepl("^[A-Z0-9]+$", name)
-      
-      version_ok <- !is.na(version) && version >= 1 && version <= 99
-      
-      desc_ok <- nzchar(trimws(desc)) &&
-        nchar(trimws(desc)) >= 50
-      
       list(
-        ok = name_ok && version_ok && desc_ok,
-        name_ok = name_ok,
-        version_ok = version_ok,
-        desc_ok = desc_ok
+        ok = nzchar(name) &&
+          nchar(name) >= 3 &&
+          nchar(name) <= 8 &&
+          grepl("^[A-Z0-9]+$", name) &&
+          !is.na(version) &&
+          version >= 1 && version <= 99 &&
+          nzchar(trimws(desc)) &&
+          nchar(trimws(desc)) >= 50
       )
+    }
+    
+    # =====================================================
+    # 2. VALIDATE BUTTON → STATE ONLY
+    # =====================================================
+    observeEvent(input$submit, {
+      
+      res <- validate_tab1()
+      
+      message("🧪 TAB1 VALIDATE → ", res$ok)
+      
+      ctx <- set_state(ctx, "tab1.metadata_valid", res$ok)
+      ctx <- set_state(ctx, "tab1.ready_to_continue", res$ok)
+      
     })
     
-    # =========================================================
-    # 2. LIVE HEADER COLOR (NO CLICK NEEDED)
-    # =========================================================
+    # =====================================================
+    # 3. FILE UPLOAD → STATE ONLY
+    # =====================================================
+    observeEvent(input$obs_file, {
+      
+      req(input$obs_file)
+      
+      message("📥 TAB1 FILE UPLOADED")
+      
+      ctx$files$obs_file <- input$obs_file
+      
+      ctx <- set_state(ctx, "tab1.file_uploaded", TRUE)
+      ctx <- set_state(ctx, "tab1.obs_ready", TRUE)
+      
+    })
+    
+    # =====================================================
+    # 4. UI RENDER ENGINE (ONLY ONE OBSERVER)
+    # =====================================================
     observe({
       
-      if (validation()$ok) {
+      s <- ctx$state$tab1
+      
+      # --------------------------
+      # HEADER 1.1
+      # --------------------------
+      if (isTRUE(s$metadata_valid)) {
         shinyjs::removeClass("card_header1_1", "bg-danger")
         shinyjs::addClass("card_header1_1", "bg-success")
       } else {
@@ -169,121 +198,53 @@ mod_tab1_server <- function(id, ctx, parent_session) {
         shinyjs::addClass("card_header1_1", "bg-danger")
       }
       
-    })
-    
-    # =========================================================
-    # 3. SHOW NEXT CARDS WHEN VALID (AUTOMATIC)
-    # =========================================================
-    observe({
-      
-      req(input$dataset_name, input$version, input$description)
-      
-      if (validation()$ok) {
-        
+      # --------------------------
+      # TEMPLATE CARD
+      # --------------------------
+      if (isTRUE(s$metadata_valid)) {
         shinyjs::show("card_1")
-        shinyjs::show("card_2")
-        
-        ctx$state$tab1_ready <- TRUE
-        
       } else {
-        
-        ctx$state$tab1_ready <- FALSE
+        shinyjs::hide("card_1")
       }
       
-    })
-    
-    # =========================================================
-    # 4. SUBMIT BUTTON (ONLY FINAL CONFIRMATION, NOT STATE DRIVER)
-    # =========================================================
-    observeEvent(input$submit, {
-      
-      message("🧪 VALIDATE CLICKED")
-      
-      if (validation()$ok) {
-        
-        message("✅ Validation passed")
-        
-        ctx$state$tab1_valid <- TRUE
-        ctx$state$tab1_ready <- TRUE
-        
-        shinyjs::show("card_1")
+      # --------------------------
+      # UPLOAD CARD
+      # --------------------------
+      if (isTRUE(s$metadata_valid)) {
         shinyjs::show("card_2")
-        
       } else {
-        
-        message("❌ Validation failed")
-        
-        ctx$state$tab1_valid <- FALSE
-        ctx$state$tab1_ready <- FALSE
+        shinyjs::hide("card_2")
       }
-    })
-    
-    # =========================================================
-    # 5. FILE UPLOAD (FIXED STATE TRIGGER)
-    # =========================================================
-    observeEvent(input$obs_file, {
       
-      req(input$obs_file)
-      
-      message("📥 TAB1 file received")
-      
-      ctx$files$obs_file <- input$obs_file
-      
-      ctx$data$obs <- tryCatch({
-        load_xylo_obs_clean(input$obs_file$datapath)
-      }, error = function(e) NULL)
-      
-      ctx$state$obs_ready <- !is.null(ctx$data$obs)
-      
-      if (ctx$state$obs_ready) {
-        
-        shinyjs::addClass("card_header1_3", "bg-success")
+      # --------------------------
+      # VALIDATION CARD (1.4)
+      # --------------------------
+      if (isTRUE(s$file_uploaded) && isTRUE(s$obs_ready)) {
         shinyjs::show("card_1_4")
-      }
-      
-    })
-    
-    # =========================================================
-    # 6. NEXT BUTTON (SINGLE SOURCE LOGIC)
-    # =========================================================
-    observe({
-      
-      ready <- isTRUE(ctx$state$tab1_valid) &&
-        isTRUE(ctx$state$obs_ready)
-      
-      if (ready) {
-        shinyjs::enable("next_btn")
       } else {
-        shinyjs::disable("next_btn")
+        shinyjs::hide("card_1_4")
+      }
+      
+      # --------------------------
+      # HEADER 1.3
+      # --------------------------
+      if (isTRUE(s$file_uploaded)) {
+        shinyjs::removeClass("card_header1_3", "bg-danger")
+        shinyjs::addClass("card_header1_3", "bg-success")
       }
       
     })
     
+    # =====================================================
+    # 5. NEXT BUTTON → STATE ONLY
+    # =====================================================
     observeEvent(input$next_btn, {
       
-      req(ctx$state$tab1_valid, ctx$state$obs_ready)
+      req(ctx$state$tab1$ready_to_continue)
       
-      ctx$state$tab1_done <- TRUE
+      message("➡️ TAB1 COMPLETE")
       
-      bslib::nav_select(
-        id = "tabs",
-        selected = "tab2",
-        session = parent_session
-      )
-    })
-    
-    # =========================================================
-    # 7. LIVE VALIDATION TEXT (FIX MISSING RENDER)
-    # =========================================================
-    output$validation_status <- renderText({
-      
-      v <- validation()
-      
-      paste0(
-        "Name: ", ifelse(v$name_ok, "OK", "❌"),
-        " | Version: ", ifelse(v$version_ok, "OK", "❌"),
-        " | Description: ", ifelse(v$desc_ok, "OK", "❌")
-      )
+      ctx <- set_state(ctx, "tab1.done", TRUE)
       
     })
     

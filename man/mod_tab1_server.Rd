@@ -4,7 +4,7 @@
 \alias{mod_tab1_server}
 \title{mod_tab1 Server Function}
 \usage{
-mod_tab1_server(id, ctx, parent_session)
+mod_tab1_server(id, ctx, session)
 }
 \arguments{
 \item{id}{A string that serves as the module namespace identifier.}

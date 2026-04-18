@@ -11,63 +11,51 @@
 #' 
 create_app_context <- function() {
   
-  ctx <- shiny::reactiveValues(
+  list(
     
-    state = shiny::reactiveValues(
-      active_tab = NULL,
-      dataset_name = NULL,
-      description = NULL,
-      embargo = NULL,
-      version = NULL,
-      initialized = FALSE
+    # =====================================================
+    # GLOBAL APP STATE ENGINE
+    # =====================================================
+    state = list(
+      
+      tab = list(
+        current = "tab1",
+        allowed_transition = TRUE
+      ),
+      
+      tab1 = list(
+        metadata_valid = FALSE,
+        file_uploaded = FALSE,
+        obs_ready = FALSE,
+        ready_to_continue = FALSE
+      ),
+      
+      tab2 = list(
+        metadata_uploaded = FALSE,
+        metadata_valid = FALSE,
+        ready_to_continue = FALSE
+      )
     ),
     
-    files = shiny::reactiveValues(
-      wb_meta = NULL,
-      wb_data = NULL,
-      temp_folder = NULL,
-      project_path = NULL,
+    # =====================================================
+    # DATA STORE (PURE DATA ONLY)
+    # =====================================================
+    data = list(
+      obs = NULL,
+      meta = NULL
+    ),
+    
+    # =====================================================
+    # FILE STORE (RAW INPUT ONLY)
+    # =====================================================
+    files = list(
       obs_file = NULL,
-      meta_file = NULL,
-      meta_template = NULL
+      meta_file = NULL
     ),
     
-    data = shiny::reactiveValues(),
-    validation = shiny::reactiveValues(),
-    api = shiny::reactiveValues(),
-    ui = shiny::reactiveValues(),
-    
-    config = shiny::reactiveValues(
-      skip_rows_excel = NULL,
-      header_row_excel = NULL,
-      factory_mode = TRUE
-    )
+    # =====================================================
+    # EVENTS (OPTIONAL LOGGING LAYER)
+    # =====================================================
+    events = list()
   )
-  
-  # =========================================================
-  # STEP 1 FIX: stable runtime ID for debugging
-  # =========================================================
-  ctx$.id <- paste0(
-    "ctx_",
-    paste(sample(c(letters, 0:9), 10, replace = TRUE), collapse = "")
-  )
-  
-  # =========================================================
-  # 🧠 NEW: GLOBAL PIPELINE CONTROLLER (ADD THIS)
-  # =========================================================
-  ctx$pipeline <- shiny::reactiveValues(
-    
-    tab1 = "empty",
-    tab2 = "empty",
-    tab3 = "empty",
-    tab4 = "empty",
-    tab5 = "empty",
-    tab6 = "empty",
-    tab7 = "empty",
-    tab8 = "empty",
-    
-    ready = FALSE
-  )
-  
-  return(ctx)
 }
