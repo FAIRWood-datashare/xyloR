@@ -20,7 +20,6 @@ xyloR <- function() {
   # ======================================================
   # UI
   # ======================================================
-
   ui <- shiny::fluidPage(
     
     shinyjs::useShinyjs(),
@@ -45,53 +44,14 @@ xyloR <- function() {
     bslib::navset_card_tab(
       id = "tabs",
       
-      bslib::nav_panel(
-        title = "1. Upload observation",
-        value = "tab1",
-        mod_tab1_ui("tab1")
-      ),
-      
-      bslib::nav_panel(
-        title = "2. Upload metadata",
-        value = "tab2",
-        mod_tab2_ui("tab2")
-      ),
-      
-      bslib::nav_panel(
-        title = "Observation",
-        value = "tab3",
-        mod_tab3_ui("tab3")
-      ),
-      
-      bslib::nav_panel(
-        title = "Site",
-        value = "tab4",
-        mod_tab2_ui("tab4")
-      ),
-      
-      bslib::nav_panel(
-        title = "Tree",
-        value = "tab5",
-        mod_tab2_ui("tab5")
-      ),
-      
-      bslib::nav_panel(
-        title = "Sample",
-        value = "tab6",
-        mod_tab2_ui("tab6")
-      ),
-      
-      bslib::nav_panel(
-        title = "Person",
-        value = "tab7",
-        mod_tab2_ui("tab7")
-      ),
-      
-      bslib::nav_panel(
-        title = "Publication",
-        value = "tab8",
-        mod_tab2_ui("tab8")
-      )
+      bslib::nav_panel("1. Upload observation", "tab1", mod_tab1_ui("tab1")),
+      bslib::nav_panel("2. Upload metadata", "tab2", mod_tab2_ui("tab2")),
+      bslib::nav_panel("Observation", "tab3", mod_tab3_ui("tab3")),
+      bslib::nav_panel("Site", "tab4", mod_tab2_ui("tab4")),
+      bslib::nav_panel("Tree", "tab5", mod_tab2_ui("tab5")),
+      bslib::nav_panel("Sample", "tab6", mod_tab2_ui("tab6")),
+      bslib::nav_panel("Person", "tab7", mod_tab2_ui("tab7")),
+      bslib::nav_panel("Publication", "tab8", mod_tab2_ui("tab8"))
     )
   )
   
@@ -100,33 +60,58 @@ xyloR <- function() {
   # ======================================================
   server <- function(input, output, session) {
     
-    # ======================================================
-    # CTX (SINGLE SOURCE OF TRUTH)
-    # ======================================================
     ctx <- create_app_context()
     
-    # 🔥 ADD THIS RIGHT HERE (STEP 1 FIX)
     meta_template_r <- reactive({
       req(ctx$files$meta_template)
       ctx$files$meta_template
     })
     
     # ======================================================
-    # TAB 1 (BOOTSTRAP ONLY)
+    # MODULES (NO NAVIGATION INSIDE MODULES)
     # ======================================================
-    mod_tab1_server("tab1", ctx, parent_session = session)
-    
-    # ======================================================
-    # TAB 2–8 (CTX-ONLY MODULES)
-    # ======================================================
+    mod_tab1_server("tab1", ctx, session)
     mod_tab2_server("tab2", ctx, meta_template_r)
     mod_tab3_server("tab3", ctx)
+    
     mod_tab4_server("tab4", ctx)
     mod_tab5_server("tab5", ctx)
     mod_tab6_server("tab6", ctx)
     mod_tab7_server("tab7", ctx)
     mod_tab8_server("tab8", ctx)
     
+    # ======================================================
+    # 🔥 GLOBAL NAVIGATION CONTROLLER (THIS IS THE FIX)
+    # ======================================================
+    observe({
+      
+      req(ctx$state$tab1_ready)
+      
+      if (isTRUE(ctx$state$tab1_ready)) {
+        
+        message("➡️ NAVIGATING TO TAB2")
+        
+        bslib::nav_select(
+          id = "tabs",
+          selected = "tab2"
+        )
+      }
+    })
+    
+    observe({
+      
+      req(ctx$state$tab2_ready)
+      
+      if (isTRUE(ctx$state$tab2_ready)) {
+        
+        message("➡️ NAVIGATING TO TAB3")
+        
+        bslib::nav_select(
+          id = "tabs",
+          selected = "tab3"
+        )
+      }
+    })
   }
   
   shiny::shinyApp(ui, server)

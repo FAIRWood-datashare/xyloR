@@ -79,16 +79,9 @@ update_card_header_success <- function() {
 # Card 4
 # Helper function to parse sample date
 parse_sample_dates <- function(sample_date) {
-  
-  # Always work as character first (prevents coercion bugs)
   x <- trimws(as.character(sample_date))
-  
-  # Empty safety
   x[x %in% c("", "NA", "N/A")] <- NA
   
-  # -----------------------------
-  # 1. Excel numeric detection
-  # -----------------------------
   is_excel_numeric <- suppressWarnings(!is.na(as.numeric(x))) & !is.na(x)
   
   out <- rep(as.Date(NA), length(x))
@@ -100,9 +93,6 @@ parse_sample_dates <- function(sample_date) {
     )
   }
   
-  # -----------------------------
-  # 2. Everything else (robust parsing)
-  # -----------------------------
   other <- !is_excel_numeric & !is.na(x)
   
   if (any(other)) {
@@ -119,3 +109,4 @@ parse_sample_dates <- function(sample_date) {
   
   return(out)
 }
+

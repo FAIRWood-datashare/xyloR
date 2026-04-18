@@ -459,71 +459,159 @@ renderer_date <- function(required = NULL){
 #   update_validation(tbl_validation)
 # }
 
-save_and_validate <- function(data_reactive, sheet_name, wb_reactive, temp_folder, update_validation) {
-  req(data_reactive)
-  req(wb_reactive())
+save_and_validate <- function(
+    data_reactive,
+    sheet_name,
+    wb_reactive,
+    ctx,
+    update_validation = NULL
+) {
   
-  # Start the progress bar
-  shiny::withProgress(message = 'Saving and validating data...', value = 0, {
+  shiny::withProgress(message = "Saving and validating data...", value = 0, {
     
-    # Step 1: Determine whether the sheet belongs to meta or obs
-    meta_sheets <- c("site", "tree", "sample", "person", "publication")
-    is_meta_sheet <- sheet_name %in% meta_sheets
+    # =========================================================
+    # STEP 1: Get workbook (single source of truth)
+    # =========================================================
+    shiny::setProgress(0.1, detail = "Loading workbook...")
     
-    # Update progress to indicate the determination step
-    shiny::setProgress(value = 0.1, detail = "Determining sheet type...")
-    
-    # Step 2: Get the workbook
     wb <- wb_reactive()
+    stopifnot(!is.null(wb))
     
-    # Step 3: Write data to the sheet
-    shiny::setProgress(value = 0.3, detail = "Writing data to sheet...")
+    # =========================================================
+    # STEP 2: Write data
+    # =========================================================
+    shiny::setProgress(0.3, detail = "Writing sheet...")
     
+    # ---------------------------
+    # 🔥 CLEAR existing sheet content
+    # ---------------------------
+    openxlsx::deleteData(
+      wb,
+      sheet = sheet_name,
+      cols = 1:1000,
+      rows = 1:100000,
+      gridExpand = TRUE
+    )
+    
+    # ---------------------------
+    # ✍️ WRITE fresh clean data
+    # ---------------------------
     openxlsx::writeData(
       wb,
       sheet = sheet_name,
       x = data_reactive,
       startCol = 1,
-      startRow = ifelse(sheet_name == "obs_data_info", 6, 8),
-      colNames = FALSE,
+      startRow = ifelse(sheet_name == "obs_data_info", 6, 1),
+      colNames = TRUE,   # 🔥 important
       rowNames = FALSE
     )
     
-    # Step 4: Get the list of files and choose the correct file path
-    shiny::setProgress(value = 0.5, detail = "Fetching file paths...")
+    # =========================================================
+    # STEP 3: Resolve file paths (HARDENED)
+    # =========================================================
     
-    files <- list.files(temp_folder(), pattern = "*.xlsx", recursive = TRUE)
-    xylo_file_name <- files[grep("xylo_data", files)]
-    meta_file_name <- files[grep("xylo_meta", files)]
-    xylo_file_path <- paste(temp_folder(), xylo_file_name, sep = "/")
-    meta_file_path <- paste(temp_folder(), meta_file_name, sep = "/")
+    shiny::setProgress(0.5, detail = "Resolving file paths...")
     
-    # Choose file paths based on the type of sheet
-    path_of_file_changed_by_user <- if (is_meta_sheet) meta_file_path else xylo_file_path
+    # ---------------------------
+    # 1. ctx safety check
+    # ---------------------------
+    if (is.null(ctx)) {
+      stop("ctx is required for save_and_validate()")
+    }
     
-    # Step 5: Save workbook to the correct file
-    shiny::setProgress(value = 0.7, detail = "Saving workbook...")
+    # ---------------------------
+    # 2. OBS FILE (HARDENED)
+    # ---------------------------
+    message("DEBUG obs_file:")
+    print(ctx$files$obs_file)
     
-    openxlsx::saveWorkbook(wb, path_of_file_changed_by_user, overwrite = TRUE)
+    if (is.null(ctx$files$obs_file)) {
+      stop("obs_file is NULL in ctx$files")
+    }
     
-    # Step 6: Notify user that the data has been saved
-    shiny::setProgress(value = 0.9, detail = "Data saved, validating format...")
+    obs_file_path <- ctx$files$obs_file$datapath
+    
+    if (is.null(obs_file_path) || !nzchar(obs_file_path)) {
+      stop("obs_file_path is missing or invalid in ctx$files$obs_file")
+    }
+    
+    if (!file.exists(obs_file_path)) {
+      stop("obs_file_path does not exist on disk: ", obs_file_path)
+    }
+    
+    # ---------------------------
+    # 3. META FILE (SAFE)
+    # ---------------------------
+    meta_file_path <- NULL
+    
+    # ONLY accept file path version if it exists
+    if (!is.null(ctx$files$meta_template_path)) {
+      meta_file_path <- ctx$files$meta_template_path
+    }
+    
+    # DEBUG (keep for now)
+    message("DEBUG meta_file:")
+    print(meta_file_path)
+    
+    # ONLY validate if it's a real string
+    if (!is.null(meta_file_path) && is.character(meta_file_path) && nzchar(meta_file_path)) {
+      
+      if (!file.exists(meta_file_path)) {
+        stop("meta_file_path does not exist on disk: ", meta_file_path)
+      }
+      
+    } else {
+      message("ℹ️ meta_file_path is NULL or not a file path — skipping meta validation")
+      meta_file_path <- NULL
+    }
+    
+    # =========================================================
+    # STEP 4: Save workbook (overwrite source file)
+    # =========================================================
+    shiny::setProgress(0.7, detail = "Saving workbook...")
+    
+    openxlsx::saveWorkbook(
+      wb,
+      file = obs_file_path,
+      overwrite = TRUE
+    )
     
     showNotification(
-      paste0("Data written to sheet '", sheet_name, "' of ", path_of_file_changed_by_user),
+      paste0("Saved sheet: ", sheet_name),
       type = "message"
     )
     
-    tbl_validation <- rbind(
-      xylo_format_validation(xylo_file_path),
-      meta_format_validation(meta_file_path)
+    # =========================================================
+    # STEP 5: Validation (SAFE MODE)
+    # =========================================================
+    shiny::setProgress(0.9, detail = "Validating...")
+    
+    obs_val <- tryCatch(
+      xylo_format_validation(obs_file_path),
+      error = function(e) data.frame(issue = "Obs validation failed")
     )
     
-    # Step 7: Update validation reactive
-    update_validation(tbl_validation)
+    meta_val <- if (!is.null(meta_file_path) && file.exists(meta_file_path)) {
+      tryCatch(
+        meta_format_validation(meta_file_path),
+        error = function(e) data.frame(issue = "Meta validation failed")
+      )
+    } else {
+      data.frame()
+    }
     
-    # Complete the progress bar
-    shiny::setProgress(value = 1, detail = "Validation complete.")
+    tbl_validation <- rbind(obs_val, meta_val)
+    
+    if (!is.null(update_validation)) {
+      update_validation(tbl_validation)
+    }
+    
+    # =========================================================
+    # STEP 6: DONE
+    # =========================================================
+    shiny::setProgress(1, detail = "Done")
+    
+    return(tbl_validation)
   })
 }
 
@@ -576,3 +664,24 @@ get_country_codes <- function(){
   return(country_list)
 }
 
+
+# Function to synchronize Species data
+sync_species_itrdb <- function(df, drop_species, remove_na = TRUE) {
+  if (remove_na) {
+    df <- df %>%
+      dplyr::filter(!is.na(tree_species) & tree_species != "")
+  }
+  
+  updated <- df %>%
+    dplyr::left_join(
+      drop_species,
+      by = "species_code",
+      suffix = c("", "_from_list")
+    ) %>%
+    dplyr::mutate(
+      tree_species = tree_species_from_list
+    ) %>%
+    dplyr::select(-dplyr::ends_with("_from_list"))
+  
+  return(updated)
+}

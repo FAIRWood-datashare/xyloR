@@ -91,144 +91,114 @@ mod_tab3_ui <- function(id) {
 #' @importFrom bsicons bs_icon
 #' 
 mod_tab3_server <- function(id, ctx) {
+  
   moduleServer(id, function(input, output, session) {
     
+    message("🟢 TAB3 FIXED")
+    
     # =========================================================
-    # WORKBOOK (CTX ONLY)
+    # OBS DATA (ONLY SOURCE OF TRUTH)
     # =========================================================
-    WB <- reactive({
-      req(ctx$files$wb_meta)
-      ctx$files$wb_meta
+    obs_data <- reactive({
+      req(ctx$data$obs$clean)
+      ctx$data$obs$clean
     })
     
     # =========================================================
-    # CRUD STATE (LOCAL CACHE)
-    # =========================================================
-    tbl3_info <- reactiveVal(NULL)
-    tbl3_obs  <- reactiveVal(NULL)
-    
-    # =========================================================
-    # LOAD INFO TABLE
+    # DEBUG
     # =========================================================
     observe({
-      req(WB())
       
-      site_info <- crud_load_excel(
-        wb = WB(),
-        sheet = "obs_data_info",
-        skip_rows = ctx$config$skip_rows_excel
-      )
+      req(obs_data())
       
-      obs_data <- crud_load_excel(
-        wb = WB(),
-        sheet = "Xylo_obs_data",
-        skip_rows = ctx$config$skip_rows_excel
-      )
+      df <- obs_data()
       
-      if (ncol(site_info) == 3) {
-        site_label <- obs_data$site_label |>
-          unique() |>
-          tibble::tibble() |>
-          dplyr::filter(!is.na(.))
-        
-        site_info <- cbind(site_label, site_info)
-        
-      } else if (ncol(site_info) != 4) {
-        stop("Invalid obs_data_info format")
-      }
-      
-      site_info <- setNames(
-        site_info,
-        c("site_label", "latitude", "longitude", "elevation")
-      )
-      
-      site_info$elevation <- as.integer(site_info$elevation)
-      
-      tbl3_info(site_info)
-      ctx$data$tbl3_info <- site_info
+      message("\n🔥 OBS_DATA DEBUG (TAB3)")
+      message("dim: ", nrow(df), " x ", ncol(df))
+      print(head(df, 10))
+      message("=========================\n")
     })
     
     # =========================================================
-    # DROP LIST
+    # META
+    # =========================================================
+    meta_path <- reactive({
+      req(input$meta_file)
+      input$meta_file$datapath
+    })
+    
+    meta_data <- reactive({
+      req(meta_path())
+      build_xylo_meta_clean(read_xylo_meta_raw(meta_path()))
+    })
+    
+    site_info <- reactive({
+      req(meta_data())
+      meta_data()$site
+    })
+    
+    # =========================================================
+    # DROPLIST
     # =========================================================
     drop_species <- reactive({
-      req(WB())
+      req(ctx$files$obs_file)
       
-      openxlsx::readWorkbook(WB(), sheet = "DropList") |>
+      raw <- read_xylo_obs_raw(ctx$files$obs_file$datapath)
+      
+      raw$droplist |>
         dplyr::select(tree_species, species_code) |>
         dplyr::filter(!is.na(tree_species))
     })
     
     # =========================================================
-    # OBS DATA
+    # STATE
     # =========================================================
+    tbl3_info <- reactiveVal()
+    tbl3_obs  <- reactiveVal()
+    
     observe({
-      req(WB())
+      req(site_info(), obs_data())
       
-      df <- crud_load_excel(
-        wb = WB(),
-        sheet = "Xylo_obs_data",
-        skip_rows = ctx$config$skip_rows_excel
-      ) |>
-        dplyr::left_join(drop_species(), by = "tree_species") |>
-        dplyr::relocate(species_code, .after = tree_species) |>
-        dplyr::mutate(
-          sample_date = as.character(
-            as.Date(as.numeric(sample_date), origin = "1899-12-30")
-          )
-        )
-      
-      tbl3_obs(df)
-      ctx$data$tbl3_obs <- df
+      tbl3_info(site_info())
+      tbl3_obs(obs_data())
     })
     
     # =========================================================
-    # RENDER TABLES
+    # SYNC
+    # =========================================================
+    sync_species_itrdb <- function(df, drop_species) {
+      
+      df |>
+        dplyr::left_join(drop_species, by = "species_code") |>
+        dplyr::mutate(
+          tree_species = dplyr::coalesce(tree_species_from_list, tree_species)
+        ) |>
+        dplyr::select(-dplyr::any_of("tree_species_from_list"))
+    }
+    
+    # =========================================================
+    # TABLES
     # =========================================================
     output$tbl1 <- rhandsontable::renderRHandsontable({
       req(tbl3_info())
-      
-      rhandsontable::rhandsontable(
-        tbl3_info(),
-        rowHeaders = NULL,
-        contextMenu = TRUE,
-        stretchH = "all"
-      ) |>
-        apply_rules_to_table("tbl1", rules)
+      rhandsontable::rhandsontable(tbl3_info(), rowHeaders = NULL)
     })
     
     output$tbl2 <- rhandsontable::renderRHandsontable({
       req(tbl3_obs())
-      
-      rhandsontable::rhandsontable(
-        tbl3_obs(),
-        rowHeaders = NULL,
-        contextMenu = TRUE,
-        stretchH = "all",
-        height = "300px"
-      ) |>
-        apply_rules_to_table("sample", rules)
+      rhandsontable::rhandsontable(tbl3_obs(), rowHeaders = NULL, height = 300)
     })
     
     # =========================================================
-    # SYNC EDITS
+    # UPDATE
     # =========================================================
     observeEvent(input$tbl1, {
-      req(input$tbl1)
-      
-      df <- rhandsontable::hot_to_r(input$tbl1)
-      tbl3_info(df)
-      ctx$data$tbl3_info <- df
+      tbl3_info(rhandsontable::hot_to_r(input$tbl1))
     })
     
     observeEvent(input$tbl2, {
-      req(input$tbl2)
-      
-      df <- rhandsontable::hot_to_r(input$tbl2) |>
-        sync_species_itrdb(drop_species())
-      
-      tbl3_obs(df)
-      ctx$data$tbl3_obs <- df
+      df <- rhandsontable::hot_to_r(input$tbl2)
+      tbl3_obs(sync_species_itrdb(df, drop_species()))
     })
     
     # =========================================================
@@ -236,22 +206,25 @@ mod_tab3_server <- function(id, ctx) {
     # =========================================================
     observeEvent(input$save_obs, {
       
+      req(tbl3_info(), tbl3_obs(), ctx$files$obs_file)
+      
+      wb <- openxlsx::loadWorkbook(ctx$files$obs_file$datapath)
+      
       save_and_validate(
         data_reactive = tbl3_info(),
         sheet_name = "obs_data_info",
-        wb_reactive = ctx$files$wb_meta,
-        temp_folder = ctx$files$temp_folder,
-        update_validation = ctx$validation$results
+        wb_reactive = function() wb,
+        ctx = ctx
       )
       
       save_and_validate(
-        data_reactive = tbl3_obs() |> dplyr::select(-species_code),
+        data_reactive = tbl3_obs(),
         sheet_name = "Xylo_obs_data",
-        wb_reactive = ctx$files$wb_meta,
-        temp_folder = ctx$files$temp_folder,
-        update_validation = ctx$validation$results
+        wb_reactive = function() wb,
+        ctx = ctx
       )
     })
     
   })
 }
+

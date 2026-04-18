@@ -13,7 +13,7 @@ create_app_context <- function() {
   
   ctx <- shiny::reactiveValues(
     
-    state = list(
+    state = shiny::reactiveValues(
       active_tab = NULL,
       dataset_name = NULL,
       description = NULL,
@@ -22,21 +22,22 @@ create_app_context <- function() {
       initialized = FALSE
     ),
     
-    files = list(
+    files = shiny::reactiveValues(
       wb_meta = NULL,
       wb_data = NULL,
       temp_folder = NULL,
       project_path = NULL,
       obs_file = NULL,
+      meta_file = NULL,
       meta_template = NULL
     ),
     
-    data = list(),
-    validation = list(),
-    api = list(),
-    ui = list(),
+    data = shiny::reactiveValues(),
+    validation = shiny::reactiveValues(),
+    api = shiny::reactiveValues(),
+    ui = shiny::reactiveValues(),
     
-    config = list(
+    config = shiny::reactiveValues(
       skip_rows_excel = NULL,
       header_row_excel = NULL,
       factory_mode = TRUE
