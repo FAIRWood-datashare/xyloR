@@ -85,26 +85,21 @@ xyloR <- function() {
     # ======================================================
     observe({
       
-      req(ctx$state$tab1_ready)
+      s <- ctx$state
       
-      if (isTRUE(ctx$state$tab1_ready)) {
+      if (isTRUE(s$tab1_done)) {
         
-        message("➡️ NAVIGATING TO TAB2")
+        message("➡️ NAV: TAB1 → TAB2")
         
         bslib::nav_select(
           id = "tabs",
           selected = "tab2"
         )
       }
-    })
-    
-    observe({
       
-      req(ctx$state$tab2_ready)
-      
-      if (isTRUE(ctx$state$tab2_ready)) {
+      if (isTRUE(s$tab2_done)) {
         
-        message("➡️ NAVIGATING TO TAB3")
+        message("➡️ NAV: TAB2 → TAB3")
         
         bslib::nav_select(
           id = "tabs",

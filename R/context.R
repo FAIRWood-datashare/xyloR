@@ -11,51 +11,25 @@
 #' 
 create_app_context <- function() {
   
-  list(
+  ctx <- new.env(parent = emptyenv())
+  
+  ctx$state <- shiny::reactiveValues(
     
-    # =====================================================
-    # GLOBAL APP STATE ENGINE
-    # =====================================================
-    state = list(
-      
-      tab = list(
-        current = "tab1",
-        allowed_transition = TRUE
-      ),
-      
-      tab1 = list(
-        metadata_valid = FALSE,
-        file_uploaded = FALSE,
-        obs_ready = FALSE,
-        ready_to_continue = FALSE
-      ),
-      
-      tab2 = list(
-        metadata_uploaded = FALSE,
-        metadata_valid = FALSE,
-        ready_to_continue = FALSE
-      )
-    ),
+    # RAW INPUT
+    dataset_name = NULL,
+    version = NULL,
+    description = NULL,
     
-    # =====================================================
-    # DATA STORE (PURE DATA ONLY)
-    # =====================================================
-    data = list(
-      obs = NULL,
-      meta = NULL
-    ),
+    # DERIVED STATE
+    metadata_valid = FALSE,
+    button_enabled = FALSE,
     
-    # =====================================================
-    # FILE STORE (RAW INPUT ONLY)
-    # =====================================================
-    files = list(
-      obs_file = NULL,
-      meta_file = NULL
-    ),
-    
-    # =====================================================
-    # EVENTS (OPTIONAL LOGGING LAYER)
-    # =====================================================
-    events = list()
+    # CONFIRMED STATE
+    metadata_confirmed = FALSE
   )
+  
+  ctx$data <- new.env(parent = emptyenv())
+  ctx$files <- new.env(parent = emptyenv())
+  
+  ctx
 }

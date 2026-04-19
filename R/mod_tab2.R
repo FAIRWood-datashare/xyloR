@@ -340,11 +340,11 @@ mod_tab2_server <- function(id, ctx, meta_template_r) {
       
       ctx$pipeline$tab2 <- "done"
       
-      bslib::nav_select(
-        id = "tabs",
-        selected = "tab3",
-        session = session$parent
-      )
+      # bslib::nav_select(
+      #   id = "tabs",
+      #   selected = "tab3",
+      #   session = session$parent
+      # )
     })
     
   })

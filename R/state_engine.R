@@ -1,27 +1,35 @@
 
-
 # =========================================================
-# XYLOR STATE ENGINE (PHASE 1 CORE)
+# XYLOR STATE ENGINE (FINAL ARCHITECTURE CORE)
 # =========================================================
 
-# ---------------------------------------------------------
-# SAFE STATE WRITER
-# ---------------------------------------------------------
-set_state <- function(ctx, path, value) {
+update_state_engine <- function(ctx) {
   
-  # Example path: "tab1.obs_ready"
-  parts <- strsplit(path, "\\.")[[1]]
+  name <- ctx$state$dataset_name %||% ""
+  version <- ctx$state$version
+  desc <- ctx$state$description %||% ""
   
-  ref <- ctx$state
+  valid <- nzchar(name) &&
+    nchar(name) >= 3 &&
+    nchar(name) <= 8 &&
+    grepl("^[A-Z0-9]+$", name) &&
+    !is.na(version) &&
+    version >= 1 && version <= 99 &&
+    nzchar(trimws(desc)) &&
+    nchar(trimws(desc)) >= 50
   
-  # Navigate down the nested list
-  for (i in seq_len(length(parts) - 1)) {
-    ref <- ref[[parts[i]]]
-  }
+  ctx$state$metadata_valid <- valid
+  ctx$state$button_enabled <- valid
+}
+
+
+compute_state <- function(ctx) {
   
-  # Assign value
-  ref[[parts[length(parts)]]] <- value
+  ctx$state$tab1$done <-
+    isTRUE(ctx$state$tab1$confirmed)
   
-  # Return ctx (IMPORTANT: still immutable-style usage)
+  ctx$state$tab2$ready <-
+    isTRUE(ctx$state$tab1$done)
+  
   ctx
 }

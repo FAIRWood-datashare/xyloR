@@ -157,6 +157,9 @@ thead input {
   background-color:red;
 }
 
+.header-state { background:red; color:white; }
+.header-state.valid { background:green; }
+
 /* Dropdown choices style for rhandsontable */
 .handsontable.listbox td {
   background: black;

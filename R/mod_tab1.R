@@ -26,6 +26,7 @@
 #' @importFrom rhandsontable rHandsontableOutput
 #' 
 mod_tab1_ui <- function(id) {
+  
   ns <- shiny::NS(id)
   
   shiny::fluidRow(
@@ -34,12 +35,15 @@ mod_tab1_ui <- function(id) {
       3,
       class = "bg-light p-2 border-end",
       
+      # =====================================================
+      # CARD 1.1 METADATA
+      # =====================================================
       bslib::card(
         
-        bslib::card_header(
-          "1.1 Dataset",
+        div(
           id = ns("card_header1_1"),
-          class = "bg-danger"
+          class = "card-header bg-danger",
+          "1.1 Dataset"
         ),
         
         bslib::card_body(
@@ -48,12 +52,16 @@ mod_tab1_ui <- function(id) {
           shiny::numericInput(ns("version"), "Version", 1),
           shiny::textAreaInput(ns("description"), "Description"),
           
-          shiny::textOutput(ns("validation_status")),
-          
-          shiny::actionButton(ns("submit"), "Validate")
+          shiny::actionButton(
+            ns("submit"),
+            "Validate",
+            disabled = TRUE,
+            class = "btn btn-primary"
+          )
         )
       ),
       
+      # CARD 1.2
       bslib::card(
         id = ns("card_1"),
         style = "display:none;",
@@ -61,6 +69,7 @@ mod_tab1_ui <- function(id) {
         bslib::card_body(shiny::downloadButton(ns("download_template")))
       ),
       
+      # CARD 1.3
       bslib::card(
         id = ns("card_2"),
         style = "display:none;",
@@ -71,11 +80,12 @@ mod_tab1_ui <- function(id) {
         )
       ),
       
+      # CARD 1.4
       bslib::card(
         id = ns("card_1_4"),
         style = "display:none;",
-        
         bslib::card_header("Validate"),
+        
         bslib::card_body(
           
           shiny::checkboxInput(ns("validate_location"), "Location"),
@@ -89,14 +99,8 @@ mod_tab1_ui <- function(id) {
     
     shiny::column(
       9,
-      
-      bslib::card(
-        leaflet::leafletOutput(ns("mymap"), height = "400px")
-      ),
-      
-      bslib::card(
-        DT::DTOutput(ns("key_info_table"))
-      )
+      bslib::card(leaflet::leafletOutput(ns("mymap"), height = "400px")),
+      bslib::card(DT::DTOutput(ns("key_info_table")))
     )
   )
 }
@@ -130,124 +134,141 @@ mod_tab1_server <- function(id, ctx, session) {
     ns <- session$ns
     
     # =====================================================
-    # 1. PURE VALIDATION (NO SIDE EFFECTS)
+    # STATE
     # =====================================================
-    validate_tab1 <- function() {
+    tab1 <- reactiveValues(
+      metadata_valid = FALSE,
+      confirmed = FALSE,
+      file_uploaded = FALSE,
+      checks_valid = FALSE
+    )
+    
+    # =====================================================
+    # 1. LIVE VALIDATION (ONLY SOURCE OF TRUTH)
+    # =====================================================
+    observe({
       
       name <- input$dataset_name %||% ""
       version <- suppressWarnings(as.numeric(input$version))
       desc <- input$description %||% ""
       
-      list(
-        ok = nzchar(name) &&
-          nchar(name) >= 3 &&
-          nchar(name) <= 8 &&
-          grepl("^[A-Z0-9]+$", name) &&
-          !is.na(version) &&
-          version >= 1 && version <= 99 &&
-          nzchar(trimws(desc)) &&
-          nchar(trimws(desc)) >= 50
-      )
-    }
+      name_valid <-
+        nzchar(name) &&
+        nchar(name) >= 3 &&
+        nchar(name) <= 8 &&
+        grepl("^[A-Z0-9]+$", name)
+      
+      version_valid <-
+        !is.na(version) &&
+        version >= 1 &&
+        version <= 99
+      
+      desc_valid <-
+        nzchar(trimws(desc)) &&
+        nchar(trimws(desc)) >= 50
+      
+      valid <- name_valid && version_valid && desc_valid
+      
+      tab1$metadata_valid <- valid
+    })
     
     # =====================================================
-    # 2. VALIDATE BUTTON → STATE ONLY
+    # 2. HEADER COLOR (FIXED)
     # =====================================================
-    observeEvent(input$submit, {
+    observe({
       
-      res <- validate_tab1()
+      valid <- isTRUE(tab1$metadata_valid)
       
-      message("🧪 TAB1 VALIDATE → ", res$ok)
+      header_id <- session$ns("card_header1_1")
       
-      ctx <- set_state(ctx, "tab1.metadata_valid", res$ok)
-      ctx <- set_state(ctx, "tab1.ready_to_continue", res$ok)
+      if (valid) {
+        shinyjs::runjs(sprintf(
+          "$('#%s').removeClass('bg-danger').addClass('bg-success')",
+          header_id
+        ))
+      } else {
+        shinyjs::runjs(sprintf(
+          "$('#%s').removeClass('bg-success').addClass('bg-danger')",
+          header_id
+        ))
+      }
+    })
+    
+    
+    
+    # =====================================================
+    # 3. ENABLE VALIDATE BUTTON
+    # =====================================================
+    observe({
+      
+      valid <- isTRUE(tab1$metadata_valid)
+      
+      shinyjs::toggleState(
+        id = "submit",
+        condition = valid
+      )
       
     })
     
     # =====================================================
-    # 3. FILE UPLOAD → STATE ONLY
+    # 4. CLICK VALIDATE
+    # =====================================================
+    observeEvent(input$submit, {
+      
+      valid <- isTRUE(tab1$metadata_valid)
+      
+      message("CLICKED BUTTON")
+      message("VALID ON CLICK = ", valid)
+      
+      if (!valid) {
+        message("❌ BLOCKED: invalid metadata")
+        return()
+      }
+      
+      tab1$confirmed <- TRUE
+      
+      message("✅ CONFIRMED SET")
+      
+      shinyjs::show("card_1")
+      shinyjs::show("card_2")
+    })
+    
+    # =====================================================
+    # 5. FILE UPLOAD
     # =====================================================
     observeEvent(input$obs_file, {
       
       req(input$obs_file)
       
-      message("📥 TAB1 FILE UPLOADED")
+      tab1$file_uploaded <- TRUE
       
-      ctx$files$obs_file <- input$obs_file
+      shinyjs::show("card_1_4")
       
-      ctx <- set_state(ctx, "tab1.file_uploaded", TRUE)
-      ctx <- set_state(ctx, "tab1.obs_ready", TRUE)
-      
+      message("📥 file uploaded")
     })
     
     # =====================================================
-    # 4. UI RENDER ENGINE (ONLY ONE OBSERVER)
+    # 6. CHECKBOX VALIDATION
     # =====================================================
     observe({
       
-      s <- ctx$state$tab1
-      
-      # --------------------------
-      # HEADER 1.1
-      # --------------------------
-      if (isTRUE(s$metadata_valid)) {
-        shinyjs::removeClass("card_header1_1", "bg-danger")
-        shinyjs::addClass("card_header1_1", "bg-success")
-      } else {
-        shinyjs::removeClass("card_header1_1", "bg-success")
-        shinyjs::addClass("card_header1_1", "bg-danger")
-      }
-      
-      # --------------------------
-      # TEMPLATE CARD
-      # --------------------------
-      if (isTRUE(s$metadata_valid)) {
-        shinyjs::show("card_1")
-      } else {
-        shinyjs::hide("card_1")
-      }
-      
-      # --------------------------
-      # UPLOAD CARD
-      # --------------------------
-      if (isTRUE(s$metadata_valid)) {
-        shinyjs::show("card_2")
-      } else {
-        shinyjs::hide("card_2")
-      }
-      
-      # --------------------------
-      # VALIDATION CARD (1.4)
-      # --------------------------
-      if (isTRUE(s$file_uploaded) && isTRUE(s$obs_ready)) {
-        shinyjs::show("card_1_4")
-      } else {
-        shinyjs::hide("card_1_4")
-      }
-      
-      # --------------------------
-      # HEADER 1.3
-      # --------------------------
-      if (isTRUE(s$file_uploaded)) {
-        shinyjs::removeClass("card_header1_3", "bg-danger")
-        shinyjs::addClass("card_header1_3", "bg-success")
-      }
-      
+      tab1$checks_valid <-
+        isTRUE(input$validate_location) &&
+        isTRUE(input$validate_data_coverage) &&
+        isTRUE(input$validate_observation)
     })
     
     # =====================================================
-    # 5. NEXT BUTTON → STATE ONLY
+    # 7. NEXT BUTTON
     # =====================================================
     observeEvent(input$next_btn, {
       
-      req(ctx$state$tab1$ready_to_continue)
+      req(tab1$checks_valid)
+      
+      ctx$state$tab1_done <- TRUE
       
       message("➡️ TAB1 COMPLETE")
-      
-      ctx <- set_state(ctx, "tab1.done", TRUE)
-      
     })
-    
   })
 }
 
