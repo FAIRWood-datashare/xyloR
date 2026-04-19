@@ -13,19 +13,31 @@ create_app_context <- function() {
   
   ctx <- new.env(parent = emptyenv())
   
-  ctx$state <- shiny::reactiveValues(
+  ctx$state <- reactiveValues(
     
-    # RAW INPUT
-    dataset_name = NULL,
-    version = NULL,
-    description = NULL,
+    tab1 = list(
+      metadata = list(
+        valid = FALSE,
+        confirmed = FALSE
+      ),
+      file = list(
+        uploaded = FALSE
+      ),
+      validation = list(
+        all_valid = FALSE
+      ),
+      done = FALSE
+    ),
     
-    # DERIVED STATE
-    metadata_valid = FALSE,
-    button_enabled = FALSE,
+    tab2 = list(
+      done = FALSE
+    ),
     
-    # CONFIRMED STATE
-    metadata_confirmed = FALSE
+    tab3 = list(
+      done = FALSE
+    )
+    
+    # you can extend later
   )
   
   ctx$data <- new.env(parent = emptyenv())
