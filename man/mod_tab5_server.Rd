@@ -4,7 +4,7 @@
 \alias{mod_tab5_server}
 \title{Module Server for Tree Metadata Tab}
 \usage{
-mod_tab5_server(id, ctx)
+mod_tab5_server(id, ctx, session)
 }
 \arguments{
 \item{id}{The module ID.}

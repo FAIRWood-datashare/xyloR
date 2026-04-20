@@ -70,7 +70,7 @@ mod_tab4_ui <- function(id) {
 #' @importFrom magrittr %>%
 #' 
 #' 
-mod_tab4_server <- function(id, ctx) {
+mod_tab4_server <- function(id, ctx, session) {
   moduleServer(id, function(input, output, session) {
     
     # =========================================================

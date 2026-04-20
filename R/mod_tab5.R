@@ -66,7 +66,7 @@ mod_tab5_ui <- function(id) {
 #' @importFrom magrittr %>%
 #' 
 #' @export
-mod_tab5_server <- function(id, ctx) {
+mod_tab5_server <- function(id, ctx, session) {
   moduleServer(id, function(input, output, session) {
     
     # =========================================================

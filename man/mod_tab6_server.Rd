@@ -4,7 +4,7 @@
 \alias{mod_tab6_server}
 \title{Server function for Sample Metadata Tab}
 \usage{
-mod_tab6_server(id, ctx)
+mod_tab6_server(id, ctx, session)
 }
 \arguments{
 \item{id}{A string representing the namespace for the module's server logic. This is required for module-based server functions.}

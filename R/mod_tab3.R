@@ -90,7 +90,7 @@ mod_tab3_ui <- function(id) {
 #' @importFrom htmltools tagList div
 #' @importFrom bsicons bs_icon
 #' 
-mod_tab3_server <- function(id, ctx) {
+mod_tab3_server <- function(id, ctx, session) {
   
   moduleServer(id, function(input, output, session) {
     

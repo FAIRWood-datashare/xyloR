@@ -216,7 +216,7 @@ mod_tab7_ui <- function(id) {
 #' @importFrom DT renderDT
 #' @importFrom tidyr separate
 #' 
-mod_tab7_server <- function(id, ctx) {
+mod_tab7_server <- function(id, ctx, session) {
   moduleServer(id, function(input, output, session) {
     
     selected_row <- reactiveVal(NULL)

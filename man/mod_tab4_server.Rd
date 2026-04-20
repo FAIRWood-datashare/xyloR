@@ -4,7 +4,7 @@
 \alias{mod_tab4_server}
 \title{Server logic for Site Metadata Tab}
 \usage{
-mod_tab4_server(id, ctx)
+mod_tab4_server(id, ctx, session)
 }
 \arguments{
 \item{id}{The module ID, which is used to create unique namespaces for the inputs

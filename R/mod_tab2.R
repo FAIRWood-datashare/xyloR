@@ -174,97 +174,118 @@ mod_tab2_ui <- function(id) {
 #' @importFrom lubridate year
 #' @importFrom tibble tibble
 #' 
-mod_tab2_server <- function(id, ctx, meta_template_r) {
+mod_tab2_server <- function(id, ctx, session) {
   
   moduleServer(id, function(input, output, session) {
     
-    message("🟢 TAB2 STABLE FIXED (CTX SINGLE SOURCE)")
+    ns <- session$ns
     
-    # =========================================================
-    # 🔥 GATE: TAB1 MUST BE READY
-    # =========================================================
+    message("🟢 TAB2 — Step 9 clean version")
+    
+    # =====================================================
+    # 0. SAFETY INIT (ensure structure exists)
+    # =====================================================
+    observe({
+      ctx$state$tab2 <- ctx$state$tab2 %||% list()
+      ctx$state$tab2$metadata   <- ctx$state$tab2$metadata   %||% list()
+      ctx$state$tab2$file       <- ctx$state$tab2$file       %||% list()
+      ctx$state$tab2$validation <- ctx$state$tab2$validation %||% list()
+    })
+    
+    # =====================================================
+    # 1. GATE: TAB1 MUST BE DONE
+    # =====================================================
     tab1_ready <- reactive({
-      isTRUE(ctx$state$obs_ready) &&
+      isTRUE(ctx$state$tab1$done) &&
         !is.null(ctx$data$obs$clean)
     })
     
-    # =========================================================
-    # OBS DATA (FIXED: NO FILE RE-READING)
-    # =========================================================
-    obs_data <- reactive({
-      req(tab1_ready())
-      ctx$data$obs$clean
-    })
-    
-    # =========================================================
-    # META FILE
-    # =========================================================
-    meta_data <- reactive({
+    # =====================================================
+    # 2. META FILE INFO UPLOAD → CTX
+    # it includes name, size, type, and datapath (server path to the file)
+    # =====================================================
+    observeEvent(input$meta_file, {
+      
       req(input$meta_file)
-      build_xylo_meta_clean(
-        read_xylo_meta_raw(input$meta_file$datapath)
-      )
+      
+      previous <- ctx$files$meta_file
+      
+      is_same <- !is.null(previous) &&
+        identical(previous$name, input$meta_file$name) &&
+        identical(previous$size, input$meta_file$size)
+      
+      if (is_same) return()
+      
+      ctx$files$meta_file <- input$meta_file
+      ctx$state$tab2$file$uploaded <- TRUE
+      
+      message("📥 meta_file info stored in ctx")
     })
     
-    # =========================================================
-    # VALIDATION
-    # =========================================================
-    validation_results <- reactive({
-      
-      req(tab1_ready(), input$meta_file)
-      
-      bind_rows(
-        xylo_format_validation(ctx$files$obs_file$datapath),
-        validate_metadata_pipeline(input$meta_file$datapath)
-      )
-    })
-    
-    # =========================================================
-    # TEMPLATE DOWNLOAD
-    # =========================================================
-    output$download_meta_template <- downloadHandler(
-      filename = function() {
-        paste0(ctx$state$dataset_name, "_meta.xlsx")
-      },
-      content = function(file) {
-        wb <- meta_template_r()
-        openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
-      }
-    )
-    
-    # =========================================================
-    # TEMPLATE CREATION
-    # =========================================================
-    observeEvent(ctx$files$obs_file, {
-      
-      req(ctx$files$obs_file)
-      
-      if (!is.null(ctx$files$meta_template)) return()
-      
-      template_path <- system.file(
-        "extdata",
-        "Datasetname_xylo_meta_yyyy-mm-dd.xlsx",
-        package = "xyloR"
-      )
-      
-      ctx$files$meta_template <- tryCatch({
-        create_xylo_metadata(
-          ctx$files$obs_file$datapath,
-          template_path,
-          destdir = ctx$files$temp_folder
-        )
-      }, error = function(e) {
-        message("❌ meta error: ", e$message)
-        NULL
-      })
-    })
-    
-    # =========================================================
-    # UI STATE CONTROL
-    # =========================================================
+    # =====================================================
+    # 3. LOAD META DATA (CLEAN)
+    # =====================================================
     observe({
       
-      tbl <- validation_results()
+      req(ctx$files$meta_file)
+      
+      df <- tryCatch({
+        load_xylo_metadata_clean(ctx$files$meta_file$datapath)
+      }, error = function(e) {
+        message("❌ meta load failed: ", e$message)
+        NULL
+      })
+      
+      ctx$data$meta$clean <- df
+    })
+    
+    # =====================================================
+    # 4. VALIDATION (OBS + META)
+    # =====================================================
+    observe({
+      
+      req(tab1_ready(), ctx$files$meta_file)
+      
+      tbl <- tryCatch({
+        
+        obs_val <- tryCatch({
+          xylo_format_validation(ctx$files$obs_file$datapath)
+        }, error = function(e) {
+          data.frame(issue = "Observation validation failed")
+        })
+        
+        meta_val <- tryCatch({
+          meta_format_validation(ctx$files$meta_file$datapath)
+        }, error = function(e) {
+          data.frame(issue = "Metadata validation failed")
+        })
+        
+        rbind(
+          obs_val %||% data.frame(),
+          meta_val %||% data.frame()
+        )
+        
+      }, error = function(e) {
+        data.frame(issue = "Validation crashed")
+      })
+      
+      ctx$data$tab2_validation <- tbl
+      
+      # ✅ write to ctx state
+      ctx$state$tab2$validation$all_valid <-
+        is.data.frame(tbl) && nrow(tbl) == 0
+      
+      message("tab2 validation rows: ", nrow(tbl))
+    })
+    
+    # =====================================================
+    # 5. UI CONTROL (VALIDATION CARD)
+    # =====================================================
+    observe({
+      
+      req(tab1_ready())
+      
+      tbl <- ctx$data$tab2_validation
       
       shinyjs::hide("validation_card")
       shinyjs::hide("zip_card")
@@ -272,7 +293,7 @@ mod_tab2_server <- function(id, ctx, meta_template_r) {
       shinyjs::removeClass("card_header2_3", "bg-success")
       shinyjs::removeClass("card_header2_3", "bg-danger")
       
-      if (!tab1_ready()) return()
+      if (is.null(tbl)) return()
       
       shinyjs::show("validation_card")
       
@@ -284,71 +305,45 @@ mod_tab2_server <- function(id, ctx, meta_template_r) {
       }
     })
     
-    # =========================================================
-    # 📍 MAP (FIXED RENDER TRIGGER)
-    # =========================================================
-    output$mymap <- leaflet::renderLeaflet({
+    # =====================================================
+    # 6. VALIDATION TABLE
+    # =====================================================
+    output$validation_table <- DT::renderDT({
       
-      req(obs_data())
+      tbl <- ctx$data$tab2_validation
       
-      df <- obs_data()
+      req(tbl, nrow(tbl) > 0)
       
-      leaflet::leaflet(df) |>
-        leaflet::addTiles()
+      DT::datatable(tbl)
     })
     
-    # =========================================================
-    # 📊 COVERAGE PLOT (FIXED TRIGGER)
-    # =========================================================
-    output$data_coverage_plot <- plotly::renderPlotly({
-      
-      req(obs_data())
-      
-      df <- obs_data()
-      
-      plotly::plot_ly(df, x = ~sample_date, type = "histogram")
-    })
-    
-    # =========================================================
-    # 📋 VALIDATION TABLE
-    # =========================================================
-    output$obs_table <- DT::renderDT({
-      
-      req(obs_data())
-      
-      df <- obs_data()
-      
-      DT::datatable(df)
-    })
-    
-    # =========================================================
-    # NEXT BUTTON (FIXED GATE)
-    # =========================================================
+    # =====================================================
+    # 7. NEXT BUTTON ENABLE
+    # =====================================================
     can_proceed <- reactive({
-      isTRUE(ctx$state$obs_ready) &&
-        nrow(validation_results()) == 0 &&
-        !is.null(input$meta_file)
+      isTRUE(ctx$state$tab2$validation$all_valid) &&
+        isTRUE(ctx$state$tab2$file$uploaded)
     })
     
     observe({
-      if (can_proceed()) shinyjs::enable("next_btn")
-      else shinyjs::disable("next_btn")
+      shinyjs::toggleState("next_btn", can_proceed())
     })
     
+    # =====================================================
+    # 8. NEXT BUTTON CLICK
+    # =====================================================
     observeEvent(input$next_btn, {
+      
       req(can_proceed())
       
-      ctx$pipeline$tab2 <- "done"
+      ctx$state$tab2$done <- TRUE
       
-      # bslib::nav_select(
-      #   id = "tabs",
-      #   selected = "tab3",
-      #   session = session$parent
-      # )
+      message("➡️ TAB2 COMPLETE")
     })
     
   })
 }
+
 
 
 

@@ -179,7 +179,7 @@ mod_tab8_ui <- function(id) {
 #' @importFrom httr GET status_code content timeout
 #' 
 #' @export
-mod_tab8_server <- function(id, ctx) {
+mod_tab8_server <- function(id, ctx, session) {
   moduleServer(id, function(input, output, session) {
     
     selected_row <- reactiveVal(NULL)

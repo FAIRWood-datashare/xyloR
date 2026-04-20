@@ -69,7 +69,7 @@ mod_tab6_ui <- function(id) {
 #' 
 #' 
 #' @export
-mod_tab6_server <- function(id, ctx) {
+mod_tab6_server <- function(id, ctx, session) {
   moduleServer(id, function(input, output, session) {
     
     # =========================================================

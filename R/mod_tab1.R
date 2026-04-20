@@ -134,7 +134,7 @@ mod_tab1_server <- function(id, ctx, session) {
     ns <- session$ns
     
     # =====================================================
-    # 1. LIVE VALIDATION → DIRECT TO CTX
+    # 1. VALIDATION
     # =====================================================
     observe({
       
@@ -153,42 +153,17 @@ mod_tab1_server <- function(id, ctx, session) {
         nzchar(trimws(desc)) &&
         nchar(trimws(desc)) >= 50
       
-      ctx$state$tab1$metadata$valid <- valid
+      ctx$state$tab1$inputdata$valid <- valid
       
-      message("valid = ", valid)
+      message("inputdata valid =", valid)
     })
     
     # =====================================================
-    # 2. FILE UPLOAD
-    # =====================================================
-    observeEvent(input$obs_file, {
-      
-      req(input$obs_file)
-      
-      ctx$state$tab1$file$uploaded <- TRUE
-      
-      shinyjs::show("card_1_4")
-      
-      message("📥 file uploaded")
-    })
-    
-    # =====================================================
-    # 3. CHECKBOX VALIDATION → CTX
+    # 2. HEADER COLOR
     # =====================================================
     observe({
       
-      ctx$state$tab1$validation$all_valid <-
-        isTRUE(input$validate_location) &&
-        isTRUE(input$validate_data_coverage) &&
-        isTRUE(input$validate_observation)
-    })
-    
-    # =====================================================
-    # 4. HEADER COLOR (READ FROM CTX)
-    # =====================================================
-    observe({
-      
-      valid <- isTRUE(ctx$state$tab1$metadata$valid)
+      valid <- isTRUE(ctx$state$tab1$inputdata$valid)
       
       header_id <- ns("card_header1_1")
       
@@ -206,49 +181,91 @@ mod_tab1_server <- function(id, ctx, session) {
     })
     
     # =====================================================
-    # 5. ENABLE VALIDATE BUTTON
+    # 3. ENABLE BUTTON
     # =====================================================
     observe({
-      
       shinyjs::toggleState(
         id = "submit",
-        condition = isTRUE(ctx$state$tab1$metadata$valid)
+        condition = isTRUE(ctx$state$tab1$inputdata$valid)
       )
     })
     
     # =====================================================
-    # 6. CLICK VALIDATE
+    # 4. SUBMIT
     # =====================================================
     observeEvent(input$submit, {
       
-      valid <- isTRUE(ctx$state$tab1$metadata$valid)
+      req(ctx$state$tab1$inputdata$valid)
       
-      message("CLICKED BUTTON")
-      message("VALID ON CLICK = ", valid)
-      
-      if (!valid) {
-        message("❌ BLOCKED: invalid metadata")
-        return()
-      }
-      
-      ctx$state$tab1$metadata$confirmed <- TRUE
-      
-      message("✅ CONFIRMED SET")
+      ctx$state$tab1$inputdata$confirmed <- TRUE
       
       shinyjs::show("card_1")
       shinyjs::show("card_2")
+      
+      message("CLICKED BUTTON")
     })
     
     # =====================================================
-    # 7. NEXT BUTTON
+    # 5. FILE UPLOAD
+    # =====================================================
+    observeEvent(input$obs_file, {
+      
+      req(input$obs_file)
+      
+      ctx$files$obs_file <- input$obs_file
+      ctx$state$tab1$file$uploaded <- TRUE
+      
+      shinyjs::show("card_1_4")
+      
+      message("📦 obs file stored")
+      
+    }, ignoreInit = TRUE)
+    
+    # =====================================================
+    # 6. VALIDATION CHECKBOXES
+    # =====================================================
+    observe({
+      
+      valid <- 
+        isTRUE(input$validate_location) &&
+        isTRUE(input$validate_data_coverage) &&
+        isTRUE(input$validate_observation)
+      
+      ctx$state$tab1$validation$all_valid <- valid
+    })
+    
+    # =====================================================
+    # 7. FINAL DONE FLAG
+    # =====================================================
+    observe({
+      
+      ctx$state$tab1$done <-
+        isTRUE(ctx$state$tab1$inputdata$valid) &&
+        isTRUE(ctx$state$tab1$file$uploaded) &&
+        isTRUE(ctx$state$tab1$validation$all_valid)
+    })
+    
+    # =====================================================
+    # 8. ENABLE NEXT BUTTON
+    # =====================================================
+    observe({
+      
+      shinyjs::toggleState(
+        id = "next_btn",
+        condition = isTRUE(ctx$state$tab1$done)
+      )
+    })
+    
+    # =====================================================
+    # 9. NEXT BUTTON → NAVIGATION TRIGGER
     # =====================================================
     observeEvent(input$next_btn, {
       
-      req(ctx$state$tab1$validation$all_valid)
-      
-      ctx$state$tab1$done <- TRUE
+      req(ctx$state$tab1$done)
       
       message("➡️ TAB1 COMPLETE")
+      
+      ctx$state$tab1$nav_ready <- TRUE
     })
     
   })
