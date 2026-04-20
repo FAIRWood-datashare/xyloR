@@ -14,11 +14,9 @@ create_app_context <- function() {
   ctx <- new.env(parent = emptyenv())
   
   # =====================================================
-  # STATE (reactiveValues = correct choice)
+  # LEGACY STATE (KEEP FOR NOW – TRANSITION PHASE)
   # =====================================================
   ctx$state <- shiny::reactiveValues(
-    
-    current_tab = "tab1",
     
     tab1 = list(
       inputdata = list(
@@ -56,7 +54,30 @@ create_app_context <- function() {
     )
   )
   
+  # =====================================================
+  # FSM 
+  # =====================================================
+  ctx$fsm <- shiny::reactiveValues(
+    state = "TAB1",
+    flags = list(
+      tab1_complete = FALSE,
+      tab2_complete = FALSE,
+      tab3_complete = FALSE
+    ),
+    events = list(
+      go_next = FALSE
+    )
+  )
+  
+  # =====================================================
+  # FSM TICK (EVENT TRIGGER MECHANISM)
+  # =====================================================
+  ctx$fsm_tick <- shiny::reactiveVal(0)
+  ctx$fsm_trigger <- shiny::reactiveVal(0)
+  
+  # =====================================================
   # DATA + FILE STORAGE
+  # =====================================================
   ctx$data  <- new.env(parent = emptyenv())
   ctx$files <- new.env(parent = emptyenv())
   

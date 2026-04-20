@@ -66,8 +66,9 @@ mod_tab2_ui <- function(id) {
         bslib::card(
           bslib::card_header(
             "2.2 Load completed metadata for validation",
-            id = ns("card_header2_2"),
-            class = "bg-danger",
+            id = ns("card_header2"),
+            class = "card-header bg-danger",
+            "Upload meta_data",
             bslib::tooltip(
               bsicons::bs_icon("question-circle"),
               "Upload your completed metadata Excel file.",
@@ -80,7 +81,7 @@ mod_tab2_ui <- function(id) {
             shiny::verbatimTextOutput(ns("meta_validation_errors"))
           )
         ),
-        
+
         # =========================
         # VALIDATION CARD
         # =========================
@@ -183,64 +184,70 @@ mod_tab2_server <- function(id, ctx, session) {
     message("🟢 TAB2 — Step 9 clean version")
     
     # =====================================================
-    # 0. SAFETY INIT (ensure structure exists)
+    # 1. SAFETY INIT (ensure structure exists)
     # =====================================================
     observe({
-      ctx$state$tab2 <- ctx$state$tab2 %||% list()
+
       ctx$state$tab2$metadata   <- ctx$state$tab2$metadata   %||% list()
       ctx$state$tab2$file       <- ctx$state$tab2$file       %||% list()
       ctx$state$tab2$validation <- ctx$state$tab2$validation %||% list()
     })
     
     # =====================================================
-    # 1. GATE: TAB1 MUST BE DONE
+    # 2. TAB1 GATE
     # =====================================================
     tab1_ready <- reactive({
-      isTRUE(ctx$state$tab1$done) &&
+      isTRUE(ctx$state$tab1_complete) &&
         !is.null(ctx$data$obs$clean)
     })
     
     # =====================================================
-    # 2. META FILE INFO UPLOAD → CTX
+    # 3a. META FILE INFO UPLOAD → CTX
     # it includes name, size, type, and datapath (server path to the file)
     # =====================================================
     observeEvent(input$meta_file, {
       
       req(input$meta_file)
       
-      previous <- ctx$files$meta_file
-      
-      is_same <- !is.null(previous) &&
-        identical(previous$name, input$meta_file$name) &&
-        identical(previous$size, input$meta_file$size)
-      
-      if (is_same) return()
-      
       ctx$files$meta_file <- input$meta_file
       ctx$state$tab2$file$uploaded <- TRUE
       
       message("📥 meta_file info stored in ctx")
-    })
+    }, ignoreInit = TRUE)
     
     # =====================================================
-    # 3. LOAD META DATA (CLEAN)
+    # 3b. HEADER COLOR
+    # =====================================================
+    observe({
+      
+      valid <- isTRUE(ctx$state$tab2$file$uploaded)
+      
+      if (valid) {
+        shinyjs::runjs(sprintf(
+          "$('#%s').removeClass('bg-danger').addClass('bg-success')",
+          ns("card_header2_2")
+        ))
+      } 
+    })
+    
+    
+    # =====================================================
+    # 4. LOAD META DATA (CLEAN)
     # =====================================================
     observe({
       
       req(ctx$files$meta_file)
       
-      df <- tryCatch({
+      ctx$data$meta$clean <- tryCatch({
         load_xylo_metadata_clean(ctx$files$meta_file$datapath)
       }, error = function(e) {
         message("❌ meta load failed: ", e$message)
         NULL
       })
-      
-      ctx$data$meta$clean <- df
     })
     
     # =====================================================
-    # 4. VALIDATION (OBS + META)
+    # 5. VALIDATION (OBS + META)
     # =====================================================
     observe({
       
@@ -260,10 +267,7 @@ mod_tab2_server <- function(id, ctx, session) {
           data.frame(issue = "Metadata validation failed")
         })
         
-        rbind(
-          obs_val %||% data.frame(),
-          meta_val %||% data.frame()
-        )
+        rbind(obs_val,meta_val)
         
       }, error = function(e) {
         data.frame(issue = "Validation crashed")
@@ -274,12 +278,10 @@ mod_tab2_server <- function(id, ctx, session) {
       # ✅ write to ctx state
       ctx$state$tab2$validation$all_valid <-
         is.data.frame(tbl) && nrow(tbl) == 0
-      
-      message("tab2 validation rows: ", nrow(tbl))
     })
     
     # =====================================================
-    # 5. UI CONTROL (VALIDATION CARD)
+    # 6. UI VALIDATION CARD
     # =====================================================
     observe({
       
@@ -289,9 +291,6 @@ mod_tab2_server <- function(id, ctx, session) {
       
       shinyjs::hide("validation_card")
       shinyjs::hide("zip_card")
-      
-      shinyjs::removeClass("card_header2_3", "bg-success")
-      shinyjs::removeClass("card_header2_3", "bg-danger")
       
       if (is.null(tbl)) return()
       
@@ -305,28 +304,27 @@ mod_tab2_server <- function(id, ctx, session) {
       }
     })
     
+    # # =====================================================
+    # # 7. VALIDATION TABLE
+    # # =====================================================
+    # output$validation_table <- DT::renderDT({
+    #   
+    #   tbl <- ctx$data$tab2_validation
+    #   
+    #   req(tbl, nrow(tbl) > 0)
+    #   
+    #   DT::datatable(tbl)
+    # })
+    # 
     # =====================================================
-    # 6. VALIDATION TABLE
+    # 8. NEXT BUTTON ENABLE
     # =====================================================
-    output$validation_table <- DT::renderDT({
-      
-      tbl <- ctx$data$tab2_validation
-      
-      req(tbl, nrow(tbl) > 0)
-      
-      DT::datatable(tbl)
-    })
-    
-    # =====================================================
-    # 7. NEXT BUTTON ENABLE
-    # =====================================================
-    can_proceed <- reactive({
-      isTRUE(ctx$state$tab2$validation$all_valid) &&
-        isTRUE(ctx$state$tab2$file$uploaded)
-    })
-    
     observe({
-      shinyjs::toggleState("next_btn", can_proceed())
+      shinyjs::toggleState(
+        "next_btn", 
+        isTRUE(ctx$state$tab2$validation$all_valid) &&
+          isTRUE(ctx$state$tab2$file$uploaded)
+        )
     })
     
     # =====================================================
@@ -334,9 +332,15 @@ mod_tab2_server <- function(id, ctx, session) {
     # =====================================================
     observeEvent(input$next_btn, {
       
-      req(can_proceed())
+      req(
+        ctx$state$tab2$validation$all_valid,
+        ctx$state$tab2$file$uploaded
+      )
       
-      ctx$state$tab2$done <- TRUE
+      ctx$fsm$flags$tab2_complete <- TRUE
+      ctx$fsm$events$go_next <- TRUE
+      
+      ctx$fsm_trigger(ctx$fsm_trigger() + 1)
       
       message("➡️ TAB2 COMPLETE")
     })

@@ -21,42 +21,46 @@
 #' @importFrom rhandsontable rHandsontableOutput
 #' 
 mod_tab3_ui <- function(id) {
+  
   ns <- shiny::NS(id)
   
-  # TAB 3: Observation -----------------------------------------------
   bslib::nav_panel(
-    title = htmltools::div(id = ns("observation_tab"), "Observations"),
-    value = "Observations",
+    title = "Observations",
+    value = "tab3",
     
     shiny::fluidRow(
-      # Left side (sidebar) - Action Button and Info Section
+      
+      # LEFT ACTION PANEL
       shiny::column(
-        1, class = "bg-light p-2 border-end", style = "height: 100%;",
+        2,
+        class = "bg-light p-2 border-end",
+        
         bslib::card(
-          bslib::card_header(NULL),
           bslib::card_body(
-            shiny::actionButton(ns("save_obs"), label = htmltools::tagList(bsicons::bs_icon("save"), "Save"), class = "btn-primary")
+            shiny::actionButton(
+              ns("save_obs"),
+              label = htmltools::tagList(bsicons::bs_icon("save"), "Save"),
+              class = "btn-primary"
+            )
           )
         )
       ),
       
-      # Right side - Main Content with Observation Table
+      # MAIN PANEL
       shiny::column(
-        11, style = "height: 100%;",
+        10,
+        
         bslib::card(
-          bslib::card_header("Basic Info"),
+          bslib::card_header("Site Info"),
           bslib::card_body(
-            rhandsontable::rHandsontableOutput(ns("tbl1")),
-            #shiny::verbatimTextOutput(ns("testing"))
+            rhandsontable::rHandsontableOutput(ns("tbl_site"))
           )
         ),
         
         bslib::card(
-          bslib::card_header("Observation table:"),
+          bslib::card_header("Observations"),
           bslib::card_body(
-            rhandsontable:: rHandsontableOutput(ns("tbl2")),
-            #shiny::verbatimTextOutput(ns("testing1")),
-            #shiny::verbatimTextOutput(ns("testing2"))
+            rhandsontable::rHandsontableOutput(ns("tbl_obs"))
           )
         )
       )
@@ -94,135 +98,116 @@ mod_tab3_server <- function(id, ctx, session) {
   
   moduleServer(id, function(input, output, session) {
     
-    message("🟢 TAB3 FIXED")
+    message("🟢 TAB3 — FSM CLEAN VERSION")
     
-    # =========================================================
-    # OBS DATA (ONLY SOURCE OF TRUTH)
-    # =========================================================
-    obs_data <- reactive({
-      req(ctx$data$obs$clean)
-      ctx$data$obs$clean
+    ns <- session$ns
+    
+    # =====================================================
+    # 1. WORKBOOK LOADERS (OBS + META)
+    # =====================================================
+    WB <- reactive({
+      req(ctx$files$obs_file)
+      openxlsx::loadWorkbook(ctx$files$obs_file$datapath)
     })
     
-    # =========================================================
-    # DEBUG
-    # =========================================================
+    WB_meta <- reactive({
+      req(ctx$files$meta_file)
+      openxlsx::loadWorkbook(ctx$files$meta_file$datapath)
+    })
+    
+    # =====================================================
+    # 2. DATA INITIALIZATION
+    # =====================================================
+    data_in <- reactiveValues(
+      tbl1 = NULL,
+      tbl2 = NULL
+    )
+    
     observe({
       
-      req(obs_data())
+      req(WB())
       
-      df <- obs_data()
-      
-      message("\n🔥 OBS_DATA DEBUG (TAB3)")
-      message("dim: ", nrow(df), " x ", ncol(df))
-      print(head(df, 10))
-      message("=========================\n")
+      data_in$tbl1 <- openxlsx::readWorkbook(WB(), sheet = "obs_data_info", startRow = 6)
+      data_in$tbl2 <- openxlsx::readWorkbook(WB(), sheet = "Xylo_obs_data", startRow = 1)
     })
     
-    # =========================================================
-    # META
-    # =========================================================
-    meta_path <- reactive({
-      req(input$meta_file)
-      input$meta_file$datapath
-    })
-    
-    meta_data <- reactive({
-      req(meta_path())
-      build_xylo_meta_clean(read_xylo_meta_raw(meta_path()))
-    })
-    
-    site_info <- reactive({
-      req(meta_data())
-      meta_data()$site
-    })
-    
-    # =========================================================
-    # DROPLIST
-    # =========================================================
+    # =====================================================
+    # 3. DROP LIST / SPECIES MAP
+    # =====================================================
     drop_species <- reactive({
-      req(ctx$files$obs_file)
       
-      raw <- read_xylo_obs_raw(ctx$files$obs_file$datapath)
+      req(WB())
       
-      raw$droplist |>
-        dplyr::select(tree_species, species_code) |>
+      openxlsx::readWorkbook(WB(), sheet = "DropList") |>
         dplyr::filter(!is.na(tree_species))
     })
     
-    # =========================================================
-    # STATE
-    # =========================================================
-    tbl3_info <- reactiveVal()
-    tbl3_obs  <- reactiveVal()
-    
-    observe({
-      req(site_info(), obs_data())
-      
-      tbl3_info(site_info())
-      tbl3_obs(obs_data())
-    })
-    
-    # =========================================================
-    # SYNC
-    # =========================================================
-    sync_species_itrdb <- function(df, drop_species) {
-      
-      df |>
-        dplyr::left_join(drop_species, by = "species_code") |>
-        dplyr::mutate(
-          tree_species = dplyr::coalesce(tree_species_from_list, tree_species)
-        ) |>
-        dplyr::select(-dplyr::any_of("tree_species_from_list"))
-    }
-    
-    # =========================================================
-    # TABLES
-    # =========================================================
+    # =====================================================
+    # 4. TABLE RENDERING
+    # =====================================================
     output$tbl1 <- rhandsontable::renderRHandsontable({
-      req(tbl3_info())
-      rhandsontable::rhandsontable(tbl3_info(), rowHeaders = NULL)
+      
+      req(data_in$tbl1)
+      
+      rhandsontable::rhandsontable(data_in$tbl1)
     })
     
     output$tbl2 <- rhandsontable::renderRHandsontable({
-      req(tbl3_obs())
-      rhandsontable::rhandsontable(tbl3_obs(), rowHeaders = NULL, height = 300)
+      
+      req(data_in$tbl2)
+      
+      rhandsontable::rhandsontable(data_in$tbl2)
     })
     
-    # =========================================================
-    # UPDATE
-    # =========================================================
+    # =====================================================
+    # 5. TABLE SYNC (USER INPUT)
+    # =====================================================
     observeEvent(input$tbl1, {
-      tbl3_info(rhandsontable::hot_to_r(input$tbl1))
+      req(input$tbl1)
+      data_in$tbl1 <- rhandsontable::hot_to_r(input$tbl1)
     })
     
     observeEvent(input$tbl2, {
+      
+      req(input$tbl2)
+      
       df <- rhandsontable::hot_to_r(input$tbl2)
-      tbl3_obs(sync_species_itrdb(df, drop_species()))
+      
+      data_in$tbl2 <- df
     })
     
-    # =========================================================
-    # SAVE
-    # =========================================================
+    # =====================================================
+    # 6. SAVE LOGIC (NO NAVIGATION HERE)
+    # =====================================================
     observeEvent(input$save_obs, {
       
-      req(tbl3_info(), tbl3_obs(), ctx$files$obs_file)
-      
-      wb <- openxlsx::loadWorkbook(ctx$files$obs_file$datapath)
+      req(data_in$tbl1, data_in$tbl2)
       
       save_and_validate(
-        data_reactive = tbl3_info(),
+        data_reactive = data_in$tbl1,
         sheet_name = "obs_data_info",
-        wb_reactive = function() wb,
-        ctx = ctx
+        wb_reactive = WB,
+        temp_folder = ctx$files$temp_folder
       )
       
       save_and_validate(
-        data_reactive = tbl3_obs(),
+        data_reactive = data_in$tbl2,
         sheet_name = "Xylo_obs_data",
-        wb_reactive = function() wb,
-        ctx = ctx
+        wb_reactive = WB,
+        temp_folder = ctx$files$temp_folder
       )
+      
+      message("💾 TAB3 SAVE COMPLETE")
+    })
+    
+    # =====================================================
+    # 7. FSM COMPLETION FLAG (OPTIONAL)
+    # =====================================================
+    observe({
+      
+      ctx$fsm$flags$tab3_complete <-
+        !is.null(data_in$tbl1) &&
+        !is.null(data_in$tbl2)
     })
     
   })

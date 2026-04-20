@@ -65,7 +65,7 @@ mod_tab1_ui <- function(id) {
       bslib::card(
         id = ns("card_1"),
         style = "display:none;",
-        bslib::card_header("Template"),
+        bslib::card_header("Templates"),
         bslib::card_body(shiny::downloadButton(ns("download_template")))
       ),
       
@@ -73,19 +73,22 @@ mod_tab1_ui <- function(id) {
       bslib::card(
         id = ns("card_2"),
         style = "display:none;",
-        bslib::card_header("Upload"),
+        bslib::card_header(id = ns("card_header2"),
+                           class = "card-header bg-danger",
+                           "Upload obs_data"),
         bslib::card_body(
           shiny::fileInput(ns("obs_file"), NULL),
           shiny::selectInput(ns("site_filter"), "Site", choices = NULL)
         )
       ),
-      
-      # CARD 1.4
+
+            # CARD 1.4
       bslib::card(
         id = ns("card_1_4"),
         style = "display:none;",
-        bslib::card_header("Validate"),
-        
+        bslib::card_header(id = ns("card_header1_4"),
+                           class = "card-header bg-danger",
+                           "Validate"),
         bslib::card_body(
           
           shiny::checkboxInput(ns("validate_location"), "Location"),
@@ -138,20 +141,16 @@ mod_tab1_server <- function(id, ctx, session) {
     # =====================================================
     observe({
       
-      name <- input$dataset_name %||% ""
-      version <- suppressWarnings(as.numeric(input$version))
-      desc <- input$description %||% ""
-      
       valid <-
-        nzchar(name) &&
-        nchar(name) >= 3 &&
-        nchar(name) <= 8 &&
-        grepl("^[A-Z0-9]+$", name) &&
-        !is.na(version) &&
-        version >= 1 &&
-        version <= 99 &&
-        nzchar(trimws(desc)) &&
-        nchar(trimws(desc)) >= 50
+        nzchar(input$dataset_name %||% "") &&
+        nchar(input$dataset_name %||% "") >= 3 &&
+        nchar(input$dataset_name %||% "") <= 8 &&
+        grepl("^[A-Z0-9]+$", input$dataset_name %||% "") &&
+        !is.na(suppressWarnings(as.numeric(input$version))) &&
+        suppressWarnings(as.numeric(input$version)) >= 1 &&
+        suppressWarnings(as.numeric(input$version)) <= 99 &&
+        nzchar(trimws(input$description %||% "")) &&
+        nchar(trimws(input$description %||% "")) >= 50
       
       ctx$state$tab1$inputdata$valid <- valid
       
@@ -165,19 +164,12 @@ mod_tab1_server <- function(id, ctx, session) {
       
       valid <- isTRUE(ctx$state$tab1$inputdata$valid)
       
-      header_id <- ns("card_header1_1")
-      
       if (valid) {
         shinyjs::runjs(sprintf(
           "$('#%s').removeClass('bg-danger').addClass('bg-success')",
-          header_id
+          ns("card_header1_1")
         ))
-      } else {
-        shinyjs::runjs(sprintf(
-          "$('#%s').removeClass('bg-success').addClass('bg-danger')",
-          header_id
-        ))
-      }
+      } 
     })
     
     # =====================================================
@@ -206,7 +198,7 @@ mod_tab1_server <- function(id, ctx, session) {
     })
     
     # =====================================================
-    # 5. FILE UPLOAD
+    # 5a. FILE UPLOAD
     # =====================================================
     observeEvent(input$obs_file, {
       
@@ -222,24 +214,51 @@ mod_tab1_server <- function(id, ctx, session) {
     }, ignoreInit = TRUE)
     
     # =====================================================
-    # 6. VALIDATION CHECKBOXES
+    # 5b. HEADER COLOR
     # =====================================================
     observe({
       
-      valid <- 
+      valid <- isTRUE(ctx$state$tab1$file$uploaded)
+      
+      if (valid) {
+        shinyjs::runjs(sprintf(
+          "$('#%s').removeClass('bg-danger').addClass('bg-success')",
+          ns("card_header2")
+        ))
+      }
+    })
+    
+    # =====================================================
+    # 6a. VALIDATION CHECKBOXES
+    # =====================================================
+    observe({
+      
+      ctx$state$tab1$validation$all_valid <- 
         isTRUE(input$validate_location) &&
         isTRUE(input$validate_data_coverage) &&
         isTRUE(input$validate_observation)
-      
-      ctx$state$tab1$validation$all_valid <- valid
     })
     
+    # =====================================================
+    # 6b. HEADER COLOR
+    # =====================================================
+    observe({
+      
+      valid <- isTRUE(ctx$state$tab1$validation$all_valid)
+      
+      if (valid) {
+        shinyjs::runjs(sprintf(
+          "$('#%s').removeClass('bg-danger').addClass('bg-success')",
+          ns("card_header1_4")
+        ))
+      }
+    })
     # =====================================================
     # 7. FINAL DONE FLAG
     # =====================================================
     observe({
       
-      ctx$state$tab1$done <-
+      ctx$fsm$flags$tab1_complete <-
         isTRUE(ctx$state$tab1$inputdata$valid) &&
         isTRUE(ctx$state$tab1$file$uploaded) &&
         isTRUE(ctx$state$tab1$validation$all_valid)
@@ -252,7 +271,7 @@ mod_tab1_server <- function(id, ctx, session) {
       
       shinyjs::toggleState(
         id = "next_btn",
-        condition = isTRUE(ctx$state$tab1$done)
+        condition = isTRUE(ctx$state$tab1$validation$all_valid)
       )
     })
     
@@ -261,13 +280,15 @@ mod_tab1_server <- function(id, ctx, session) {
     # =====================================================
     observeEvent(input$next_btn, {
       
-      req(ctx$state$tab1$done)
+      req(ctx$fsm$flags$tab1_complete)
+      
+      ctx$fsm$flags$tab1_complete <- TRUE
+      ctx$fsm$events$go_next <- TRUE
+      
+      ctx$fsm_trigger(ctx$fsm_trigger() + 1)
       
       message("➡️ TAB1 COMPLETE")
-      
-      ctx$state$tab1$nav_ready <- TRUE
     })
-    
   })
 }
 

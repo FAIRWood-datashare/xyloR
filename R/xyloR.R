@@ -63,9 +63,25 @@ xyloR <- function() {
     ctx <- create_app_context()
     
     # ======================================================
-    # MODULES (NO NAVIGATION INSIDE MODULES)
+    # FSM INIT (ONCE ONLY)
     # ======================================================
+    ctx$fsm <- list(
+      state = "TAB1",
+      
+      flags = list(
+        tab1_complete = FALSE,
+        tab2_complete = FALSE,
+        tab3_complete = FALSE
+      ),
+      
+      events = list(
+        go_next = FALSE
+      )
+    )
     
+    # ======================================================
+    # MODULES
+    # ======================================================
     mod_tab1_server("tab1", ctx, session)
     mod_tab2_server("tab2", ctx, session)
     mod_tab3_server("tab3", ctx, session)
@@ -77,9 +93,99 @@ xyloR <- function() {
     mod_tab8_server("tab8", ctx, session)
     
     # ======================================================
-    # NAVIGATION ENGINE 
+    # FSM INPUT LAYER (DERIVE FLAGS ONLY)
     # ======================================================
-    navigation_engine(ctx, session)
+    observe({
+      
+      ctx$fsm$flags$tab1_complete <-
+        isTRUE(ctx$state$tab1$inputdata$valid) &&
+        isTRUE(ctx$state$tab1$file$uploaded) &&
+        isTRUE(ctx$state$tab1$validation$all_valid)
+      
+      ctx$fsm$flags$tab2_complete <-
+        isTRUE(ctx$state$tab2$validation$all_valid)
+    })
+    
+    # ======================================================
+    # FSM ENGINE (PURE TRANSITION LOGIC)
+    # ======================================================
+    fsm_transition <- function(ctx) {
+      
+      message("🧠 FSM RUN: ", ctx$fsm$state)
+      
+      if (ctx$fsm$state == "TAB1" &&
+          isTRUE(ctx$fsm$flags$tab1_complete) &&
+          isTRUE(ctx$fsm$events$go_next)) {
+        
+        ctx$fsm$state <- "TAB2"
+        ctx$fsm$events$go_next <- FALSE
+        
+        message("➡️ FSM: TAB1 → TAB2")
+      }
+      
+      if (ctx$fsm$state == "TAB2" &&
+          isTRUE(ctx$fsm$flags$tab2_complete) &&
+          isTRUE(ctx$fsm$events$go_next)) {
+        
+        ctx$fsm$state <- "TAB3"
+        ctx$fsm$events$go_next <- FALSE
+        
+        message("➡️ FSM: TAB2 → TAB3")
+      }
+    }
+    
+    # ======================================================
+    # TRIGGER FSM ON DEMAND (NO POLLING)
+    # ======================================================
+    ctx$fsm_trigger <- reactiveVal(0)
+    
+    observeEvent(ctx$fsm_trigger(), {
+      
+      fsm_transition(ctx)
+      
+    })
+    
+    # ======================================================
+    # ROUTER (UI NAVIGATION)
+    # ======================================================
+    observeEvent(ctx$fsm_trigger(), {
+      
+      state <- ctx$fsm$state
+      
+      message("🧭 ROUTER STATE = ", state)
+      
+      bslib::nav_select(
+        id = "tabs",
+        selected = tolower(state),
+        session = session
+      )
+    })
+    
+    # ======================================================
+    # NEXT BUTTON TRIGGER (GLOBAL LISTENER OR INSIDE TAB1)
+    # ======================================================
+    observe({
+      
+      # Example: Tab1 next button
+      if (isTRUE(ctx$fsm$flags$tab1_complete) &&
+          ctx$fsm$state == "TAB1") {
+        
+        # NOTHING automatic — wait for click event from module
+      }
+    })
+    
+    # ======================================================
+    # OPTIONAL: GLOBAL NEXT HANDLER (RECOMMENDED)
+    # ======================================================
+    observeEvent(input$next_btn, {
+      
+      ctx$fsm$events$go_next <- TRUE
+      
+      # 🔥 THIS IS THE ONLY TRIGGER NOW
+      ctx$fsm_trigger(ctx$fsm_trigger() + 1)
+      
+      message("➡️ NEXT CLICK → FSM TRIGGERED")
+    })
   }
   
   shiny::shinyApp(ui, server)
