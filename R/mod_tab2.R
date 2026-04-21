@@ -181,29 +181,15 @@ mod_tab2_server <- function(id, ctx, session) {
     
     ns <- session$ns
     
-    message("🟢 TAB2 — Step 9 clean version")
-    
     # =====================================================
-    # 1. SAFETY INIT (ensure structure exists)
-    # =====================================================
-    observe({
-
-      ctx$state$tab2$metadata   <- ctx$state$tab2$metadata   %||% list()
-      ctx$state$tab2$file       <- ctx$state$tab2$file       %||% list()
-      ctx$state$tab2$validation <- ctx$state$tab2$validation %||% list()
-    })
-    
-    # =====================================================
-    # 2. TAB1 GATE
+    # 1. TAB1 GATE (READ ONLY)
     # =====================================================
     tab1_ready <- reactive({
-      isTRUE(ctx$state$tab1_complete) &&
-        !is.null(ctx$data$obs$clean)
+      isTRUE(ctx$state$tab1$nav_ready)
     })
     
     # =====================================================
-    # 3a. META FILE INFO UPLOAD → CTX
-    # it includes name, size, type, and datapath (server path to the file)
+    # 2. META UPLOAD
     # =====================================================
     observeEvent(input$meta_file, {
       
@@ -211,43 +197,23 @@ mod_tab2_server <- function(id, ctx, session) {
       
       ctx$files$meta_file <- input$meta_file
       ctx$state$tab2$file$uploaded <- TRUE
-      
-      message("📥 meta_file info stored in ctx")
     }, ignoreInit = TRUE)
     
     # =====================================================
-    # 3b. HEADER COLOR
+    # 3. HEADER
     # =====================================================
     observe({
       
-      valid <- isTRUE(ctx$state$tab2$file$uploaded)
-      
-      if (valid) {
+      if (isTRUE(ctx$state$tab2$file$uploaded)) {
         shinyjs::runjs(sprintf(
           "$('#%s').removeClass('bg-danger').addClass('bg-success')",
-          ns("card_header2_2")
+          ns("card_header2")
         ))
-      } 
-    })
-    
-    
-    # =====================================================
-    # 4. LOAD META DATA (CLEAN)
-    # =====================================================
-    observe({
-      
-      req(ctx$files$meta_file)
-      
-      ctx$data$meta$clean <- tryCatch({
-        load_xylo_metadata_clean(ctx$files$meta_file$datapath)
-      }, error = function(e) {
-        message("❌ meta load failed: ", e$message)
-        NULL
-      })
+      }
     })
     
     # =====================================================
-    # 5. VALIDATION (OBS + META)
+    # 4. VALIDATION
     # =====================================================
     observe({
       
@@ -255,33 +221,28 @@ mod_tab2_server <- function(id, ctx, session) {
       
       tbl <- tryCatch({
         
-        obs_val <- tryCatch({
-          xylo_format_validation(ctx$files$obs_file$datapath)
-        }, error = function(e) {
-          data.frame(issue = "Observation validation failed")
-        })
+        obs_val <- tryCatch(
+          xylo_format_validation(ctx$files$obs_file$datapath),
+          error = function(e) data.frame(issue = "obs fail")
+        )
         
-        meta_val <- tryCatch({
-          meta_format_validation(ctx$files$meta_file$datapath)
-        }, error = function(e) {
-          data.frame(issue = "Metadata validation failed")
-        })
+        meta_val <- tryCatch(
+          meta_format_validation(ctx$files$meta_file$datapath),
+          error = function(e) data.frame(issue = "meta fail")
+        )
         
-        rbind(obs_val,meta_val)
+        rbind(obs_val, meta_val)
         
-      }, error = function(e) {
-        data.frame(issue = "Validation crashed")
-      })
+      }, error = function(e) data.frame(issue = "crash"))
       
       ctx$data$tab2_validation <- tbl
       
-      # ✅ write to ctx state
       ctx$state$tab2$validation$all_valid <-
         is.data.frame(tbl) && nrow(tbl) == 0
     })
     
     # =====================================================
-    # 6. UI VALIDATION CARD
+    # 5. UI STATE
     # =====================================================
     observe({
       
@@ -297,54 +258,30 @@ mod_tab2_server <- function(id, ctx, session) {
       shinyjs::show("validation_card")
       
       if (nrow(tbl) == 0) {
-        shinyjs::addClass("card_header2_3", "bg-success")
         shinyjs::show("zip_card")
-      } else {
-        shinyjs::addClass("card_header2_3", "bg-danger")
       }
     })
     
-    # # =====================================================
-    # # 7. VALIDATION TABLE
-    # # =====================================================
-    # output$validation_table <- DT::renderDT({
-    #   
-    #   tbl <- ctx$data$tab2_validation
-    #   
-    #   req(tbl, nrow(tbl) > 0)
-    #   
-    #   DT::datatable(tbl)
-    # })
-    # 
     # =====================================================
-    # 8. NEXT BUTTON ENABLE
+    # 6. NEXT BUTTON
     # =====================================================
     observe({
       shinyjs::toggleState(
-        "next_btn", 
-        isTRUE(ctx$state$tab2$validation$all_valid) &&
-          isTRUE(ctx$state$tab2$file$uploaded)
-        )
+        "next_btn",
+        condition = isTRUE(ctx$state$tab2$validation$all_valid)
+      )
     })
     
-    # =====================================================
-    # 8. NEXT BUTTON CLICK
-    # =====================================================
     observeEvent(input$next_btn, {
       
-      req(
-        ctx$state$tab2$validation$all_valid,
-        ctx$state$tab2$file$uploaded
-      )
+      req(ctx$state$tab2$validation$all_valid)
       
-      ctx$fsm$flags$tab2_complete <- TRUE
+      ctx$state$tab2$nav_ready <- TRUE
+      
       ctx$fsm$events$go_next <- TRUE
       
       ctx$fsm_trigger(ctx$fsm_trigger() + 1)
-      
-      message("➡️ TAB2 COMPLETE")
     })
-    
   })
 }
 
