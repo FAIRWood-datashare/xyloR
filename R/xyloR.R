@@ -113,24 +113,38 @@ xyloR <- function() {
       
       message("🧠 FSM RUN: ", ctx$fsm$state)
       
-      if (ctx$fsm$state == "TAB1" &&
-          isTRUE(ctx$fsm$flags$tab1_complete) &&
-          isTRUE(ctx$fsm$events$go_next)) {
+      # -----------------------------
+      # TAB1 → TAB2
+      # -----------------------------
+      if (ctx$fsm$state == "TAB1") {
         
-        ctx$fsm$state <- "TAB2"
-        ctx$fsm$events$go_next <- FALSE
+        if (isTRUE(ctx$fsm$flags$tab1_complete) &&
+            isTRUE(ctx$fsm$events$go_next)) {
+          
+          ctx$fsm$state <- "TAB2"
+          ctx$fsm$events$go_next <- FALSE
+          
+          message("➡️ FSM: TAB1 → TAB2")
+        }
         
-        message("➡️ FSM: TAB1 → TAB2")
+        return()
       }
       
-      if (ctx$fsm$state == "TAB2" &&
-          isTRUE(ctx$fsm$flags$tab2_complete) &&
-          isTRUE(ctx$fsm$events$go_next)) {
+      # -----------------------------
+      # TAB2 → TAB3
+      # -----------------------------
+      if (ctx$fsm$state == "TAB2") {
         
-        ctx$fsm$state <- "TAB3"
-        ctx$fsm$events$go_next <- FALSE
+        if (isTRUE(ctx$fsm$flags$tab2_complete) &&
+            isTRUE(ctx$fsm$events$go_next)) {
+          
+          ctx$fsm$state <- "TAB3"
+          ctx$fsm$events$go_next <- FALSE
+          
+          message("➡️ FSM: TAB2 → TAB3")
+        }
         
-        message("➡️ FSM: TAB2 → TAB3")
+        return()
       }
     }
     
