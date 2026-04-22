@@ -29,6 +29,11 @@ mod_tab1_ui <- function(id) {
   
   ns <- shiny::NS(id)
   
+  load_obs_contract <- function(path) {
+    raw <- read_xylo_obs_raw(path)
+    build_xylo_obs_clean(raw)
+  }
+  
   shiny::fluidRow(
     
     # =====================================================
@@ -195,13 +200,61 @@ mod_tab1_ui <- function(id) {
       9,
       
       bslib::card(
-        leaflet::leafletOutput(ns("mymap"), height = "360px")
+        
+        bslib::card_header(
+          "Map preview",
+          class = "bg-light py-1"
+        ),
+        bslib::card_body(
+          style = "height: 400px; padding: 0; overflow: hidden;",
+          
+          div(
+            style = "height: 100%; width: 100%;",
+            leaflet::leafletOutput(ns("mymap"), height = "100%")
+          )
+        )
       ),
       
       bslib::card(
-        DT::DTOutput(ns("key_info_table"))
+        
+        bslib::card_header(
+          "Data coverage",
+          class = "bg-light py-1"
+        ),
+        
+        bslib::card_body(
+          
+          # -----------------------------------------------------
+          # CONTROLS (MOVED OUT OF POPOVER)
+          # -----------------------------------------------------
+          shiny::selectInput(
+            ns("color"),
+            "Color by",
+            choices = c("tree_species", "sample_id", "plot_label"),
+            selected = "tree_species"
+          ),
+          
+          # -----------------------------------------------------
+          # PLOT
+          # -----------------------------------------------------
+          plotly::plotlyOutput(
+            ns("data_coverage_plot"),
+            height = "350px"
+          )
+        )
+      ),
+      
+      bslib::card(
+          bslib::card_header(
+            "Info Table",
+            class = "bg-light py-1"
+          ),
+          bslib::card_body(
+            style = "height: 400px;",
+            DT::DTOutput(ns("key_info_table"))
+          )
+        )
       )
-    )
   )
 }
 
@@ -232,6 +285,11 @@ mod_tab1_server <- function(id, ctx, session) {
   moduleServer(id, function(input, output, session) {
     
     ns <- session$ns
+    
+    load_obs_contract <- function(path) {
+      raw <- read_xylo_obs_raw(path)
+      build_xylo_obs_clean(raw)
+    }
     
     # =====================================================
     # 1. VALIDATION
@@ -288,17 +346,165 @@ mod_tab1_server <- function(id, ctx, session) {
     })
     
     # =====================================================
-    # 5. FILE UPLOAD
+    # 5a. FILE UPLOAD (ROBUST + CLEAN)
     # =====================================================
     observeEvent(input$obs_file, {
       
       req(input$obs_file)
       
       ctx$files$obs_file <- input$obs_file
+      
+      # -----------------------------------------------------
+      # LOAD DATA
+      # -----------------------------------------------------
+      ctx$data$obs <- load_xylo_obs_clean(input$obs_file$datapath)
+      ctx$data$site_info <- extract_site_info(input$obs_file$datapath)
+      
+      ctx$state$tab1$file$loaded <- TRUE
+      
+      # -----------------------------------------------------
+      # INIT SITE FILTER
+      # -----------------------------------------------------
+      sites <- unique(trimws(as.character(ctx$data$site_info$site_label)))
+      
+      updateSelectInput(
+        session,
+        "site_filter",
+        choices = sites,
+        selected = sites[1]
+      )
+      
+      # -----------------------------------------------------
+      # UI STATE
+      # -----------------------------------------------------
       ctx$state$tab1$file$uploaded <- TRUE
+      
+      shinyjs::removeClass("card_header2", "bg-danger")
+      shinyjs::addClass("card_header2", "bg-success")
       
       shinyjs::show("card_1_4")
     }, ignoreInit = TRUE)
+    
+    
+    # =====================================================
+    # 5b. SITE INFO REACTIVE
+    # =====================================================
+    site_info <- reactive({
+      req(ctx$data$site_info)
+      ctx$data$site_info
+    })
+    
+    # =====================================================
+    # 5c. MAP RENDERING
+    # =====================================================
+    output$mymap <- leaflet::renderLeaflet({
+      
+      req(ctx$state$tab1$file$loaded)
+      req(input$site_filter)
+      
+      si <- ctx$data$site_info
+      
+      si$site_label <- trimws(as.character(si$site_label))
+      sel <- trimws(as.character(input$site_filter))
+      
+      si <- si[si$site_label == sel, , drop = FALSE]
+      
+      validate(
+        need(nrow(si) > 0, "No site found"),
+        need(!is.na(si$latitude[1]), "Missing lat"),
+        need(!is.na(si$longitude[1]), "Missing lon")
+      )
+      
+      leaflet::leaflet(options = leaflet::leafletOptions(zoomControl = TRUE)) %>%
+        leaflet::addTiles() %>%
+        leaflet::setView(
+          lng = as.numeric(si$longitude[1]),
+          lat = as.numeric(si$latitude[1]),
+          zoom = 11
+        ) %>%
+        leaflet::addMarkers(
+          lng = as.numeric(si$longitude[1]),
+          lat = as.numeric(si$latitude[1]),
+          popup = si$site_label[1]
+        )
+    })
+    
+    # =========================================================
+    # 5d. DATA COVERAGE PLOT
+    # =========================================================
+    output$data_coverage_plot <- plotly::renderPlotly({
+      
+      req(ctx$state$tab1$file$loaded)
+      req(input$site_filter, input$color)
+      
+      df <- ctx$data$obs
+      df <- df[df$site_label == input$site_filter, , drop = FALSE]
+      
+      # safety: prevent crash if column not ready
+      validate(
+        need(input$color %in% names(df), "Invalid color column"),
+        need("sample_date" %in% names(df), "Missing sample_date"),
+        need("tree_label" %in% names(df), "Missing tree_label")
+      )
+      
+      plotly::plot_ly(
+        df,
+        x = ~sample_date,
+        y = ~tree_label,
+        color = as.factor(df[[input$color]]),
+        type = "scatter",
+        mode = "markers",
+        text = ~paste(
+          "Tree:", tree_label,
+          "<br>Date:", sample_date,
+          "<br>", input$color, ":", df[[input$color]]
+        ),
+        hoverinfo = "text"
+      ) %>%
+        layout(
+          plot_bgcolor = "#2e2e2e",
+          paper_bgcolor = "#2e2e2e",
+          font = list(color = "white")
+        )
+    })
+    
+    # =========================================================
+    # 5e. KEY_INFO_TABLE 
+    # =========================================================
+    output$key_info_table <- DT::renderDataTable({
+      
+      ctx$state$tab1$file$loaded
+      
+      df <- ctx$data$obs
+      req(nrow(df) > 0)
+      req(site_info(), input$site_filter)
+      
+      si <- site_info() %>%
+        dplyr::filter(site_label == input$site_filter)
+      
+      validate(
+        need(nrow(si) > 0, "No site selected"),
+        need(!is.na(si$latitude[1]), "Missing lat"),
+        need(!is.na(si$longitude[1]), "Missing lon")
+      )
+      
+      key_info <- tibble::tibble(
+        "Site" = si$site_label[1],
+        "Coordinates" = paste(
+          "Lat =", round(as.numeric(si$latitude[1]), 4),
+          "Long =", round(as.numeric(si$longitude[1]), 4)
+        ),
+        "Elevation" = si$elevation[1],
+        "Network" = paste(unique(df$network_label), collapse = ", "),
+        "Date From" = format(min(df$sample_date), "%Y-%m-%d"),
+        "Date To"   = format(max(df$sample_date), "%Y-%m-%d"),
+        "n_Trees"   = length(unique(df$tree_label))
+      ) %>%
+        t() %>%
+        setNames("Key Info")
+      
+      DT::datatable(key_info, options = list(dom = "t"), class = "table-dark")
+    })
     
     # =====================================================
     # 6. VALIDATION CHECKBOXES
