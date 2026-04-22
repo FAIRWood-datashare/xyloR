@@ -29,148 +29,152 @@ mod_tab1_ui <- function(id) {
   
   ns <- shiny::NS(id)
   
+  load_obs_contract <- function(path) {
+    raw <- read_xylo_obs_raw(path)
+    build_xylo_obs_clean(raw)
+  }
+  
   shiny::fluidRow(
     
     # =====================================================
-    # LEFT COLUMN (CONTROL PANEL)
+    # LEFT COLUMN (FORMS)
     # =====================================================
     shiny::column(
       3,
-      class = "bg-light p-2 border-end d-flex flex-column",
-      style = "height: calc(100vh - 120px); overflow-y: auto;",
+      class = "bg-light p-2 border-end",
       
-      # -----------------------------------------------------
-      # STEP 1 — METADATA COLLECTION
-      # -----------------------------------------------------
+      # =====================================================
+      # CARD 1.1 — DATASET SETUP
+      # =====================================================
+      
+      tags$div(
+        tags$small("Step 1 — Dataset setup", class = "text-muted"),
+        tags$hr(style = "margin: 6px 0;")
+      ),
+      
       bslib::card(
-        class = "mb-2",
         
-        bslib::card_header(
-          "Step 1 — Dataset metadata",
+        div(
           id = ns("card_header1_1"),
-          class = "bg-danger py-1"
+          class = "card-header bg-danger py-1",
+          "1.1 Dataset"
         ),
         
         bslib::card_body(
           class = "py-2",
           
-          shiny::textInput(
-            ns("dataset_name"),
-            "Dataset name",
-            placeholder = "e.g. LTS2025"
-          ),
-          
-          shiny::numericInput(
-            ns("version"),
-            "Version",
-            value = 1, min = 1, max = 99
-          ),
-          
-          shiny::textAreaInput(
-            ns("description"),
-            "Description",
-            placeholder = "Minimum 50 characters..."
-          ),
+          shiny::textInput(ns("dataset_name"), "Name"),
+          shiny::numericInput(ns("version"), "Version", value = 1, min = 1, max = 99),
+          shiny::textAreaInput(ns("description"), "Description"),
           
           shiny::actionButton(
             ns("submit"),
-            "Validate metadata",
+            "Validate",
             class = "btn btn-primary w-100"
           )
         )
       ),
       
-      # -----------------------------------------------------
-      # STEP 2 — TEMPLATE DOWNLOAD
-      # -----------------------------------------------------
+      # =====================================================
+      # CARD 1.2 — DOWNLOAD (OPTIONAL)
+      # =====================================================
+      
+      tags$div(
+        tags$small("Step 2 — Data preparation", class = "text-muted"),
+        tags$hr(style = "margin: 6px 0;")
+      ),
+      
       bslib::card(
         id = ns("card_1"),
-        class = "mb-2",
         style = "display:none;",
         
         bslib::card_header(
-          "Step 2 — Templates (optional)",
+          "Templates (optional)",
           id = ns("card_header1_2"),
-          class = "bg-warning py-1"
+          class = "bg-warning py-1",
+          
+          bslib::tooltip(
+            bsicons::bs_icon("question-circle"),
+            "Optional: download a blank template or example file.",
+            placement = "right"
+          )
         ),
         
         bslib::card_body(
           class = "py-2",
           
           shiny::fluidRow(
+            
             shiny::column(
               6,
-              shiny::downloadButton(
-                ns("download_template"),
-                "Blank template",
-                class = "btn btn-primary w-100"
+              tags$div(
+                
+                shiny::downloadButton(
+                  ns("download_template"),
+                  "Blank",
+                  class = "btn btn-primary w-100"
+                ),
+                
+                tags$small("Your input file", class = "text-muted")
               )
             ),
+            
             shiny::column(
               6,
-              shiny::downloadButton(
-                ns("download_example_obs"),
-                "Example file",
-                class = "btn btn-secondary w-100"
+              tags$div(
+                
+                shiny::downloadButton(
+                  ns("download_example_obs"),
+                  "Example",
+                  class = "btn btn-secondary w-100"
+                ),
+                
+                tags$small("Reference format", class = "text-muted")
               )
             )
-          ),
-          
-          tags$small(
-            "Download a template or example before uploading.",
-            class = "text-muted"
           )
         )
       ),
       
-      # -----------------------------------------------------
-      # STEP 3 — UPLOAD (NOW MORE PROMINENT)
-      # -----------------------------------------------------
+      # =====================================================
+      # CARD 1.3 — UPLOAD
+      # =====================================================
+      
       bslib::card(
         id = ns("card_2"),
-        class = "mb-2",
         style = "display:none;",
         
         bslib::card_header(
-          "Step 3 — Upload data",
           id = ns("card_header2"),
-          class = "bg-danger py-1"
+          class = "card-header bg-danger py-1",
+          "1.3 Upload"
         ),
         
         bslib::card_body(
           class = "py-2",
           
-          shiny::fileInput(
-            ns("obs_file"),
-            "Upload observation file",
-            buttonLabel = "Browse..."
-          ),
-          
-          shiny::selectInput(
-            ns("site_filter"),
-            "Select site",
-            choices = NULL
-          ),
-          
-          tags$small(
-            "After upload, the map and plots will update automatically.",
-            class = "text-muted"
-          )
+          shiny::fileInput(ns("obs_file"), "File"),
+          shiny::selectInput(ns("site_filter"), "Site", choices = NULL)
         )
       ),
       
-      # -----------------------------------------------------
-      # STEP 4 — VALIDATION
-      # -----------------------------------------------------
+      # =====================================================
+      # CARD 1.4 — VALIDATION
+      # =====================================================
+      
+      tags$div(
+        tags$small("Step 3 — Validation & review", class = "text-muted"),
+        tags$hr(style = "margin: 6px 0;")
+      ),
+      
       bslib::card(
         id = ns("card_1_4"),
-        class = "mb-2",
         style = "display:none;",
         
         bslib::card_header(
-          "Step 4 — Validate dataset",
           id = ns("card_header1_4"),
-          class = "bg-danger py-1"
+          class = "card-header bg-danger py-1",
+          "1.4 Validate"
         ),
         
         bslib::card_body(
@@ -183,12 +187,11 @@ mod_tab1_ui <- function(id) {
           shiny::actionButton(
             ns("next_btn"),
             "Continue",
-            class = "btn btn-success w-100"
+            class = "btn btn-primary w-100"
           )
         )
       )
     ),
-    
     
     # =====================================================
     # RIGHT COLUMN (OUTPUTS)
@@ -196,27 +199,25 @@ mod_tab1_ui <- function(id) {
     shiny::column(
       9,
       
-      # -----------------------------------------------------
-      # MAP
-      # -----------------------------------------------------
       bslib::card(
-        class = "mb-2",
         
-        bslib::card_header("Map preview", class = "bg-light py-1"),
-        
+        bslib::card_header(
+          "Map preview",
+          class = "bg-light py-1"
+        ),
         bslib::card_body(
-          style = "height: 350px; padding: 0;",
+          style = "height: 400px; padding: 0; overflow: hidden;",
           
-          leaflet::leafletOutput(ns("mymap"), height = "100%")
+          div(
+            style = "height: 100%; width: 100%;",
+            leaflet::leafletOutput(ns("mymap"), height = "100%")
+          )
         )
       ),
       
-      # -----------------------------------------------------
-      # DATA COVERAGE
-      # -----------------------------------------------------
       bslib::card(
         id = ns("card_data_coverage"),
-        style = "display:none;",
+        # style = "display:none;",
         
         bslib::card_header(
           div(
@@ -240,14 +241,13 @@ mod_tab1_ui <- function(id) {
         )
       ),
       
-      # -----------------------------------------------------
-      # KEY INFO TABLE
-      # -----------------------------------------------------
       bslib::card(
-        
-        bslib::card_header("Dataset summary", class = "bg-light py-1"),
-        
+        bslib::card_header(
+          "Info Table",
+          class = "bg-light py-1"
+        ),
         bslib::card_body(
+          style = "height: 400px;",
           DT::DTOutput(ns("key_info_table"))
         )
       )
@@ -283,8 +283,13 @@ mod_tab1_server <- function(id, ctx, session) {
     
     ns <- session$ns
     
+    load_obs_contract <- function(path) {
+      raw <- read_xylo_obs_raw(path)
+      build_xylo_obs_clean(raw)
+    }
+    
     # =====================================================
-    # 1. METADATA VALIDATION
+    # 1. VALIDATION
     # =====================================================
     observe({
       
@@ -300,72 +305,88 @@ mod_tab1_server <- function(id, ctx, session) {
         nchar(trimws(input$description %||% "")) >= 50
       
       ctx$state$tab1$inputdata$valid <- valid
-      
-      # 🎯 HEADER COLOR = GREEN WHEN VALID
-      if (isTRUE(valid)) {
+    })
+    
+    # =====================================================
+    # 2. HEADER COLOR
+    # =====================================================
+    observe({
+      if (isTRUE(ctx$state$tab1$inputdata$valid)) {
         shinyjs::runjs(sprintf(
           "$('#%s').removeClass('bg-danger').addClass('bg-success')",
-          ns("card_header1_1")
-        ))
-      } else {
-        shinyjs::runjs(sprintf(
-          "$('#%s').removeClass('bg-success').addClass('bg-danger')",
           ns("card_header1_1")
         ))
       }
     })
     
     # =====================================================
-    # 2. ENABLE SUBMIT BUTTON ONLY WHEN VALID
+    # 3. BUTTON ENABLE
     # =====================================================
     observe({
       shinyjs::toggleState(
-        id = ns("submit"),
+        id = "submit",
         condition = isTRUE(ctx$state$tab1$inputdata$valid)
       )
     })
     
     # =====================================================
-    # 3. USER-GATED CONFIRMATION
+    # 4. SUBMIT (UI UNLOCK ONLY)
     # =====================================================
     observeEvent(input$submit, {
       
       req(ctx$state$tab1$inputdata$valid)
       
-      # mark metadata as CONFIRMED (not just valid)
       ctx$state$tab1$inputdata$confirmed <- TRUE
       
-      # unlock next UI steps
       shinyjs::show("card_1")
       shinyjs::show("card_2")
-      
-      # # visual feedback
-      # shinyjs::runjs(sprintf(
-      #   "$('#%s').removeClass('bg-danger').addClass('bg-success')",
-      #   ns("card_header1_1")
-      #))
     })
     
-    # # =====================================================
-    # # 4. DOWNLOAD ENABLE LOGIC (FIXED)
-    # # =====================================================
-    # observe({
-    #   
-    #   ready <- isTRUE(ctx$state$tab1$inputdata$confirmed)
-    #   
-    #   shinyjs::toggleState(
-    #     id = ns("download_template"),
-    #     condition = ready
-    #   )
-    #   
-    #   shinyjs::toggleState(
-    #     id = ns("download_example_obs"),
-    #     condition = ready
-    #   )
-    # })
+    # =========================================================
+    # DOWNLOAD TEMPLATE
+    # =========================================================
+    output$download_template <- downloadHandler(
+      
+      filename = function() {
+        req(input$dataset_name)
+        paste0(input$dataset_name, "_xylo_data_", Sys.Date(), ".xlsx")
+      },
+      
+      content = function(file) {
+        
+        template_path <- system.file(
+          "extdata",
+          "Datasetname_xylo_data_yyyy-mm-dd.xlsx",
+          package = "xyloR"
+        )
+        
+        file.copy(template_path, file, overwrite = TRUE)
+      }
+    )
+    
+    # =========================================================
+    # DOWNLOAD EXAMPLE
+    # =========================================================
+    output$download_example_obs <- downloadHandler(
+      
+      filename = function() {
+        "Example_xylo_data.xlsx"
+      },
+      
+      content = function(file) {
+        
+        template_path <- system.file(
+          "extdata",
+          "Ltal2007_xylo_data_2025-09-01.xlsx",
+          package = "xyloR"
+        )
+        
+        file.copy(template_path, file, overwrite = TRUE)
+      }
+    )
     
     # =====================================================
-    # 5. FILE UPLOAD
+    # 5a. FILE UPLOAD (ROBUST + CLEAN)
     # =====================================================
     observeEvent(input$obs_file, {
       
@@ -373,12 +394,17 @@ mod_tab1_server <- function(id, ctx, session) {
       
       ctx$files$obs_file <- input$obs_file
       
+      # -----------------------------------------------------
+      # LOAD DATA
+      # -----------------------------------------------------
       ctx$data$obs <- load_xylo_obs_clean(input$obs_file$datapath)
       ctx$data$site_info <- extract_site_info(input$obs_file$datapath)
       
       ctx$state$tab1$file$loaded <- TRUE
-      ctx$state$tab1$file$uploaded <- TRUE
       
+      # -----------------------------------------------------
+      # INIT SITE FILTER
+      # -----------------------------------------------------
       sites <- unique(trimws(as.character(ctx$data$site_info$site_label)))
       
       updateSelectInput(
@@ -388,46 +414,53 @@ mod_tab1_server <- function(id, ctx, session) {
         selected = sites[1]
       )
       
+      # -----------------------------------------------------
+      # UI STATE
+      # -----------------------------------------------------
+      ctx$state$tab1$file$uploaded <- TRUE
+      
       shinyjs::removeClass("card_header2", "bg-danger")
       shinyjs::addClass("card_header2", "bg-success")
       
       shinyjs::show("card_1_4")
     }, ignoreInit = TRUE)
     
+    observeEvent(ctx$state$tab1$file$loaded, {
+      if (isTRUE(ctx$state$tab1$file$loaded)) {
+        shinyjs::show("card_data_coverage")
+      }
+    })
+    
     # =====================================================
-    # 6. CENTRAL DATA LAYER
+    # 5b. SITE INFO REACTIVE
     # =====================================================
-    filtered_data <- reactive({
+    site_info <- reactive({
+      req(ctx$data$site_info)
+      ctx$data$site_info
+    })
+    
+    # =====================================================
+    # 5c. MAP RENDERING
+    # =====================================================
+    output$mymap <- leaflet::renderLeaflet({
       
       req(ctx$state$tab1$file$loaded)
       req(input$site_filter)
       
+      si <- ctx$data$site_info
+      
+      si$site_label <- trimws(as.character(si$site_label))
       sel <- trimws(as.character(input$site_filter))
       
-      si <- ctx$data$site_info
-      si$site_label <- trimws(as.character(si$site_label))
-      si_sel <- si[si$site_label == sel, , drop = FALSE]
+      si <- si[si$site_label == sel, , drop = FALSE]
       
-      obs <- ctx$data$obs
-      obs$site_label <- trimws(as.character(obs$site_label))
-      obs_sel <- obs[obs$site_label == sel, , drop = FALSE]
-      
-      list(
-        site = si_sel,
-        obs = obs_sel
+      validate(
+        need(nrow(si) > 0, "No site found"),
+        need(!is.na(si$latitude[1]), "Missing lat"),
+        need(!is.na(si$longitude[1]), "Missing lon")
       )
-    })
-    
-    # =====================================================
-    # 7. MAP (UNCHANGED)
-    # =====================================================
-    output$mymap <- leaflet::renderLeaflet({
       
-      req(filtered_data())
-      
-      si <- filtered_data()$site
-      
-      leaflet::leaflet() %>%
+      leaflet::leaflet(options = leaflet::leafletOptions(zoomControl = TRUE)) %>%
         leaflet::addTiles() %>%
         leaflet::setView(
           lng = as.numeric(si$longitude[1]),
@@ -441,18 +474,22 @@ mod_tab1_server <- function(id, ctx, session) {
         )
     })
     
-    # =====================================================
-    # 8. DATA COVERAGE PLOT (FIXED SAFETY)
-    # =====================================================
+    # =========================================================
+    # 5d. DATA COVERAGE PLOT
+    # =========================================================
     output$data_coverage_plot <- plotly::renderPlotly({
       
-      req(filtered_data(), input$color)
+      req(ctx$state$tab1$file$loaded)
+      req(input$site_filter, input$color)
       
-      df <- filtered_data()$obs
+      df <- ctx$data$obs
+      df <- df[df$site_label == input$site_filter, , drop = FALSE]
       
+      # safety: prevent crash if column not ready
       validate(
-        need(nrow(df) > 0, "No data"),
-        need(input$color %in% names(df), "Invalid color column")
+        need(input$color %in% names(df), "Invalid color column"),
+        need("sample_date" %in% names(df), "Missing sample_date"),
+        need("tree_label" %in% names(df), "Missing tree_label")
       )
       
       plotly::plot_ly(
@@ -461,11 +498,106 @@ mod_tab1_server <- function(id, ctx, session) {
         y = ~tree_label,
         color = as.factor(df[[input$color]]),
         type = "scatter",
-        mode = "markers"
+        mode = "markers",
+        text = ~paste(
+          "Tree:", tree_label,
+          "<br>Date:", sample_date,
+          "<br>", input$color, ":", df[[input$color]]
+        ),
+        hoverinfo = "text"
+      ) %>%
+        layout(
+          plot_bgcolor = "#2e2e2e",
+          paper_bgcolor = "#2e2e2e",
+          font = list(color = "white")
+        )
+    })
+    
+    # =========================================================
+    # 5e. KEY_INFO_TABLE 
+    # =========================================================
+    output$key_info_table <- DT::renderDataTable({
+      
+      req(ctx$state$tab1$file$loaded)
+      
+      df <- ctx$data$obs
+      req(nrow(df) > 0)
+      req(site_info(), input$site_filter)
+      
+      si <- site_info() %>%
+        dplyr::filter(site_label == input$site_filter)
+      
+      validate(
+        need(nrow(si) > 0, "No site selected"),
+        need(!is.na(si$latitude[1]), "Missing lat"),
+        need(!is.na(si$longitude[1]), "Missing lon")
       )
+      
+      key_info <- tibble::tibble(
+        "Site" = si$site_label[1],
+        "Coordinates" = paste(
+          "Lat =", round(as.numeric(si$latitude[1]), 4),
+          "Long =", round(as.numeric(si$longitude[1]), 4)
+        ),
+        "Elevation" = si$elevation[1],
+        "Network" = paste(unique(df$network_label), collapse = ", "),
+        "Date From" = format(min(df$sample_date), "%Y-%m-%d"),
+        "Date To"   = format(max(df$sample_date), "%Y-%m-%d"),
+        "n_Trees"   = length(unique(df$tree_label))
+      ) %>%
+        t() %>%
+        setNames("Key Info")
+      
+      DT::datatable(key_info, options = list(dom = "t", paging = FALSE), colnames = "Selected site", class = "table-dark compact")
+    })
+    
+    # =====================================================
+    # 6. VALIDATION CHECKBOXES
+    # =====================================================
+    observe({
+      
+      ctx$state$tab1$validation$all_valid <-
+        isTRUE(input$validate_location) &&
+        isTRUE(input$validate_data_coverage) &&
+        isTRUE(input$validate_observation)
+    })
+    
+    # =====================================================
+    # 7. HEADER VALIDATION
+    # =====================================================
+    observe({
+      if (isTRUE(ctx$state$tab1$validation$all_valid)) {
+        shinyjs::runjs(sprintf(
+          "$('#%s').removeClass('bg-danger').addClass('bg-success')",
+          ns("card_header1_4")
+        ))
+      }
+    })
+    
+    # =====================================================
+    # 8. NEXT BUTTON (ONLY SIGNAL STATE)
+    # =====================================================
+    observe({
+      shinyjs::toggleState(
+        id = "next_btn",
+        condition = isTRUE(ctx$state$tab1$validation$all_valid)
+      )
+    })
+    
+    observeEvent(input$next_btn, {
+      
+      req(
+        ctx$state$tab1$inputdata$valid,
+        ctx$state$tab1$file$uploaded,
+        ctx$state$tab1$validation$all_valid
+      )
+      
+      # ONLY SET FLAG — NOTHING ELSE
+      ctx$state$tab1$nav_ready <- TRUE
+      
+      ctx$fsm$events$go_next <- TRUE
+      
+      ctx$fsm_trigger(ctx$fsm_trigger() + 1)
     })
   })
 }
-
-
-

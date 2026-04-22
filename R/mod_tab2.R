@@ -182,28 +182,51 @@ mod_tab2_server <- function(id, ctx, session) {
     ns <- session$ns
     
     # =====================================================
-    # 1. TAB1 GATE (READ ONLY)
+    # LOCAL REACTIVES
     # =====================================================
+    
+    zip_ready <- reactiveVal(FALSE)
+    validation_tbl <- reactiveVal(NULL)
+    meta_hierarchy <- reactiveVal(NULL)
+    validation_trigger <- reactiveVal(0)
+    
+    # =====================================================
+    # 1. TAB1 GATE
+    # =====================================================
+    
     tab1_ready <- reactive({
       isTRUE(ctx$state$tab1$nav_ready)
     })
     
     # =====================================================
-    # 2. META UPLOAD
+    # 2. META FILE UPLOAD
     # =====================================================
+    
     observeEvent(input$meta_file, {
       
       req(input$meta_file)
       
       ctx$files$meta_file <- input$meta_file
       ctx$state$tab2$file$uploaded <- TRUE
+      
+      message("META FILE UPLOADED: ", input$meta_file$name)
+      
+      # LOAD META VIA IO LAYER
+      meta <- load_xylo_metadata_clean(input$meta_file$datapath)
+      ctx$data$meta <- meta
+      
+      message("META LOADED | sheets: ", paste(names(meta), collapse = ", "))
+      
+      # TRIGGER VALIDATION ONCE
+      validation_trigger(validation_trigger() + 1)
+      
     }, ignoreInit = TRUE)
     
     # =====================================================
-    # 3. HEADER
+    # 3. HEADER STATE
     # =====================================================
+    
     observe({
-      
       if (isTRUE(ctx$state$tab2$file$uploaded)) {
         shinyjs::runjs(sprintf(
           "$('#%s').removeClass('bg-danger').addClass('bg-success')",
@@ -213,61 +236,110 @@ mod_tab2_server <- function(id, ctx, session) {
     })
     
     # =====================================================
-    # 4. VALIDATION
+    # 4. VALIDATION ENGINE (SINGLE SOURCE OF TRUTH)
     # =====================================================
-    observe({
+    
+    observeEvent(validation_trigger(), {
       
-      req(tab1_ready(), ctx$files$meta_file)
+      req(ctx$files$meta_file)
+      req(ctx$files$obs_file)
+      
+      message("RUNNING VALIDATION...")
       
       tbl <- tryCatch({
-        
-        obs_val <- tryCatch(
-          xylo_format_validation(ctx$files$obs_file$datapath),
-          error = function(e) data.frame(issue = "obs fail")
+        xylo_meta_validation(ctx$files$meta)
+      }, error = function(e) {
+        data.frame(
+          type = "error",
+          source = "validation",
+          message = e$message
         )
-        
-        meta_val <- tryCatch(
-          meta_format_validation(ctx$files$meta_file$datapath),
-          error = function(e) data.frame(issue = "meta fail")
-        )
-        
-        rbind(obs_val, meta_val)
-        
-      }, error = function(e) data.frame(issue = "crash"))
+      })
       
+      # Debug
+      print("VALIDATION TABLE")
+      print(head(tbl))
+      
+      validation_tbl(tbl)
       ctx$data$tab2_validation <- tbl
       
-      ctx$state$tab2$validation$all_valid <-
-        is.data.frame(tbl) && nrow(tbl) == 0
-    })
+      is_valid <- is.data.frame(tbl) && nrow(tbl) == 0
+      
+      ctx$state$tab2$validation$all_valid <- is_valid
+      
+      message("VALIDATION DONE | valid=", is_valid, " rows=", nrow(tbl))
+      
+    }, ignoreInit = TRUE)
     
     # =====================================================
-    # 5. UI STATE
+    # 5. UI STATE CONTROL (VALIDATION + ZIP VISIBILITY)
     # =====================================================
+    
     observe({
       
-      req(tab1_ready())
-      
-      tbl <- ctx$data$tab2_validation
-      
-      shinyjs::hide("validation_card")
-      shinyjs::hide("zip_card")
-      
-      if (is.null(tbl)) return()
+      req(ctx$state$tab2$file$uploaded)
       
       shinyjs::show("validation_card")
       
-      if (nrow(tbl) == 0) {
+      tbl <- validation_tbl()
+      
+      if (is.null(tbl)) return()
+      
+      # ALWAYS SHOW VALIDATION RESULTS (important)
+      output$validation_table <- renderTable({
+        tbl
+      })
+      
+      # VALID STATE
+      if (isTRUE(ctx$state$tab2$validation$all_valid)) {
+        
         shinyjs::show("zip_card")
+        
+      } else {
+        
+        shinyjs::hide("zip_card")
+        
+        # OPTIONAL: show next-step blocker card
+        shinyjs::show("validation_blocker_card")
       }
     })
     
+    output$validation_status <- renderText({
+      
+      tbl <- validation_tbl()
+      
+      if (is.null(tbl)) return("No validation yet")
+      
+      if (nrow(tbl) == 0) {
+        "Validation passed"
+      } else {
+        paste("Validation failed:", nrow(tbl), "issue(s) detected")
+      }
+    })
+    
+    output$validation_table <- renderTable({
+      req(validation_tbl())
+      validation_tbl()
+    })
+    
     # =====================================================
-    # 6. NEXT BUTTON
+    # 6. ZIP BUTTON STATE
     # =====================================================
+    
     observe({
       shinyjs::toggleState(
-        "next_btn",
+        id = "download_zip",
+        condition = isTRUE(zip_ready())
+      )
+    })
+    
+    # =====================================================
+    # 7. NEXT BUTTON
+    # =====================================================
+    
+    observe({
+      shinyjs::toggleState(
+        id = "next_btn",
         condition = isTRUE(ctx$state$tab2$validation$all_valid)
       )
     })
@@ -279,9 +351,50 @@ mod_tab2_server <- function(id, ctx, session) {
       ctx$state$tab2$nav_ready <- TRUE
       
       ctx$fsm$events$go_next <- TRUE
-      
       ctx$fsm_trigger(ctx$fsm_trigger() + 1)
     })
+    
+    # =====================================================
+    # 8. HIERARCHY BUILDER
+    # =====================================================
+    
+    observe({
+      
+      req(meta_hierarchy())
+      
+      h <- build_xylo_hierarchy(meta_hierarchy())
+      
+      ctx$data$tab2_hierarchy <- h
+      
+      message("HIERARCHY BUILT | rows=", nrow(h))
+    })
+    
+    # =====================================================
+    # 9. DEBUG PANEL (VERY IMPORTANT)
+    # =====================================================
+    
+    output$debug_tab2 <- renderPrint({
+      
+      list(
+        uploaded = ctx$state$tab2$file$uploaded,
+        meta_file = if (!is.null(ctx$files$meta_file)) ctx$files$meta_file$name else NULL,
+        validation_rows = if (!is.null(validation_tbl())) nrow(validation_tbl()) else NULL,
+        zip_ready = zip_ready(),
+        validation_trigger = validation_trigger(),
+        hierarchy_loaded = if (!is.null(meta_hierarchy())) names(meta_hierarchy()) else NULL,
+        validation_state = ctx$state$tab2$validation$all_valid
+      )
+    })
+    
+    # =====================================================
+    # EXPORTS (DEBUG / TESTING)
+    # =====================================================
+    
+    return(list(
+      validation = validation_tbl,
+      zip_ready = zip_ready,
+      hierarchy = meta_hierarchy
+    ))
   })
 }
 

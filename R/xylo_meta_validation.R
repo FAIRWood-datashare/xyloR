@@ -1,21 +1,18 @@
 
 
 #' @export
-xylo_meta_validation <- function(meta_path) {
+xylo_meta_validation <- function(meta) {
   
-  if (is.null(meta_path) || !file.exists(meta_path)) {
+  # Guard: meta must exist
+  if (is.null(meta)) {
     return(data.frame(
       type = "error",
       source = "metadata",
-      message = "Invalid or missing meta file path"
+      message = "Metadata object is NULL"
     ))
   }
   
-  # STEP 1: load metadata
-  raw <- read_xylo_meta_raw(meta_path)
-  meta <- build_xylo_meta_clean(raw)
-  
-  # STEP 2: run pipeline (your existing system)
+  # Run validation pipeline safely
   result <- tryCatch({
     
     validate_metadata_pipeline(meta)
@@ -29,14 +26,12 @@ xylo_meta_validation <- function(meta_path) {
     )
   })
   
-  # STEP 3: normalize output
+  # Normalize output:
+  # ✅ VALID = empty data frame
   if (is.null(result) || nrow(result) == 0) {
-    return(data.frame(
-      type = "ok",
-      source = "metadata",
-      message = "validation passed"
-    ))
+    return(data.frame())
   }
   
+  # Otherwise return validation issues
   result
 }
