@@ -63,21 +63,44 @@ xyloR <- function() {
     ctx <- create_app_context()
     
     # ======================================================
-    # FSM INIT (ONCE ONLY)
+    # FSM SNAPSHOT
+    # ======================================================
+    get_fsm_snapshot <- function(ctx) {
+      
+      list(
+        tab1_complete = all(c(
+          isTRUE(ctx$state$tab1$inputdata$valid %||% FALSE),
+          isTRUE(ctx$state$tab1$file$uploaded %||% FALSE),
+          isTRUE(ctx$state$tab1$file$loaded %||% FALSE),
+          isTRUE(ctx$state$tab1$validation$ui_valid %||% FALSE)
+        )),
+        
+        tab2_complete = isTRUE(ctx$state$tab2$validation$all_valid %||% FALSE)
+      )
+    }
+    
+    # ======================================================
+    # FSM INIT
     # ======================================================
     ctx$fsm <- list(
-      state = "TAB1",
-      
-      flags = list(
-        tab1_complete = FALSE,
-        tab2_complete = FALSE,
-        tab3_complete = FALSE
-      ),
-      
-      events = list(
-        go_next = FALSE
-      )
+      state = "tab1",
+      events = list()
     )
+    
+    # ======================================================
+    # CENTRAL VALIDATION ENGINE
+    # ======================================================
+    ctx$validation <- reactive({
+      
+      req(ctx$data$obs)
+      req(ctx$data$meta)
+      
+      xylo_validation_engine(ctx)
+    })
+    
+    observe({
+      ctx$state$validation <- ctx$validation()
+    })
     
     # ======================================================
     # MODULES
@@ -85,7 +108,6 @@ xyloR <- function() {
     mod_tab1_server("tab1", ctx, session)
     mod_tab2_server("tab2", ctx, session)
     mod_tab3_server("tab3", ctx, session)
-    
     mod_tab4_server("tab4", ctx, session)
     mod_tab5_server("tab5", ctx, session)
     mod_tab6_server("tab6", ctx, session)
@@ -93,74 +115,56 @@ xyloR <- function() {
     mod_tab8_server("tab8", ctx, session)
     
     # ======================================================
-    # FSM INPUT LAYER (DERIVE FLAGS ONLY)
-    # ======================================================
-    observe({
-      
-      ctx$fsm$flags$tab1_complete <-
-        isTRUE(ctx$state$tab1$inputdata$valid) &&
-        isTRUE(ctx$state$tab1$file$uploaded) &&
-        isTRUE(ctx$state$tab1$validation$all_valid)
-      
-      ctx$fsm$flags$tab2_complete <-
-        isTRUE(ctx$state$tab2$validation$all_valid)
-    })
-    
-    # ======================================================
-    # FSM ENGINE (PURE TRANSITION LOGIC)
+    # FSM TRANSITION ENGINE
     # ======================================================
     fsm_transition <- function(ctx) {
       
-      message("🧠 FSM RUN: ", ctx$fsm$state)
+      snapshot <- get_fsm_snapshot(ctx)
       
-      # -----------------------------
+      message("🔁 FSM STATE BEFORE: ", ctx$fsm$state)
+      message("📦 SNAPSHOT tab1=", snapshot$tab1_complete,
+              " tab2=", snapshot$tab2_complete)
+      
+      # -------------------------
       # TAB1 → TAB2
-      # -----------------------------
-      if (ctx$fsm$state == "TAB1") {
+      # -------------------------
+      if (ctx$fsm$state == "tab1") {
         
-        if (isTRUE(ctx$fsm$flags$tab1_complete) &&
-            isTRUE(ctx$fsm$events$go_next)) {
-          
-          ctx$fsm$state <- "TAB2"
-          ctx$fsm$events$go_next <- FALSE
-          
-          message("➡️ FSM: TAB1 → TAB2")
+        if (isTRUE(snapshot$tab1_complete)) {
+          ctx$fsm$state <- "tab2"
+          message("➡️ FSM: tab1 → tab2")
         }
         
         return()
       }
       
-      # -----------------------------
+      # -------------------------
       # TAB2 → TAB3
-      # -----------------------------
-      if (ctx$fsm$state == "TAB2") {
+      # -------------------------
+      if (ctx$fsm$state == "tab2") {
         
-        if (isTRUE(ctx$fsm$flags$tab2_complete) &&
-            isTRUE(ctx$fsm$events$go_next)) {
-          
-          ctx$fsm$state <- "TAB3"
-          ctx$fsm$events$go_next <- FALSE
-          
-          message("➡️ FSM: TAB2 → TAB3")
+        if (isTRUE(snapshot$tab2_complete)) {
+          ctx$fsm$state <- "tab3"
+          message("➡️ FSM: tab2 → tab3")
         }
         
         return()
       }
+      
+      message("🔁 FSM STATE AFTER: ", ctx$fsm$state)
     }
     
     # ======================================================
-    # TRIGGER FSM ON DEMAND (NO POLLING)
+    # FSM TRIGGER
     # ======================================================
     ctx$fsm_trigger <- reactiveVal(0)
     
     observeEvent(ctx$fsm_trigger(), {
-      
       fsm_transition(ctx)
-      
     })
     
     # ======================================================
-    # ROUTER (UI NAVIGATION)
+    # ROUTER (TAB SWITCHING)
     # ======================================================
     observeEvent(ctx$fsm_trigger(), {
       
@@ -168,37 +172,23 @@ xyloR <- function() {
       
       message("🧭 ROUTER STATE = ", state)
       
+      req(state %in% c("tab1", "tab2", "tab3"))
+      
       bslib::nav_select(
         id = "tabs",
-        selected = tolower(state),
+        selected = state,
         session = session
       )
     })
     
     # ======================================================
-    # NEXT BUTTON TRIGGER (GLOBAL LISTENER OR INSIDE TAB1)
-    # ======================================================
-    observe({
-      
-      # Example: Tab1 next button
-      if (isTRUE(ctx$fsm$flags$tab1_complete) &&
-          ctx$fsm$state == "TAB1") {
-        
-        # NOTHING automatic — wait for click event from module
-      }
-    })
-    
-    # ======================================================
-    # OPTIONAL: GLOBAL NEXT HANDLER (RECOMMENDED)
+    # NEXT BUTTON (ONLY ONE HANDLER)
     # ======================================================
     observeEvent(input$next_btn, {
       
-      ctx$fsm$events$go_next <- TRUE
+      message("➡️ NEXT CLICK RECEIVED")
       
-      # 🔥 THIS IS THE ONLY TRIGGER NOW
       ctx$fsm_trigger(ctx$fsm_trigger() + 1)
-      
-      message("➡️ NEXT CLICK → FSM TRIGGERED")
     })
   }
   
