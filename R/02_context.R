@@ -78,7 +78,7 @@ create_app_context <- function() {
   # =====================================================
   # DATA + FILE STORAGE
   # =====================================================
-  ctx$data  <- new.env(parent = emptyenv())
+  ctx$data  <- shiny::reactiveValues()
   ctx$files <- new.env(parent = emptyenv())
   
   ctx

@@ -4,7 +4,7 @@
 \alias{xylo_format_validation}
 \title{Xylodata Format Validation}
 \usage{
-xylo_format_validation(xylo_file)
+xylo_format_validation(obs)
 }
 \arguments{
 \item{xylo_file}{Path to the metadata Excel file.}

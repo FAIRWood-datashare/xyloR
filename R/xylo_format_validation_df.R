@@ -1,44 +1,24 @@
-#' Xylodata Format Validation
-#'
-#' @param xylo_file Path to the metadata Excel file.
-#' @return A tibble containing validation issues for each sheet and column in the xylo data.
+
 #' @export
-#' 
-#' @examples
-#' \dontrun{
-#' xylo_file <- system.file("extdata", "Ltal.2007_xylo_data_2025-09-01.xlsx", package = "xyloR")
-#' report <- xylo_format_validation(xylo_file)
-#' }
-#' 
-#' @importFrom utils read.csv 
-#' @importFrom magrittr %>%
-#' @importFrom dplyr select filter mutate pull
-#' @importFrom purrr map_dfr 
-#' @importFrom readxl excel_sheets read_excel
-#' @importFrom stats na.omit setNames
-#' 
-#' 
-xylo_format_validation <- function(obs) {
+xylo_format_validation_df <- function(obs_df) {
   
   # -------------------------------------------------------
   # 1. TYPE SAFETY
   # -------------------------------------------------------
-  if (is.null(obs) || !is.data.frame(obs)) {
+  if (is.null(obs_df) || !is.data.frame(obs_df)) {
     return(data.frame(
       type = "error",
       source = "obs",
-      message = "xylo_format_validation expects a data.frame",
+      message = "obs is not a data.frame",
       stringsAsFactors = FALSE
     ))
   }
   
-  data <- obs
-  
   # -------------------------------------------------------
-  # 2. REQUIRED COLUMNS CHECK
+  # 2. BASIC COLUMN CHECK (SAFE GUARD)
   # -------------------------------------------------------
   required_cols <- c("sample_date", "tree_label", "site_label")
-  missing <- setdiff(required_cols, names(data))
+  missing <- setdiff(required_cols, names(obs_df))
   
   if (length(missing) > 0) {
     return(data.frame(
@@ -50,12 +30,12 @@ xylo_format_validation <- function(obs) {
   }
   
   # -------------------------------------------------------
-  # 3. PLACEHOLDER FOR FUTURE RULES
+  # 3. REMOVE TEMPLATE ROWS SAFELY
   # -------------------------------------------------------
-  # Add row-level or constraint validation here later
+  data <- if (nrow(obs_df) > 6) obs_df[-c(1:6), , drop = FALSE] else obs_df
   
   # -------------------------------------------------------
-  # 4. RETURN "NO ERRORS"
+  # 4. PLACEHOLDER VALIDATION (SAFE DEFAULT = OK)
   # -------------------------------------------------------
   return(data.frame(
     type = character(0),

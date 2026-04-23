@@ -95,7 +95,7 @@ xyloR <- function() {
       req(ctx$data$obs)
       req(ctx$data$meta)
       
-      xylo_validation_engine(ctx)
+      xylo_validation_engine(ctx$data$obs, ctx$data$meta)
     })
     
     observe({
@@ -182,14 +182,12 @@ xyloR <- function() {
     })
     
     # ======================================================
-    # NEXT BUTTON (ONLY ONE HANDLER)
+    # NEXT BUTTON
     # ======================================================
-    observeEvent(input$next_btn, {
-      
-      message("➡️ NEXT CLICK RECEIVED")
-      
-      ctx$fsm_trigger(ctx$fsm_trigger() + 1)
-    })
+    # Handled inside each module (mod_tab1, mod_tab2).
+    # Modules fire ctx$fsm_trigger() directly after their
+    # own validation guard — no app-level handler required.
+    
   }
   
   shiny::shinyApp(ui, server)

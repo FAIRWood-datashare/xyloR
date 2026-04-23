@@ -72,10 +72,20 @@ xylo_validation_engine <- function(obs, meta) {
     )
   }
   
-  list(
-    obs = obs_val,
-    meta = meta_val,
-    all = all_tbl,
-    all_valid = nrow(all_tbl) == 0
-  )
+  all_tbl
+  # list(
+  #   obs = obs_val,
+  #   meta = meta_val,
+  #   all = all_tbl,
+  #   all_valid = nrow(all_tbl) == 0
+  # )
+  
+  message("---- OBS VALIDATION ----")
+  print(obs_val)
+  
+  message("---- META VALIDATION ----")
+  print(meta_val)
+  
+  message("---- FINAL TABLE ----")
+  print(all_tbl)
 }
