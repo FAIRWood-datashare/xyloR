@@ -14,14 +14,4 @@ A \code{shiny.tag.list} containing the UI elements of the module.
 }
 \description{
 A shiny module for the "Observation" tab.
-
-This module provides a user interface for managing the observation data.
-It consists of:
-\enumerate{
-\item An action button for saving observations,
-\item A basic information section that displays a table of site data,
-\item A detailed observation table with data fields such as sample date, species, and labels,
-\item Real-time syncing of data with user input for tables,
-\item Handling data formatting and species synchronization.
-}
 }

@@ -7,13 +7,11 @@
 mod_tab4_ui(id)
 }
 \arguments{
-\item{id}{The module ID, which is used to create unique namespaces for the inputs
-and outputs within the module.}
+\item{id}{The module ID.}
 }
 \value{
-A \code{fluidRow} containing a \verb{Save site} button and a table for site metadata.
+A nav_panel UI for the Site tab.
 }
 \description{
-Creates the UI for the "Site" tab in the Shiny application, which allows the user
-to view and edit site metadata in a reactive \code{rHandsontable}.
+Site Metadata Tab UI
 }

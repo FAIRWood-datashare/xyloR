@@ -10,7 +10,7 @@ mod_tab5_ui(id)
 \item{id}{The module ID.}
 }
 \value{
-A UI element (fluidRow, card layout) for displaying the tree metadata table.
+A nav_panel UI for the Tree tab.
 }
 \description{
 Module UI for Tree Metadata Tab

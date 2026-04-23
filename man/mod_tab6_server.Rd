@@ -7,19 +7,12 @@
 mod_tab6_server(id, ctx, session)
 }
 \arguments{
-\item{id}{A string representing the namespace for the module's server logic. This is required for module-based server functions.}
+\item{id}{A string representing the namespace for the module's server logic.}
 
-\item{out_tab1}{A reactive object containing the dataset name and observation file.}
+\item{ctx}{The centralized app context (environment).}
 
-\item{out_tab2}{A reactive object containing the metadata file and validation results.}
-
-\item{out_tab3}{A reactive object containing the workbook reference and column configurations.}
-
-\item{out_tab4}{A reactive object containing the tree metadata table and other related data.}
-}
-\value{
-NULL. This function performs side-effects, such as rendering the sample table and saving data.
+\item{session}{The parent Shiny session.}
 }
 \description{
-This function defines the server-side logic for the "Sample" tab, including loading sample metadata from an uploaded file, rendering the sample metadata table, and handling save events.
+Server function for Sample Metadata Tab
 }

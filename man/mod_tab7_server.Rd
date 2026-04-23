@@ -2,23 +2,17 @@
 % Please edit documentation in R/56_mod_tab7.R
 \name{mod_tab7_server}
 \alias{mod_tab7_server}
-\title{Server Logic for the person Metadata Tab}
+\title{Server Logic for the Person Metadata Tab}
 \usage{
 mod_tab7_server(id, ctx, session)
 }
 \arguments{
 \item{id}{A string representing the unique identifier for the module UI.}
 
-\item{out_tab1}{A reactive object containing the dataset name and observation file.}
+\item{ctx}{The centralized app context (environment).}
 
-\item{out_tab2}{A reactive object containing the metadata file and validation results.}
-
-\item{out_tab3}{A reactive object containing the workbook reference and column configurations.}
-
-\item{out_tab4}{A reactive object containing the tree metadata table and other related data.}
+\item{session}{The parent Shiny session.}
 }
 \description{
-This module handles the server-side logic for the person Metadata Tab in the app.
-It includes functionalities for adding, editing, and deleting person records,
-validating form inputs, and interacting with external APIs (ORCID, ROR) for person data retrieval.
+Server Logic for the Person Metadata Tab
 }

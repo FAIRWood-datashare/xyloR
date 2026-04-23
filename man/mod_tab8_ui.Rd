@@ -10,9 +10,8 @@ mod_tab8_ui(id)
 \item{id}{The module ID for the UI element.}
 }
 \value{
-A UI element for the Publication tab.
+A nav_panel UI for the Publication tab.
 }
 \description{
-This function generates the UI for the "Publication" tab in the Shiny app.
-It allows users to view, add, update, delete, and reorder publication metadata.
+UI for Publication Tab
 }

@@ -7,11 +7,11 @@
 mod_tab6_ui(id)
 }
 \arguments{
-\item{id}{A string representing the namespace for the UI components. This is required for module-based UI.}
+\item{id}{A string representing the namespace for the UI components.}
 }
 \value{
-A \code{fluidRow} containing the UI elements for the sample metadata table and a save button.
+A nav_panel for the Sample tab.
 }
 \description{
-This function generates the UI components for the "Sample" tab, including a table for displaying and editing sample metadata.
+Module UI for Sample Metadata Tab
 }

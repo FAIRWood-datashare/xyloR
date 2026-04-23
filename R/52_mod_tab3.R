@@ -2,39 +2,28 @@
 #'
 #' @description A shiny module for the "Observation" tab.
 #'
-#' This module provides a user interface for managing the observation data.
-#' It consists of:
-#' 1. An action button for saving observations,
-#' 2. A basic information section that displays a table of site data,
-#' 3. A detailed observation table with data fields such as sample date, species, and labels,
-#' 4. Real-time syncing of data with user input for tables,
-#' 5. Handling data formatting and species synchronization.
-#'
 #' @param id A string that serves as the module namespace identifier.
-#'
 #' @return A `shiny.tag.list` containing the UI elements of the module.
-#' 
+#'
 #' @import shiny
 #' @importFrom bslib nav_panel card card_header card_body
 #' @importFrom htmltools tagList div
 #' @importFrom bsicons bs_icon
 #' @importFrom rhandsontable rHandsontableOutput
-#' 
+#'
 mod_tab3_ui <- function(id) {
-  
   ns <- shiny::NS(id)
-  
+
   bslib::nav_panel(
     title = "Observations",
     value = "tab3",
-    
+
     shiny::fluidRow(
-      
+
       # LEFT ACTION PANEL
       shiny::column(
         2,
         class = "bg-light p-2 border-end",
-        
         bslib::card(
           bslib::card_body(
             shiny::actionButton(
@@ -45,22 +34,20 @@ mod_tab3_ui <- function(id) {
           )
         )
       ),
-      
+
       # MAIN PANEL
       shiny::column(
         10,
-        
         bslib::card(
-          bslib::card_header("Site Info"),
+          bslib::card_header("Basic Info"),
           bslib::card_body(
-            rhandsontable::rHandsontableOutput(ns("tbl_site"))
+            rhandsontable::rHandsontableOutput(ns("tbl1"))
           )
         ),
-        
         bslib::card(
-          bslib::card_header("Observations"),
+          bslib::card_header("Observation table"),
           bslib::card_body(
-            rhandsontable::rHandsontableOutput(ns("tbl_obs"))
+            rhandsontable::rHandsontableOutput(ns("tbl2"))
           )
         )
       )
@@ -72,144 +59,243 @@ mod_tab3_ui <- function(id) {
 #'
 #' @description Server logic for the "Observation" tab module.
 #'
-#' Handles:
-#' - Observations data loading and synchronization,
-#' - Saving observation data to a workbook,
-#' - Table rendering with synchronization and real-time updates,
-#' - Data validation, and managing input data transformations.
-#'
 #' @param id A string that serves as the module namespace identifier.
-#' @param out_tab1 A reactive object containing the dataset name and observation file.
-#' @param out_tab2 A reactive object containing the metadata file and validation results.
+#' @param ctx The centralized app context (environment).
+#' @param session The parent Shiny session.
 #'
-#' @return No return value, called for side effects.
+#' @return A list with WB, WB_meta, data_in, column_configs (for downstream tabs).
 #' @export
 #'
-#' @import shiny 
+#' @import shiny
 #' @importFrom shinyjs enable disable
-#' @importFrom DT renderDataTable datatable
-#' @importFrom plotly plotlyOutput
-#' @importFrom openxlsx loadWorkbook saveWorkbook 
+#' @importFrom openxlsx loadWorkbook readWorkbook saveWorkbook
 #' @importFrom bslib nav_panel card card_header card_body
 #' @importFrom htmltools tagList div
 #' @importFrom bsicons bs_icon
-#' 
+#'
 mod_tab3_server <- function(id, ctx, session) {
-  
   moduleServer(id, function(input, output, session) {
-    
+
     message("🟢 TAB3 — FSM CLEAN VERSION")
-    
-    ns <- session$ns
-    
+
     # =====================================================
-    # 1. WORKBOOK LOADERS (OBS + META)
+    # 1. WORKBOOK LOADERS
     # =====================================================
-    WB <- reactive({
-      req(ctx$files$obs_file)
+    WB <- shiny::reactive({
+      shiny::req(ctx$files$obs_file)
       openxlsx::loadWorkbook(ctx$files$obs_file$datapath)
     })
-    
-    WB_meta <- reactive({
-      req(ctx$files$meta_file)
+
+    WB_meta <- shiny::reactive({
+      shiny::req(ctx$files$meta_file)
       openxlsx::loadWorkbook(ctx$files$meta_file$datapath)
     })
-    
-    # =====================================================
-    # 2. DATA INITIALIZATION
-    # =====================================================
-    data_in <- reactiveValues(
-      tbl1 = NULL,
-      tbl2 = NULL
-    )
-    
-    observe({
-      
-      req(WB())
-      
-      data_in$tbl1 <- openxlsx::readWorkbook(WB(), sheet = "obs_data_info", startRow = 6)
-      data_in$tbl2 <- openxlsx::readWorkbook(WB(), sheet = "Xylo_obs_data", startRow = 1)
+
+    # Store workbooks in ctx for downstream tabs
+    shiny::observe({
+      shiny::req(WB())
+      ctx$files$wb_obs <- WB()
     })
-    
+
+    shiny::observe({
+      shiny::req(WB_meta())
+      ctx$files$wb_meta <- WB_meta()
+    })
+
     # =====================================================
-    # 3. DROP LIST / SPECIES MAP
+    # 2. TAB ENABLE/DISABLE VIA FSM
     # =====================================================
-    drop_species <- reactive({
-      
-      req(WB())
-      
-      openxlsx::readWorkbook(WB(), sheet = "DropList") |>
+    tab_ids <- c("Observations", "Site", "Tree", "Sample", "Person", "Publication")
+    lapply(tab_ids, function(tid) shinyjs::disable(selector = sprintf("a[data-value='%s']", tid)))
+
+    shiny::observe({
+      shiny::req(WB_meta())
+      try(openxlsx::readWorkbook(WB_meta(), sheet = "site"), silent = TRUE)
+      lapply(tab_ids, function(tid) shinyjs::enable(selector = sprintf("a[data-value='%s']", tid)))
+    })
+
+    # =====================================================
+    # 3. SPECIES DROP LIST
+    # =====================================================
+    drop_species <- shiny::reactive({
+      shiny::req(WB())
+      openxlsx::readWorkbook(WB(), sheet = "DropList", colNames = TRUE) |>
+        dplyr::select(tree_species, species_code) |>
         dplyr::filter(!is.na(tree_species))
     })
-    
+
     # =====================================================
-    # 4. TABLE RENDERING
+    # 4. DATA INIT: site info (tbl1)
+    # =====================================================
+    dinfo <- shiny::reactiveVal()
+
+    shiny::observe({
+      shiny::req(WB())
+
+      site_info <- openxlsx::readWorkbook(WB(), sheet = "obs_data_info", startRow = 6, colNames = FALSE) |>
+        tibble::tibble()
+      obs_data <- openxlsx::readWorkbook(WB(), sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] |>
+        tibble::tibble()
+
+      if (ncol(site_info) == 3) {
+        site_label <- unique(obs_data$site_label) |> tibble::tibble() |> dplyr::filter(!is.na(.))
+        site_info <- cbind(site_label, site_info)
+      } else if (ncol(site_info) != 4) {
+        stop("Error: Expected 3 or 4 columns in obs_data_info.")
+      }
+
+      site_info <- setNames(site_info, c("site_label", "latitude", "longitude", "elevation")) |>
+        dplyr::mutate(elevation = as.integer(elevation))
+
+      dinfo(site_info)
+    })
+
+    # =====================================================
+    # 5. DATA INIT: obs data (tbl2)
+    # =====================================================
+    dobs <- shiny::reactiveVal()
+
+    shiny::observe({
+      shiny::req(WB())
+
+      data <- openxlsx::readWorkbook(WB(), sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] |>
+        tibble::tibble() |>
+        dplyr::left_join(drop_species(), by = "tree_species") |>
+        dplyr::relocate(species_code, .after = tree_species) |>
+        dplyr::mutate(
+          sample_date = dplyr::case_when(
+            !is.na(sample_date) & is.numeric(suppressWarnings(as.numeric(sample_date))) ~
+              as.Date(as.numeric(sample_date), origin = "1899-12-30"),
+            TRUE ~ as.Date(NA)
+          ),
+          sample_date = as.character(sample_date)
+        )
+
+      dobs(data)
+    })
+
+    # =====================================================
+    # 6. REACTIVE INPUT DATA
+    # =====================================================
+    data_in <- shiny::reactiveValues(tbl1 = NULL, tbl2 = NULL)
+
+    shiny::observe({
+      data_in$tbl1 <- dinfo()
+      data_in$tbl2 <- dobs()
+    })
+
+    # Store in ctx for downstream tabs
+    shiny::observe({
+      ctx$data$tbl1 <- data_in$tbl1
+      ctx$data$tbl2 <- data_in$tbl2
+    })
+
+    # =====================================================
+    # 7. COLUMN CONFIGS
+    # =====================================================
+    column_configs <- shiny::reactive({
+      shiny::req(WB())
+      get_column_configs(WB(), WB_meta(), dobs())
+    })
+
+    # Store in ctx
+    shiny::observe({
+      shiny::req(column_configs())
+      ctx$data$column_configs <- column_configs()
+    })
+
+    # =====================================================
+    # 8. RENDER TABLES
     # =====================================================
     output$tbl1 <- rhandsontable::renderRHandsontable({
-      
-      req(data_in$tbl1)
-      
-      rhandsontable::rhandsontable(data_in$tbl1)
+      shiny::req(data_in$tbl1, data_in$tbl2)
+      rhandsontable::rhandsontable(
+        data_in$tbl1,
+        rowHeaders = NULL, contextMenu = TRUE, stretchH = "all"
+      ) |>
+        hot_col_wrapper("site_label",  column_configs()$tbl1$site_label) |>
+        hot_col_wrapper("latitude",    column_configs()$tbl1$latitude) |>
+        hot_col_wrapper("longitude",   column_configs()$tbl1$longitude) |>
+        hot_col_wrapper("elevation",   column_configs()$tbl1$elevation)
     })
-    
+
+    # Species sync helper
+    sync_species_itrdb <- function(df, drop_species, remove_na = TRUE) {
+      if (remove_na) df <- df |> dplyr::filter(!is.na(tree_species) & tree_species != "")
+      df |>
+        dplyr::left_join(drop_species, by = "species_code", suffix = c("", "_from_list")) |>
+        dplyr::mutate(tree_species = tree_species_from_list) |>
+        dplyr::select(-dplyr::ends_with("_from_list"))
+    }
+
     output$tbl2 <- rhandsontable::renderRHandsontable({
-      
-      req(data_in$tbl2)
-      
-      rhandsontable::rhandsontable(data_in$tbl2)
+      shiny::req(data_in$tbl2)
+      rhandsontable::rhandsontable(
+        data_in$tbl2,
+        rowHeaders = NULL, contextMenu = TRUE, stretchH = "all", height = "300px"
+      ) |>
+        hot_col_wrapper("sample_date",       column_configs()$tbl2$sample_date) |>
+        hot_col_wrapper("sample_id",         column_configs()$tbl2$sample_id) |>
+        hot_col_wrapper("tree_species",      column_configs()$tbl2$tree_species) |>
+        hot_col_wrapper("species_code",      column_configs()$tbl2$species_code) |>
+        hot_col_wrapper("tree_label",        column_configs()$tbl2$tree_label) |>
+        hot_col_wrapper("plot_label",        column_configs()$tbl2$plot_label) |>
+        hot_col_wrapper("site_label",        column_configs()$tbl2$site_label) |>
+        hot_col_wrapper("network_label",     column_configs()$tbl2$network_label) |>
+        hot_col_wrapper("sample_label",      column_configs()$tbl2$sample_label) |>
+        hot_col_wrapper("measure_type",      column_configs()$tbl2$measure_type) |>
+        hot_col_wrapper("measure_repetition",column_configs()$tbl2$measure_repetition) |>
+        hot_col_wrapper("sample_comment",    column_configs()$tbl2$sample_comment) |>
+        rhandsontable::hot_cols(manualColumnResize = TRUE)
     })
-    
+
     # =====================================================
-    # 5. TABLE SYNC (USER INPUT)
+    # 9. TABLE SYNC
     # =====================================================
-    observeEvent(input$tbl1, {
-      req(input$tbl1)
+    shiny::observeEvent(input$tbl1, {
+      shiny::req(input$tbl1)
       data_in$tbl1 <- rhandsontable::hot_to_r(input$tbl1)
+      ctx$data$tbl1 <- data_in$tbl1
     })
-    
-    observeEvent(input$tbl2, {
-      
-      req(input$tbl2)
-      
-      df <- rhandsontable::hot_to_r(input$tbl2)
-      
-      data_in$tbl2 <- df
+
+    shiny::observeEvent(input$tbl2, {
+      shiny::req(input$tbl2)
+      user_data <- rhandsontable::hot_to_r(input$tbl2)
+      updated   <- sync_species_itrdb(user_data, drop_species())
+      data_in$tbl2   <- updated
+      ctx$data$tbl2  <- updated
     })
-    
+
     # =====================================================
-    # 6. SAVE LOGIC (NO NAVIGATION HERE)
+    # 10. SAVE
     # =====================================================
-    observeEvent(input$save_obs, {
-      
-      req(data_in$tbl1, data_in$tbl2)
-      
+    shiny::observeEvent(input$save_obs, {
+      shiny::req(data_in$tbl1, data_in$tbl2)
+
       save_and_validate(
         data_reactive = data_in$tbl1,
-        sheet_name = "obs_data_info",
-        wb_reactive = WB,
-        temp_folder = ctx$files$temp_folder
+        sheet_name    = "obs_data_info",
+        wb_reactive   = WB,
+        temp_folder   = ctx$files$temp_folder
       )
-      
+
       save_and_validate(
-        data_reactive = data_in$tbl2,
-        sheet_name = "Xylo_obs_data",
-        wb_reactive = WB,
-        temp_folder = ctx$files$temp_folder
+        data_reactive = data_in$tbl2 |> dplyr::select(-species_code),
+        sheet_name    = "Xylo_obs_data",
+        wb_reactive   = WB,
+        temp_folder   = ctx$files$temp_folder
       )
-      
+
       message("💾 TAB3 SAVE COMPLETE")
     })
-    
+
     # =====================================================
-    # 7. FSM COMPLETION FLAG (OPTIONAL)
+    # 11. FSM FLAG
     # =====================================================
-    observe({
-      
-      ctx$fsm$flags$tab3_complete <-
-        !is.null(data_in$tbl1) &&
-        !is.null(data_in$tbl2)
+    shiny::observe({
+      ctx$fsm$flags$tab3_complete <- !is.null(data_in$tbl1) && !is.null(data_in$tbl2)
     })
-    
+
   })
 }
 

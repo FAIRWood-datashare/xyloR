@@ -7,21 +7,15 @@
 mod_tab4_server(id, ctx, session)
 }
 \arguments{
-\item{id}{The module ID, which is used to create unique namespaces for the inputs
-and outputs within the module.}
+\item{id}{The module ID.}
 
-\item{out_tab1}{A reactive object containing the dataset name and observation file.}
+\item{ctx}{The centralized app context (environment).}
 
-\item{out_tab2}{A reactive object containing the metadata file and validation results.}
-
-\item{out_tab3}{A reactive object containing the workbook reference and column configurations.}
+\item{session}{The parent Shiny session.}
 }
 \value{
-A server-side function for managing the site metadata table, synchronizing
-Koppen climate data, and saving the updated table.
+A list with data_meta for downstream tabs.
 }
 \description{
-This module handles the server-side logic for the "Site" tab. It manages the reactive
-data, updates the site metadata table (\code{rHandsontable}), and synchronizes the Koppen
-climate data. It also provides functionality for saving the updated data to a workbook.
+Server logic for Site Metadata Tab
 }

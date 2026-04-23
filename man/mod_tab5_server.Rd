@@ -9,19 +9,10 @@ mod_tab5_server(id, ctx, session)
 \arguments{
 \item{id}{The module ID.}
 
-\item{out_tab1}{A reactive object containing the dataset name and observation file.}
+\item{ctx}{The centralized app context (environment).}
 
-\item{out_tab2}{A reactive object containing the metadata file and validation results.}
-
-\item{out_tab3}{A reactive object containing the workbook reference and column configurations.}
-
-\item{out_tab4}{A reactive object containing the tree metadata table and other related data.}
-}
-\value{
-A module server function that performs actions for the Tree Metadata tab.
+\item{session}{The parent Shiny session.}
 }
 \description{
-This module handles the server-side logic for the Tree Metadata tab. It manages data
-loading, data synchronization for species codes, and updates to the metadata table.
-Additionally, it handles the save functionality for the tree metadata.
+Module Server for Tree Metadata Tab
 }

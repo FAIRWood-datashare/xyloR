@@ -13,8 +13,5 @@ mod_tab7_ui(id)
 A Shiny UI component for managing author metadata.
 }
 \description{
-This UI module is designed for managing author metadata in a Shiny application.
-It allows users to view, add, update, delete, and reorder persons within a table.
-Additionally, it includes tools to retrieve information from ORCID and ROR databases
-to auto-fill author metadata fields.
+Author Metadata Tab UI
 }

@@ -9,21 +9,13 @@ mod_tab3_server(id, ctx, session)
 \arguments{
 \item{id}{A string that serves as the module namespace identifier.}
 
-\item{out_tab1}{A reactive object containing the dataset name and observation file.}
+\item{ctx}{The centralized app context (environment).}
 
-\item{out_tab2}{A reactive object containing the metadata file and validation results.}
+\item{session}{The parent Shiny session.}
 }
 \value{
-No return value, called for side effects.
+A list with WB, WB_meta, data_in, column_configs (for downstream tabs).
 }
 \description{
 Server logic for the "Observation" tab module.
-
-Handles:
-\itemize{
-\item Observations data loading and synchronization,
-\item Saving observation data to a workbook,
-\item Table rendering with synchronization and real-time updates,
-\item Data validation, and managing input data transformations.
-}
 }
