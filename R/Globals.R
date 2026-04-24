@@ -582,23 +582,17 @@ save_and_validate <- function(
     )
     
     # =========================================================
-    # STEP 5: Validation (SAFE MODE)
+    # STEP 5: Validation (NEW — IN MEMORY)
     # =========================================================
+    
     shiny::setProgress(0.9, detail = "Validating...")
     
     obs_val <- tryCatch(
-      xylo_format_validation(obs_file_path),
+      xylo_format_validation(ctx$data$obs_truth),
       error = function(e) data.frame(issue = "Obs validation failed")
     )
     
-    meta_val <- if (!is.null(meta_file_path) && file.exists(meta_file_path)) {
-      tryCatch(
-        meta_format_validation(meta_file_path),
-        error = function(e) data.frame(issue = "Meta validation failed")
-      )
-    } else {
-      data.frame()
-    }
+    meta_val <- data.frame()
     
     tbl_validation <- rbind(obs_val, meta_val)
     

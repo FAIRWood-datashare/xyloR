@@ -54,6 +54,9 @@ create_app_context <- function() {
     )
   )
   
+  ctx$state$is_valid <- FALSE
+  ctx$data$obs_truth <- NULL
+  
   # =====================================================
   # FSM 
   # =====================================================
@@ -76,9 +79,35 @@ create_app_context <- function() {
   ctx$fsm_trigger <- shiny::reactiveVal(0)
   
   # =====================================================
-  # DATA + FILE STORAGE
+  # DATA + FILE STORAGE (CLEAN INITIALIZATION)
   # =====================================================
-  ctx$data  <- shiny::reactiveValues()
+  
+  ctx$data <- shiny::reactiveValues(
+    
+    # ----------------------------
+    # RAW IMPORTED DATA (Excel source)
+    # ----------------------------
+    raw_obs  = NULL,
+    raw_meta = NULL,
+    
+    # ----------------------------
+    # USER EDITABLE STATE (UI tables)
+    # ----------------------------
+    draft_obs  = NULL,
+    draft_meta = NULL,
+    
+    # ----------------------------
+    # POST-RULE-ENGINE VALIDATED STATE
+    # ----------------------------
+    valid_obs  = NULL,
+    valid_meta = NULL,
+    
+    # ----------------------------
+    # GLOBAL VALIDATION REPORT
+    # ----------------------------
+    validation_global = NULL
+  )
+  
   ctx$files <- new.env(parent = emptyenv())
   
   ctx

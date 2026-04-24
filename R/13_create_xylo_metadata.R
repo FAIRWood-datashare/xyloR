@@ -37,7 +37,7 @@
 
 
 
-create_xylo_metadata <- function(xylo_file, template_meta, destdir = NULL, output_name = NULL) {
+create_xylo_metadata <- function(obs_data, obs_info, destdir = NULL, output_name = NULL) {
   
   # =====================================================
   # LOAD DEPENDENCIES
@@ -87,15 +87,7 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = NULL, outpu
   # LOAD FILES
   # =====================================================
   template_workbook <- openxlsx::loadWorkbook(template_meta)
-  xylo_workbook     <- openxlsx::loadWorkbook(xylo_file)
-  
-  tbl_droplist <- openxlsx::readWorkbook(template_workbook, sheet = "DropList") %>% dplyr::tibble()
-  tbl_variables <- openxlsx::readWorkbook(template_workbook, sheet = "ListOfVariables") %>% dplyr::tibble()
-  
-  xylo_header <- openxlsx::readWorkbook(xylo_workbook, sheet = "obs_data_info", rows = 1:3, colNames = FALSE)
-  
-  xylo_obs <- openxlsx::readWorkbook(xylo_workbook, sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] %>%
-    dplyr::tibble()
+  xylo_obs <- obs_data
   
   # =====================================================
   # DATE HANDLING
@@ -110,12 +102,7 @@ create_xylo_metadata <- function(xylo_file, template_meta, destdir = NULL, outpu
       dplyr::filter(!is.na(sample_date))
   }
   
-  obs_data_info <- openxlsx::readWorkbook(
-    xylo_workbook,
-    sheet = "obs_data_info",
-    startRow = 6,
-    colNames = FALSE
-  ) %>% setNames(c("site_label", "latitude", "longitude", "elevation"))
+  obs_data_info <- ctx$data$tbl1
   
   # =====================================================
   # PERSON TAB

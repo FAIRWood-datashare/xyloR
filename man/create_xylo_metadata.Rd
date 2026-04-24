@@ -4,21 +4,16 @@
 \alias{create_xylo_metadata}
 \title{Create Metadata from Xylo Files}
 \usage{
-create_xylo_metadata(
-  xylo_file,
-  template_meta,
-  destdir = NULL,
-  output_name = NULL
-)
+create_xylo_metadata(obs_data, obs_info, destdir = NULL, output_name = NULL)
 }
 \arguments{
-\item{xylo_file}{Path to the data file with xylogenesys observations (CSV or XLSX).}
-
-\item{template_meta}{Path to the template for metadata (XLSM).}
-
 \item{destdir}{Path to the output directory.}
 
 \item{output_name}{(Optional) Output filename. Defaults to a name generated from metadata.}
+
+\item{xylo_file}{Path to the data file with xylogenesys observations (CSV or XLSX).}
+
+\item{template_meta}{Path to the template for metadata (XLSM).}
 }
 \value{
 Saves the updated workbook to the specified output path.

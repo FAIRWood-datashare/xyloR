@@ -63,7 +63,114 @@ xyloR <- function() {
     ctx <- create_app_context()
     
     # ======================================================
-    # FSM SNAPSHOT
+    # FSM STATE
+    # ======================================================
+    ctx$fsm <- list(
+      state = "tab1",
+      events = list()
+    )
+    
+    ctx$fsm_trigger <- reactiveVal(0)
+    
+    # ======================================================
+    # 🔒 SAFE WRITE GUARD (STEP 1)
+    # ======================================================
+    safe_write <- function(name, value, allow_overwrite = FALSE) {
+      
+      locked_fields <- c("obs_truth", "tbl1")
+      
+      if (allow_overwrite) {
+        ctx$data[[name]] <- value
+        return(invisible(TRUE))
+      }
+      
+      if (name %in% locked_fields && !is.null(ctx$data[[name]])) {
+        message("⚠️ blocked overwrite of ctx$data$", name)
+        return(invisible(FALSE))
+      }
+      
+      ctx$data[[name]] <- value
+      invisible(TRUE)
+    }
+    
+    # ======================================================
+    # 📦 BOOT LAYER (SINGLE SOURCE OF TRUTH INIT)
+    # ======================================================
+    ctx$boot_done <- FALSE
+    
+    observe({
+      
+      req(ctx$files$obs_file)
+      req(ctx$files$meta_file)
+      
+      if (isTRUE(ctx$boot_done)) return()
+      
+      message("🚀 BOOT: ONE-TIME initialization")
+      
+      # -------------------------
+      # OBS LOAD
+      # -------------------------
+      obs_raw <- openxlsx::readWorkbook(
+        ctx$files$obs_file$datapath,
+        sheet = "Xylo_obs_data",
+        startRow = 1
+      )[-(1:6), ] |> tibble::tibble()
+      
+      drop_species <- openxlsx::readWorkbook(
+        ctx$files$obs_file$datapath,
+        sheet = "DropList",
+        colNames = TRUE
+      ) |> dplyr::select(tree_species, species_code)
+      
+      obs_raw <- obs_raw |>
+        dplyr::left_join(drop_species, by = "tree_species") |>
+        dplyr::relocate(species_code, .after = tree_species)
+      
+      # -------------------------
+      # META LOAD
+      # -------------------------
+      meta_raw <- openxlsx::readWorkbook(
+        ctx$files$meta_file$datapath,
+        sheet = "site"
+      )
+      
+      # -------------------------
+      # GLOBAL STATE (SAFE WRITE)
+      # -------------------------
+      safe_write("obs_truth", obs_raw)
+      safe_write("draft_obs", obs_raw)
+      safe_write("tbl1", meta_raw)
+      
+      safe_write("obs_raw", obs_raw)
+      safe_write("meta_raw", meta_raw)
+      
+      ctx$boot_done <- TRUE
+      
+      message("✅ BOOT COMPLETE")
+    })
+    
+    # ======================================================
+    # 📊 CENTRAL VALIDATION ENGINE
+    # ======================================================
+    ctx$validation <- reactive({
+      
+      req(ctx$data$obs_truth)
+      req(ctx$data$tbl1)
+      
+      invalidateLater(100, session)  # 🔥 forces re-check across modules
+      
+      xylo_validation_engine(
+        ctx$data$obs_truth,
+        ctx$data$tbl1
+      )
+    })
+    
+    # observe({
+    #   ctx$state$validation <- ctx$validation()
+    # })
+    
+    # ======================================================
+    # 🔁 FSM SNAPSHOT
     # ======================================================
     get_fsm_snapshot <- function(ctx) {
       
@@ -74,32 +181,43 @@ xyloR <- function() {
           isTRUE(ctx$state$tab1$file$loaded %||% FALSE),
           isTRUE(ctx$state$tab1$validation$ui_valid %||% FALSE)
         )),
-        
         tab2_complete = isTRUE(ctx$state$tab2$validation$all_valid %||% FALSE)
       )
     }
     
     # ======================================================
-    # FSM INIT
+    # FSM TRANSITION ENGINE
     # ======================================================
-    ctx$fsm <- list(
-      state = "tab1",
-      events = list()
-    )
+    fsm_transition <- function(ctx) {
+      
+      snapshot <- get_fsm_snapshot(ctx)
+      
+      if (ctx$fsm$state == "tab1" && isTRUE(snapshot$tab1_complete)) {
+        ctx$fsm$state <- "tab2"
+        message("➡️ FSM: tab1 → tab2")
+        return()
+      }
+      
+      if (ctx$fsm$state == "tab2" && isTRUE(snapshot$tab2_complete)) {
+        ctx$fsm$state <- "tab3"
+        message("➡️ FSM: tab2 → tab3")
+        return()
+      }
+    }
     
-    # ======================================================
-    # CENTRAL VALIDATION ENGINE
-    # ======================================================
-    ctx$validation <- reactive({
-      
-      req(ctx$data$obs)
-      req(ctx$data$meta)
-      
-      xylo_validation_engine(ctx$data$obs, ctx$data$meta)
+    observeEvent(ctx$fsm_trigger(), {
+      fsm_transition(ctx)
     })
     
-    observe({
-      ctx$state$validation <- ctx$validation()
+    observeEvent(ctx$fsm_trigger(), {
+      
+      state <- ctx$fsm$state
+      
+      bslib::nav_select(
+        id = "tabs",
+        selected = state,
+        session = session
+      )
     })
     
     # ======================================================
@@ -113,82 +231,6 @@ xyloR <- function() {
     mod_tab6_server("tab6", ctx, session)
     mod_tab7_server("tab7", ctx, session)
     mod_tab8_server("tab8", ctx, session)
-    
-    # ======================================================
-    # FSM TRANSITION ENGINE
-    # ======================================================
-    fsm_transition <- function(ctx) {
-      
-      snapshot <- get_fsm_snapshot(ctx)
-      
-      message("🔁 FSM STATE BEFORE: ", ctx$fsm$state)
-      message("📦 SNAPSHOT tab1=", snapshot$tab1_complete,
-              " tab2=", snapshot$tab2_complete)
-      
-      # -------------------------
-      # TAB1 → TAB2
-      # -------------------------
-      if (ctx$fsm$state == "tab1") {
-        
-        if (isTRUE(snapshot$tab1_complete)) {
-          ctx$fsm$state <- "tab2"
-          message("➡️ FSM: tab1 → tab2")
-        }
-        
-        return()
-      }
-      
-      # -------------------------
-      # TAB2 → TAB3
-      # -------------------------
-      if (ctx$fsm$state == "tab2") {
-        
-        if (isTRUE(snapshot$tab2_complete)) {
-          ctx$fsm$state <- "tab3"
-          message("➡️ FSM: tab2 → tab3")
-        }
-        
-        return()
-      }
-      
-      message("🔁 FSM STATE AFTER: ", ctx$fsm$state)
-    }
-    
-    # ======================================================
-    # FSM TRIGGER
-    # ======================================================
-    ctx$fsm_trigger <- reactiveVal(0)
-    
-    observeEvent(ctx$fsm_trigger(), {
-      fsm_transition(ctx)
-    })
-    
-    # ======================================================
-    # ROUTER (TAB SWITCHING)
-    # ======================================================
-    observeEvent(ctx$fsm_trigger(), {
-      
-      state <- ctx$fsm$state
-      
-      message("🧭 ROUTER STATE = ", state)
-      
-      req(state %in% c("tab1", "tab2", "tab3"))
-      
-      bslib::nav_select(
-        id = "tabs",
-        selected = state,
-        session = session
-      )
-    })
-    
-    # ======================================================
-    # NEXT BUTTON
-    # ======================================================
-    # Handled inside each module (mod_tab1, mod_tab2).
-    # Modules fire ctx$fsm_trigger() directly after their
-    # own validation guard — no app-level handler required.
-    
   }
-  
   shiny::shinyApp(ui, server)
 }

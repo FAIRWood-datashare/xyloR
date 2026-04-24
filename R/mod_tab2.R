@@ -83,21 +83,21 @@ mod_tab2_ui <- function(id) {
         ),
 
         # =========================
-        # VALIDATION CARD
+        # VALIDATION CARD — wrapped in plain div for reliable getElementById targeting
         # =========================
-        bslib::card(
+        shiny::div(
           id = ns("validation_card"),
           style = "display: none; margin-top: 10px;",
-          
-          bslib::card_header(
-            "Validation Report",
-            id = ns("card_header2_3"),
-            class = "bg-danger"
-          ),
-          
-          bslib::card_body(
-            DT::DTOutput(ns("validation_table")),
-            shiny::uiOutput(ns("validation_message"))
+          bslib::card(
+            bslib::card_header(
+              "Validation Report",
+              id = ns("card_header2_3"),
+              class = "bg-danger"
+            ),
+            bslib::card_body(
+              DT::DTOutput(ns("validation_table")),
+              shiny::uiOutput(ns("validation_message"))
+            )
           )
         )
       ),
@@ -120,24 +120,22 @@ mod_tab2_ui <- function(id) {
     ),
     
     # =========================================================
-    # VALIDATION + ZIP SECTION
+    # ZIP SECTION — wrapped in plain div for reliable getElementById targeting
     # =========================================================
     shiny::fluidRow(
       shiny::column(
         12,
         
-        # =========================
-        # ZIP CARD (THIS WAS MISSING)
-        # =========================
-        bslib::card(
+        shiny::div(
           id = ns("zip_card"),
           style = "display: none; text-align: center;",
-          
-          bslib::card_body(
-            shiny::downloadButton(
-              ns("download_zip"),
-              "2.3 Download Exchange Files as ZIP",
-              class = "btn btn-primary"
+          bslib::card(
+            bslib::card_body(
+              shiny::downloadButton(
+                ns("download_zip"),
+                "2.3 Download Exchange Files as ZIP",
+                class = "btn btn-primary"
+              )
             )
           )
         )
@@ -184,6 +182,14 @@ mod_tab2_server <- function(id, ctx, session) {
     # =====================================================
     # LOCAL STATE
     # =====================================================
+    tab2 <- reactiveValues(
+      meta_loaded = FALSE,
+      meta        = NULL,
+      validation  = NULL,
+      is_valid    = FALSE,
+      zip_ready   = FALSE
+    )
+    
     zip_ready    <- reactiveVal(FALSE)
     meta_hierarchy <- reactiveVal(NULL)
     
@@ -202,38 +208,51 @@ mod_tab2_server <- function(id, ctx, session) {
     # =====================================================
     # 2.1 DOWNLOAD META TEMPLATE (prefilled from obs)
     # =====================================================
+    
     output$download_meta_template <- shiny::downloadHandler(
+      
       filename = function() {
         dataset_name <- ctx$data$dataset_name %||% "Dataset"
         paste0(dataset_name, "_xylo_meta_", Sys.Date(), ".xlsx")
       },
+      
       content = function(file) {
-        req(ctx$files$obs_file)
+        
+        req(ctx$data$obs_truth)
+        req(ctx$data$tbl1)
         
         template_path <- system.file(
           "extdata", "Datasetname_xylo_meta_yyyy-mm-dd.xlsx",
           package = "xyloR"
         )
         
-        shiny::withProgress(message = "Preparing metadata template...", value = 0, {
-          shiny::setProgress(0.2, detail = "Loading template...")
+        shiny::withProgress(message = "Generating metadata...", value = 0, {
           
-          temp_dir <- ctx$data$temp_folder %||% tempdir()
+          shiny::setProgress(0.3, detail = "Using live OBS data...")
           
-          shiny::setProgress(0.5, detail = "Prefilling from observation file...")
+          # =====================================================
+          # 🔥 SINGLE SOURCE OF TRUTH
+          # =====================================================
           meta_wb <- create_xylo_metadata(
-            obs_file     = ctx$files$obs_file$datapath,
-            template_path = template_path,
-            destdir      = temp_dir
+            obs_data      = ctx$data$obs_truth,
+            obs_info      = ctx$data$tbl1,
+            template_meta = template_path
           )
           
+          # =====================================================
+          # 🔥 OPTIONAL BUT POWERFUL: VALIDATION HERE
+          # =====================================================
+          validation <- rbind(
+            xylo_format_validation(ctx$data$obs_truth),
+            meta_format_validation(meta_wb)
+          )
+          
+          ctx$data$validation_global <- validation
+          
           shiny::setProgress(0.8, detail = "Saving...")
+          
           openxlsx::saveWorkbook(meta_wb, file, overwrite = TRUE)
           
-          shinyjs::runjs(sprintf(
-            "$('#%s').removeClass('bg-warning bg-danger').addClass('bg-success')",
-            ns("card_header2_1")
-          ))
           shiny::setProgress(1, detail = "Done!")
         })
       }
@@ -270,56 +289,95 @@ mod_tab2_server <- function(id, ctx, session) {
       raw_meta <- read_xylo_meta_raw(input$meta_file$datapath)
       meta     <- build_xylo_meta_clean(raw_meta)
       
-      ctx$data$meta <- meta
+      tab2$meta_loaded <- TRUE
+      tab2$meta <- meta
       meta_hierarchy(meta)
       
-      ctx$state$tab2$data_ready <- TRUE
-      
       message("🟢 META LOADED + READY")
+      
+      # Turn upload card header green immediately
+      shinyjs::runjs(sprintf(
+        "document.getElementById('%s').classList.remove('bg-danger'); document.getElementById('%s').classList.add('bg-success');",
+        ns("card_header2"), ns("card_header2")
+      ))
+    })
+    
+    observe({
+      req(ctx$data$obs_truth)
+      
+      ctx$data$validation_global <- xylo_format_validation(ctx$data$obs_truth)
     })
     
     # =====================================================
     # VALIDATION ENGINE (SINGLE SOURCE OF TRUTH)
     # =====================================================
     validation_tbl <- reactive({
-      req(!is.null(ctx$data$obs))
-      req(!is.null(ctx$data$meta))
       
-      message("===== VALIDATION START =====")
-      message("obs class: ", class(ctx$data$obs))
-      message("meta class: ", class(ctx$data$meta))
+      req(tab2$meta_loaded)
+      req(!is.null(tab2$meta))
       
+      obs <- ctx$data$obs_truth
+      meta <- tab2$meta
+      
+      # =====================================================
+      # 🔧 SAFEGUARD: prevent NULL / wrong type crash
+      # =====================================================
+      if (is.null(obs) || !is.data.frame(obs)) {
+        message("⚠️ OBS INVALID: NULL or not data.frame")
+        
+        return(data.frame(
+          type = "error",
+          source = "obs",
+          message = "obs_truth is missing or not a data.frame"
+        ))
+      }
+      
+      if (is.null(meta)) {
+        message("⚠️ META INVALID: NULL")
+        
+        return(data.frame(
+          type = "error",
+          source = "meta",
+          message = "meta is missing"
+        ))
+      }
+      
+      # =====================================================
+      # ENGINE CALL (now safe)
+      # =====================================================
       result <- tryCatch(
-        xylo_validation_engine(ctx$data$obs, ctx$data$meta),
+        xylo_validation_engine(obs, meta),
         error = function(e) {
           message("ENGINE ERROR: ", e$message)
-          list(all = data.frame())
+          list(all = data.frame(
+            type = "error",
+            source = "engine",
+            message = e$message
+          ))
         }
       )
       
       tbl <- result$all
       if (is.null(tbl) || !is.data.frame(tbl)) tbl <- data.frame()
       
-      message("FINAL ROWS = ", nrow(tbl))
       tbl
     })
     
-    # =====================================================
-    # DERIVED STATE
-    # =====================================================
-    validation_state <- reactive({
-      tbl   <- validation_tbl()
-      ran   <- is.data.frame(tbl)
-      valid <- ran && nrow(tbl) == 0
-      list(tbl = tbl, ran = isTRUE(ran), valid = isTRUE(valid), ready = isTRUE(ran))
+    observe({
+      tbl <- validation_tbl()
+      
+      tab2$validation <- tbl
+      tab2$is_valid <- is.data.frame(tbl) && nrow(tbl) == 0
+      tab2$zip_ready <- isTRUE(tab2$is_valid)
     })
     
     # =====================================================
     # WRITE BACK TO CTX (FOR FSM)
     # =====================================================
     observe({
+      req(!is.null(ctx$data$meta))
+      
       state <- validation_state()
-      req(state$ready)
       
       message("✅ READY — WRITING STATE")
       message("WRITE STATE -> ", state$valid)
@@ -330,31 +388,43 @@ mod_tab2_server <- function(id, ctx, session) {
       message("VALIDATION STATE | valid=", state$valid, " | rows=", nrow(state$tbl))
     })
     
-    # =====================================================
     # UI CONTROL (CARDS + ZIP)
     # =====================================================
     observe({
-      state <- validation_state()
-      req(state$ran)
       
-      message("UI RENDER | valid=", state$valid)
+      req(tab2$meta_loaded)
       
-      shinyjs::show("validation_card")
+      message("UI UPDATE | valid=", tab2$is_valid)
       
-      if (isTRUE(state$valid)) {
+      # ALWAYS SHOW validation card once meta is loaded
+      shinyjs::runjs(sprintf(
+        "document.getElementById('%s').style.display = 'block';",
+        ns("validation_card")
+      ))
+      
+      if (isTRUE(tab2$is_valid)) {
+        
         shinyjs::runjs(sprintf(
-          "$('#%s').removeClass('bg-danger').addClass('bg-success')",
+          "$('#%s').removeClass('bg-danger').addClass('bg-success');",
           ns("card_header2_3")
         ))
-        zip_ready(TRUE)
-        shinyjs::show("zip_card")
+        
+        shinyjs::runjs(sprintf(
+          "document.getElementById('%s').style.display = 'block';",
+          ns("zip_card")
+        ))
+        
       } else {
+        
         shinyjs::runjs(sprintf(
-          "$('#%s').removeClass('bg-success').addClass('bg-danger')",
+          "$('#%s').removeClass('bg-success').addClass('bg-danger');",
           ns("card_header2_3")
         ))
-        zip_ready(FALSE)
-        shinyjs::hide("zip_card")
+        
+        shinyjs::runjs(sprintf(
+          "document.getElementById('%s').style.display = 'none';",
+          ns("zip_card")
+        ))
       }
     })
     
@@ -362,10 +432,11 @@ mod_tab2_server <- function(id, ctx, session) {
     # VALIDATION TABLE
     # =====================================================
     output$validation_table <- DT::renderDT({
-      state <- validation_state()
-      tbl   <- state$tbl
       
-      if (state$valid) {
+      tbl <- validation_tbl()
+      valid <- is.data.frame(tbl) && nrow(tbl) == 0
+      
+      if (valid) {
         return(DT::datatable(
           data.frame(Status = "✔ No issues found — validation passed"),
           options = list(dom = "t"), rownames = FALSE
@@ -379,12 +450,7 @@ mod_tab2_server <- function(id, ctx, session) {
         ))
       }
       
-      DT::datatable(
-        tbl,
-        rownames = FALSE,
-        class    = "table-dark",
-        options  = list(pageLength = 10, autoWidth = TRUE, dom = "Blfrtip")
-      )
+      DT::datatable(tbl, rownames = FALSE, class = "table-dark")
     })
     
     # =====================================================
@@ -606,12 +672,12 @@ mod_tab2_server <- function(id, ctx, session) {
     # NEXT BUTTON (TAB2 → TAB3 via FSM)
     # =====================================================
     observe({
-      state <- validation_state()
-      shinyjs::toggleState("next_btn", condition = isTRUE(state$valid))
+      shinyjs::toggleState("next_btn", condition = isTRUE(tab2$is_valid))
     })
     
     observeEvent(input$next_btn, {
-      state <- validation_state()
+      tbl <- validation_tbl()
+      valid <- is.data.frame(tbl) && nrow(tbl) == 0
       req(isTRUE(state$valid))
       message("➡️ TAB2 NEXT CLICK → FSM TRIGGERED")
       ctx$fsm_trigger(ctx$fsm_trigger() + 1)
