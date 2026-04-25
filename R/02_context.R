@@ -14,101 +14,55 @@ create_app_context <- function() {
   ctx <- new.env(parent = emptyenv())
   
   # =====================================================
-  # LEGACY STATE (KEEP FOR NOW – TRANSITION PHASE)
+  # 1. FSM (NAVIGATION ONLY)
   # =====================================================
-  ctx$state <- shiny::reactiveValues(
-    
-    tab1 = list(
-      inputdata = list(
-        valid = FALSE,
-        confirmed = FALSE
-      ),
-      file = list(
-        uploaded = FALSE
-      ),
-      validation = list(
-        all_valid = FALSE
-      ),
-      done = FALSE,
-      nav_ready = FALSE
-    ),
-    
-    tab2 = list(
-      metadata = list(
-        valid = FALSE,
-        confirmed = FALSE
-      ),
-      file = list(
-        uploaded = FALSE
-      ),
-      validation = list(
-        all_valid = FALSE
-      ),
-      done = FALSE,
-      nav_ready = FALSE
-    ),
-    
-    tab3 = list(
-      done = FALSE,
-      nav_ready = FALSE
-    )
+  ctx$fsm <- reactiveValues(
+    state = "tab1"
   )
   
-  ctx$state$is_valid <- FALSE
-  ctx$data$obs_truth <- NULL
-  
-  # =====================================================
-  # FSM 
-  # =====================================================
-  ctx$fsm <- shiny::reactiveValues(
-    state = "TAB1",
-    flags = list(
-      tab1_complete = FALSE,
-      tab2_complete = FALSE,
-      tab3_complete = FALSE
-    ),
-    events = list(
-      go_next = FALSE
-    )
-  )
-  
-  # =====================================================
-  # FSM TICK (EVENT TRIGGER MECHANISM)
-  # =====================================================
-  ctx$fsm_tick <- shiny::reactiveVal(0)
   ctx$fsm_trigger <- shiny::reactiveVal(0)
   
   # =====================================================
-  # DATA + FILE STORAGE (CLEAN INITIALIZATION)
+  # 2. DATA LAYER (SINGLE SOURCE OF TRUTH)
   # =====================================================
-  
   ctx$data <- shiny::reactiveValues(
     
-    # ----------------------------
-    # RAW IMPORTED DATA (Excel source)
-    # ----------------------------
+    # RAW DATA
     raw_obs  = NULL,
     raw_meta = NULL,
     
-    # ----------------------------
-    # USER EDITABLE STATE (UI tables)
-    # ----------------------------
+    # CORE DATASETS
+    obs_truth = NULL,
+    tbl1      = NULL,
+    
+    # EDIT BUFFERS
     draft_obs  = NULL,
     draft_meta = NULL,
     
-    # ----------------------------
-    # POST-RULE-ENGINE VALIDATED STATE
-    # ----------------------------
-    valid_obs  = NULL,
-    valid_meta = NULL,
+    # VALIDATION OUTPUT
+    validation_global = NULL,
     
-    # ----------------------------
-    # GLOBAL VALIDATION REPORT
-    # ----------------------------
-    validation_global = NULL
+    # SITE INFO (shared)
+    site_info = NULL,
+    
+    # COLUMN CONFIGS (shared UI config, NOT state)
+    column_configs = NULL,
+    
+    # TAB1 FLOW FLAGS
+    tab1_ui_valid  = FALSE,
+    tab1_validated = FALSE,
+    tab1_checks_ok = FALSE,
+    tab1_complete  = FALSE
   )
   
-  ctx$files <- new.env(parent = emptyenv())
+  # =====================================================
+  # 3. FILE STORAGE — must be reactiveValues so observers
+  #    (boot, upload) fire when files are assigned
+  # =====================================================
+  ctx$files <- shiny::reactiveValues(
+    obs_file  = NULL,
+    meta_file = NULL
+  )
   
   ctx
 }

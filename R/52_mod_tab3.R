@@ -74,44 +74,66 @@ mod_tab3_ui <- function(id) {
 #' @importFrom bsicons bs_icon
 #'
 mod_tab3_server <- function(id, ctx, session) {
+  
   moduleServer(id, function(input, output, session) {
     
-    message("🟢 TAB3 — CLEAN SINGLE SOURCE OF TRUTH")
+    ns <- session$ns
+    
+    contract_tab3 <- function(ctx) {
+      
+      obs  <- ctx$data$obs_truth
+      meta <- ctx$data$meta
+      
+      data_ok <- is.data.frame(obs) &&
+        is.data.frame(meta)
+      
+      ui_ok <- TRUE
+      
+      engine_ok <- TRUE
+      
+      ready <- data_ok && ui_ok && engine_ok
+      
+      list(
+        ready = ready,
+        data_ok = data_ok,
+        ui_ok = ui_ok,
+        engine_ok = engine_ok
+      )
+    }
+    
+    message("🟢 TAB3 — CLEAN ARCHITECTURE (STEP 1–3 APPLIED)")
     
     # =====================================================
-    # 1. WORKBOOK LOADERS
+    # 1. WORKBOOK LOADERS (READ ONLY, NO SIDE EFFECTS)
     # =====================================================
-    WB <- shiny::reactive({
-      shiny::req(ctx$files$obs_file)
+    WB <- reactive({
+      req(ctx$files$obs_file)
       openxlsx::loadWorkbook(ctx$files$obs_file$datapath)
     })
     
-    WB_meta <- shiny::reactive({
-      shiny::req(ctx$files$meta_file)
+    WB_meta <- reactive({
+      req(ctx$files$meta_file)
       openxlsx::loadWorkbook(ctx$files$meta_file$datapath)
     })
     
-    shiny::observe({
-      shiny::req(WB())
-      ctx$files$wb_obs <- WB()
-    })
-    
-    shiny::observe({
-      shiny::req(WB_meta())
-      ctx$files$wb_meta <- WB_meta()
-    })
-    
     # =====================================================
-    # 2. TAB ENABLE/DISABLE VIA FSM
+    # 2. TAB ENABLE/DISABLE (SINGLE CONTROL FLOW)
     # =====================================================
     tab_ids <- c("Observations", "Site", "Tree", "Sample", "Person", "Publication")
-    lapply(tab_ids, function(tid)
-      shinyjs::disable(selector = sprintf("a[data-value='%s']", tid))
-    )
     
-    shiny::observe({
-      shiny::req(WB_meta())
-      try(openxlsx::readWorkbook(WB_meta(), sheet = "site"), silent = TRUE)
+    # initial state (runs once safely)
+    observe({
+      lapply(tab_ids, function(tid)
+        shinyjs::disable(selector = sprintf("a[data-value='%s']", tid))
+      )
+    })
+    
+    # enable only when workbook is valid
+    observe({
+      req(WB_meta())
+      
+      ok <- try(openxlsx::readWorkbook(WB_meta(), sheet = "site"), silent = TRUE)
+      if (inherits(ok, "try-error")) return()
       
       lapply(tab_ids, function(tid)
         shinyjs::enable(selector = sprintf("a[data-value='%s']", tid))
@@ -119,22 +141,21 @@ mod_tab3_server <- function(id, ctx, session) {
     })
     
     # =====================================================
-    # 3. SPECIES DROP LIST
+    # 3. DROP LIST (PURE REACTIVE)
     # =====================================================
-    drop_species <- shiny::reactive({
-      shiny::req(WB())
+    drop_species <- reactive({
+      req(WB())
+      
       openxlsx::readWorkbook(WB(), sheet = "DropList", colNames = TRUE) |>
         dplyr::select(tree_species, species_code) |>
         dplyr::filter(!is.na(tree_species))
     })
     
     # =====================================================
-    # 4. SITE INFO (tbl1)
+    # 4. SITE INFO (SINGLE SOURCE OF TRUTH)
     # =====================================================
-    dinfo <- shiny::reactiveVal()
-    
-    shiny::observe({
-      shiny::req(WB())
+    observe({
+      req(WB())
       
       site_info <- openxlsx::readWorkbook(
         WB(),
@@ -166,16 +187,15 @@ mod_tab3_server <- function(id, ctx, session) {
       ) |>
         dplyr::mutate(elevation = as.integer(elevation))
       
-      dinfo(site_info)
+      ctx$data$site_info <- site_info
     })
     
     # =====================================================
-    # 5. INITIALIZE OBS TRUTH (NO dobs anymore)
+    # 5. INITIAL OBS LOAD (ONE-TIME ONLY)
     # =====================================================
-    shiny::observe({
-      shiny::req(WB())
+    observe({
+      req(WB())
       
-      # 🚫 prevent overwriting user edits
       if (!is.null(ctx$data$obs_truth)) return()
       
       data <- openxlsx::readWorkbook(
@@ -185,133 +205,56 @@ mod_tab3_server <- function(id, ctx, session) {
       )[-(1:6), ] |>
         tibble::tibble() |>
         dplyr::left_join(drop_species(), by = "tree_species") |>
-        dplyr::relocate(species_code, .after = tree_species) |>
-        dplyr::mutate(
-          sample_date = dplyr::case_when(
-            !is.na(sample_date) &
-              is.numeric(suppressWarnings(as.numeric(sample_date))) ~
-              as.Date(as.numeric(sample_date), origin = "1899-12-30"),
-            TRUE ~ as.Date(NA)
-          ),
-          sample_date = as.character(sample_date)
-        )
-      
-      # ✅ SINGLE SOURCE OF TRUTH
-      ctx$data$obs_truth <- data
-      
-      message("✅ OBS initialized into ctx$data$obs_truth")
-    })
-    
-    # =====================================================
-    # 6. SINGLE SOURCE OF TRUTH (NO MIRROR LAYER)
-    # =====================================================
-    shiny::observe({
-      
-      req(WB())
-      
-      if (!is.null(ctx$data$obs_truth)) return()
-      
-      data <- openxlsx::readWorkbook(WB(), sheet = "Xylo_obs_data", startRow = 1)[-(1:6), ] |>
-        tibble::tibble() |>
-        dplyr::left_join(drop_species(), by = "tree_species") |>
         dplyr::relocate(species_code, .after = tree_species)
       
-      if (is.null(ctx$data$draft_obs)) {
-        ctx$data$draft_obs <- ctx$data$obs_truth
-      }
+      ctx$data$obs_truth <- data
+      ctx$data$draft_obs <- data
+      
+      message("✅ TAB3: obs_truth initialized")
     })
     
     # =====================================================
-    # 7. COLUMN CONFIGS
+    # 6. COLUMN CONFIGS (PURE DERIVATION)
     # =====================================================
-    column_configs <- shiny::reactive({
-      shiny::req(WB(), WB_meta(), ctx$data$obs_truth)
+    column_configs <- reactive({
+      req(WB(), WB_meta(), ctx$data$obs_truth)
       get_column_configs(WB(), WB_meta(), ctx$data$obs_truth)
     })
     
-    shiny::observe({
+    observe({
       ctx$data$column_configs <- column_configs()
     })
     
     # =====================================================
-    # 8. RENDER TABLES
+    # 7. TABLE RENDERING
     # =====================================================
     output$tbl1 <- rhandsontable::renderRHandsontable({
-      shiny::req(ctx$data$tbl1)
-      
-      rhandsontable::rhandsontable(
-        ctx$data$tbl1,
-        rowHeaders = NULL,
-        contextMenu = TRUE,
-        stretchH = "all"
-      ) |>
-        hot_col_wrapper("site_label", column_configs()$tbl1$site_label) |>
-        hot_col_wrapper("latitude", column_configs()$tbl1$latitude) |>
-        hot_col_wrapper("longitude", column_configs()$tbl1$longitude) |>
-        hot_col_wrapper("elevation", column_configs()$tbl1$elevation)
+      req(ctx$data$tbl1)
+      rhandsontable::rhandsontable(ctx$data$tbl1)
     })
     
     output$tbl2 <- rhandsontable::renderRHandsontable({
-      shiny::req(ctx$data$draft_obs)
-      
-      rhandsontable::rhandsontable(
-        ctx$data$draft_obs,
-        rowHeaders = NULL,
-        contextMenu = TRUE,
-        stretchH = "all",
-        height = "300px"
-      ) |>
-        hot_col_wrapper("sample_date", column_configs()$tbl2$sample_date) |>
-        hot_col_wrapper("sample_id", column_configs()$tbl2$sample_id) |>
-        hot_col_wrapper("tree_species", column_configs()$tbl2$tree_species) |>
-        hot_col_wrapper("species_code", column_configs()$tbl2$species_code) |>
-        hot_col_wrapper("tree_label", column_configs()$tbl2$tree_label) |>
-        hot_col_wrapper("plot_label", column_configs()$tbl2$plot_label) |>
-        hot_col_wrapper("site_label", column_configs()$tbl2$site_label) |>
-        hot_col_wrapper("network_label", column_configs()$tbl2$network_label) |>
-        hot_col_wrapper("sample_label", column_configs()$tbl2$sample_label) |>
-        hot_col_wrapper("measure_type", column_configs()$tbl2$measure_type) |>
-        hot_col_wrapper("measure_repetition", column_configs()$tbl2$measure_repetition) |>
-        hot_col_wrapper("sample_comment", column_configs()$tbl2$sample_comment) |>
-        rhandsontable::hot_cols(manualColumnResize = TRUE)
+      req(ctx$data$draft_obs)
+      rhandsontable::rhandsontable(ctx$data$draft_obs)
     })
     
     # =====================================================
-    # SPECIES SYNC HELPER
+    # 8. TABLE SYNC (PURE DATA FLOW)
     # =====================================================
-    sync_species_itrdb <- function(df, drop_species, remove_na = TRUE) {
-      if (remove_na) {
-        df <- df |> dplyr::filter(!is.na(tree_species) & tree_species != "")
-      }
-      
-      df |>
-        dplyr::left_join(drop_species, by = "species_code", suffix = c("", "_from_list")) |>
-        dplyr::mutate(tree_species = tree_species_from_list) |>
-        dplyr::select(-dplyr::ends_with("_from_list"))
-    }
-    
-    # =====================================================
-    # 9. TABLE SYNC
-    # =====================================================
-    shiny::observeEvent(input$tbl1, {
-      shiny::req(input$tbl1)
+    observeEvent(input$tbl1, {
+      req(input$tbl1)
       ctx$data$tbl1 <- rhandsontable::hot_to_r(input$tbl1)
     })
     
-    shiny::observeEvent(input$tbl2, {
-      shiny::req(input$tbl2)
-      
-      user_data <- rhandsontable::hot_to_r(input$tbl2)
-      updated   <- sync_species_itrdb(user_data, drop_species())
-      
-      # 🔥 EDIT BUFFER UPDATE (NOT COMMIT)
-      ctx$data$draft_obs <- updated
+    observeEvent(input$tbl2, {
+      req(input$tbl2)
+      ctx$data$draft_obs <- rhandsontable::hot_to_r(input$tbl2)
     })
     
     # =====================================================
-    # 10. SAVE
+    # 9. SAVE (ONLY PLACE THAT COMMITS STATE)
     # =====================================================
-    shiny::observeEvent(input$save_obs, {
+    observeEvent(input$save_obs, {
       
       ctx$data$obs_truth <- ctx$data$draft_obs
       
@@ -333,14 +276,9 @@ mod_tab3_server <- function(id, ctx, session) {
     })
     
     # =====================================================
-    # 11. FSM FLAG
+    # RETURN
     # =====================================================
-    shiny::observe({
-      ctx$fsm$flags$tab3_complete <- !is.null(ctx$data$tbl1) &&
-        !is.null(ctx$data$obs_truth) &&
-        !is.null(ctx$data$draft_obs)
-    })
-    
+    return(invisible(NULL))
   })
 }
 

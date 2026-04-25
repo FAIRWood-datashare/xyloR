@@ -96,7 +96,12 @@ mod_tab2_ui <- function(id) {
             ),
             bslib::card_body(
               DT::DTOutput(ns("validation_table")),
-              shiny::uiOutput(ns("validation_message"))
+              shiny::uiOutput(ns("validation_message")),
+              shiny::actionButton(
+                ns("next_btn"), "Continue →",
+                class = "btn btn-primary w-100 mt-2",
+                disabled = NA
+              )
             )
           )
         )
@@ -180,80 +185,55 @@ mod_tab2_server <- function(id, ctx, session) {
     ns <- session$ns
     
     # =====================================================
-    # LOCAL STATE
+    # DERIVED STATE
     # =====================================================
-    tab2 <- reactiveValues(
-      meta_loaded = FALSE,
-      meta        = NULL,
-      validation  = NULL,
-      is_valid    = FALSE,
-      zip_ready   = FALSE
-    )
+    meta_loaded <- reactive({
+      is.list(ctx$data$meta) && !is.null(ctx$data$meta$site)
+    })
     
-    zip_ready    <- reactiveVal(FALSE)
     meta_hierarchy <- reactiveVal(NULL)
     
     # =====================================================
-    # TAB ENTRY DEBUG
+    # CONTRACT (PURE)
     # =====================================================
-    observe({
-      req(ctx$state$tab == "tab2")
-      
-      message("===== TAB2 ENTRY =====")
-      message("obs class: ", class(ctx$data$obs))
-      message("meta class: ", class(ctx$data$meta))
-      message("======================")
-    })
+    contract_tab2 <- function(ctx) {
+      obs      <- ctx$data$obs_truth
+      meta     <- ctx$data$meta
+      complete <- isTRUE(ctx$data$tab2_complete %||% FALSE)
+      data_ok  <- is.data.frame(obs) && nrow(obs) > 0 &&
+                  is.list(meta) && !is.null(meta$site)
+      list(ready = data_ok && complete, data_ok = data_ok, complete = complete)
+    }
     
     # =====================================================
-    # 2.1 DOWNLOAD META TEMPLATE (prefilled from obs)
+    # 2.1 DOWNLOAD PREFILLED TEMPLATE
     # =====================================================
-    
     output$download_meta_template <- shiny::downloadHandler(
-      
       filename = function() {
-        dataset_name <- ctx$data$dataset_name %||% "Dataset"
-        paste0(dataset_name, "_xylo_meta_", Sys.Date(), ".xlsx")
+        paste0(ctx$data$dataset_name %||% "Dataset", "_xylo_meta_", Sys.Date(), ".xlsx")
       },
-      
       content = function(file) {
-        
-        req(ctx$data$obs_truth)
-        req(ctx$data$tbl1)
-        
+        req(is.data.frame(ctx$data$obs_truth))
         template_path <- system.file(
-          "extdata", "Datasetname_xylo_meta_yyyy-mm-dd.xlsx",
-          package = "xyloR"
+          "extdata", "Datasetname_xylo_meta_yyyy-mm-dd.xlsx", package = "xyloR"
         )
-        
-        shiny::withProgress(message = "Generating metadata...", value = 0, {
-          
-          shiny::setProgress(0.3, detail = "Using live OBS data...")
-          
-          # =====================================================
-          # 🔥 SINGLE SOURCE OF TRUTH
-          # =====================================================
-          meta_wb <- create_xylo_metadata(
-            obs_data      = ctx$data$obs_truth,
-            obs_info      = ctx$data$tbl1,
-            template_meta = template_path
+        shiny::withProgress(message = "Generating metadata template...", value = 0, {
+          shiny::setProgress(0.3)
+          # tbl1 may not be set yet — pass obs_truth only if tbl1 absent
+          obs_info <- if (is.data.frame(ctx$data$tbl1)) ctx$data$tbl1 else NULL
+          meta_wb  <- tryCatch(
+            create_xylo_metadata(
+              obs_data      = ctx$data$obs_truth,
+              obs_info      = obs_info,
+              template_meta = template_path
+            ),
+            error = function(e) {
+              shiny::showNotification(paste("Template error:", e$message), type = "error")
+              stop(e)
+            }
           )
-          
-          # =====================================================
-          # 🔥 OPTIONAL BUT POWERFUL: VALIDATION HERE
-          # =====================================================
-          validation <- rbind(
-            xylo_format_validation(ctx$data$obs_truth),
-            meta_format_validation(meta_wb)
-          )
-          
-          ctx$data$validation_global <- validation
-          
-          shiny::setProgress(0.8, detail = "Saving...")
-          
+          shiny::setProgress(0.9)
           openxlsx::saveWorkbook(meta_wb, file, overwrite = TRUE)
-          
-          shiny::setProgress(1, detail = "Done!")
         })
       }
     )
@@ -264,15 +244,12 @@ mod_tab2_server <- function(id, ctx, session) {
     output$download_example_meta <- shiny::downloadHandler(
       filename = function() "Example_xylo_meta.xlsx",
       content = function(file) {
-        template_path <- system.file(
-          "extdata", "Ltal2007_xylo_meta_2025-09-01.xlsx",
-          package = "xyloR"
-        )
-        if (!nzchar(template_path) || !file.exists(template_path)) {
+        tp <- system.file("extdata", "Ltal2007_xylo_meta_2025-09-01.xlsx", package = "xyloR")
+        if (!nzchar(tp) || !file.exists(tp)) {
           shiny::showNotification("Example meta file not found.", type = "error")
           return(NULL)
         }
-        file.copy(template_path, file, overwrite = TRUE)
+        file.copy(tp, file, overwrite = TRUE)
       }
     )
     
@@ -280,263 +257,114 @@ mod_tab2_server <- function(id, ctx, session) {
     # 2.2 META UPLOAD
     # =====================================================
     observeEvent(input$meta_file, {
-      
       req(input$meta_file)
-      
       ctx$files$meta_file <- input$meta_file
-      ctx$state$tab2$file$uploaded <- TRUE
       
-      raw_meta <- read_xylo_meta_raw(input$meta_file$datapath)
-      meta     <- build_xylo_meta_clean(raw_meta)
+      meta <- tryCatch(
+        read_xylo_meta_raw(input$meta_file$datapath) |> build_xylo_meta_clean(),
+        error = function(e) {
+          message("❌ META LOAD FAILED: ", conditionMessage(e))
+          shiny::showNotification(paste("Meta file error:", conditionMessage(e)),
+                                  type = "error", duration = 8)
+          NULL
+        }
+      )
+      req(!is.null(meta))
       
-      tab2$meta_loaded <- TRUE
-      tab2$meta <- meta
+      ctx$data$meta <- meta
       meta_hierarchy(meta)
+      message("🟢 META LOADED")
       
-      message("🟢 META LOADED + READY")
-      
-      # Turn upload card header green immediately
       shinyjs::runjs(sprintf(
-        "document.getElementById('%s').classList.remove('bg-danger'); document.getElementById('%s').classList.add('bg-success');",
+        "document.getElementById('%s').classList.remove('bg-danger');
+         document.getElementById('%s').classList.add('bg-success');",
         ns("card_header2"), ns("card_header2")
       ))
     })
     
-    observe({
-      req(ctx$data$obs_truth)
-      
-      ctx$data$validation_global <- xylo_format_validation(ctx$data$obs_truth)
-    })
-    
     # =====================================================
-    # VALIDATION ENGINE (SINGLE SOURCE OF TRUTH)
+    # VALIDATION ENGINE
     # =====================================================
     validation_tbl <- reactive({
+      req(meta_loaded())
+      req(is.data.frame(ctx$data$obs_truth))
+      req(is.list(ctx$data$meta), !is.null(ctx$data$meta$site))
       
-      req(tab2$meta_loaded)
-      req(!is.null(tab2$meta))
-      
-      obs <- ctx$data$obs_truth
-      meta <- tab2$meta
-      
-      # =====================================================
-      # 🔧 SAFEGUARD: prevent NULL / wrong type crash
-      # =====================================================
-      if (is.null(obs) || !is.data.frame(obs)) {
-        message("⚠️ OBS INVALID: NULL or not data.frame")
-        
-        return(data.frame(
-          type = "error",
-          source = "obs",
-          message = "obs_truth is missing or not a data.frame"
-        ))
-      }
-      
-      if (is.null(meta)) {
-        message("⚠️ META INVALID: NULL")
-        
-        return(data.frame(
-          type = "error",
-          source = "meta",
-          message = "meta is missing"
-        ))
-      }
-      
-      # =====================================================
-      # ENGINE CALL (now safe)
-      # =====================================================
       result <- tryCatch(
-        xylo_validation_engine(obs, meta),
+        xylo_validation_engine(ctx$data$obs_truth, ctx$data$meta),
         error = function(e) {
-          message("ENGINE ERROR: ", e$message)
-          list(all = data.frame(
-            type = "error",
-            source = "engine",
-            message = e$message
-          ))
+          message("⚠️ validation engine error: ", e$message)
+          list(all = data.frame(type = "error", message = e$message))
         }
       )
-      
-      tbl <- result$all
-      if (is.null(tbl) || !is.data.frame(tbl)) tbl <- data.frame()
-      
+      tbl <- result$all %||% data.frame()
+      if (!is.data.frame(tbl)) tbl <- data.frame()
       tbl
     })
     
-    observe({
-      tbl <- validation_tbl()
-      
-      tab2$validation <- tbl
-      tab2$is_valid <- is.data.frame(tbl) && nrow(tbl) == 0
-      tab2$zip_ready <- isTRUE(tab2$is_valid)
+    is_valid <- reactive({
+      tbl <- tryCatch(validation_tbl(), error = function(e) NULL)
+      is.data.frame(tbl) && nrow(tbl) == 0
     })
     
     # =====================================================
-    # WRITE BACK TO CTX (FOR FSM)
+    # UI CONTROL — show validation card when meta loaded
     # =====================================================
     observe({
-      req(!is.null(ctx$data$meta))
-      
-      state <- validation_state()
-      
-      message("✅ READY — WRITING STATE")
-      message("WRITE STATE -> ", state$valid)
-      
-      ctx$data$tab2_validation         <- state$tbl
-      ctx$state$tab2$validation$all_valid <- state$valid
-      
-      message("VALIDATION STATE | valid=", state$valid, " | rows=", nrow(state$tbl))
-    })
-    
-    # UI CONTROL (CARDS + ZIP)
-    # =====================================================
-    observe({
-      
-      req(tab2$meta_loaded)
-      
-      message("UI UPDATE | valid=", tab2$is_valid)
-      
-      # ALWAYS SHOW validation card once meta is loaded
+      req(meta_loaded())
       shinyjs::runjs(sprintf(
         "document.getElementById('%s').style.display = 'block';",
         ns("validation_card")
       ))
-      
-      if (isTRUE(tab2$is_valid)) {
-        
-        shinyjs::runjs(sprintf(
-          "$('#%s').removeClass('bg-danger').addClass('bg-success');",
-          ns("card_header2_3")
-        ))
-        
-        shinyjs::runjs(sprintf(
-          "document.getElementById('%s').style.display = 'block';",
-          ns("zip_card")
-        ))
-        
-      } else {
-        
-        shinyjs::runjs(sprintf(
-          "$('#%s').removeClass('bg-success').addClass('bg-danger');",
-          ns("card_header2_3")
-        ))
-        
-        shinyjs::runjs(sprintf(
-          "document.getElementById('%s').style.display = 'none';",
-          ns("zip_card")
-        ))
-      }
+    })
+    
+    # Header colour + zip visibility driven by data_ok (not complete)
+    observe({
+      ok  <- contract_tab2(ctx)$data_ok
+      cls <- if (isTRUE(ok) && isTRUE(is_valid())) "bg-success" else "bg-danger"
+      opp <- if (cls == "bg-success") "bg-danger" else "bg-success"
+      shinyjs::runjs(sprintf(
+        "$('#%s').removeClass('%s').addClass('%s');",
+        ns("card_header2_3"), opp, cls
+      ))
+      shinyjs::runjs(sprintf(
+        "document.getElementById('%s').style.display = '%s';",
+        ns("zip_card"),
+        if (isTRUE(ok) && isTRUE(is_valid())) "block" else "none"
+      ))
     })
     
     # =====================================================
-    # VALIDATION TABLE
+    # OUTPUTS
     # =====================================================
     output$validation_table <- DT::renderDT({
-      
+      req(meta_loaded())
       tbl <- validation_tbl()
-      valid <- is.data.frame(tbl) && nrow(tbl) == 0
-      
-      if (valid) {
+      if (is.data.frame(tbl) && nrow(tbl) == 0) {
         return(DT::datatable(
-          data.frame(Status = "✔ No issues found — validation passed"),
+          data.frame(Status = "\u2714 No issues found — validation passed"),
           options = list(dom = "t"), rownames = FALSE
         ))
       }
-      
-      if (!is.data.frame(tbl) || nrow(tbl) == 0) {
-        return(DT::datatable(
-          data.frame(Status = "No validation results yet."),
-          options = list(dom = "t"), rownames = FALSE
-        ))
-      }
-      
       DT::datatable(tbl, rownames = FALSE, class = "table-dark")
     })
     
-    # =====================================================
-    # VALIDATION MESSAGE
-    # =====================================================
     output$validation_message <- shiny::renderUI({
-      state <- validation_state()
-      req(state$ran)
-      
-      if (isTRUE(state$valid)) {
+      req(meta_loaded())
+      if (isTRUE(is_valid())) {
         htmltools::div(
           class = "alert alert-success p-3 rounded mt-2",
-          shiny::tags$h4(shiny::icon("check-circle"), " Success!", class = "mb-2"),
-          shiny::tags$p("Your files are valid. Click", shiny::tags$b("'Download Exchange Files as ZIP'"), "below.", class = "mb-0")
+          shiny::tags$h4(shiny::icon("check-circle"), " Validation passed!", class = "mb-2"),
+          shiny::tags$p("Click", shiny::tags$b("'Continue \u2192'"), "to proceed or download the ZIP below.", class = "mb-0")
         )
       } else {
         htmltools::div(
           class = "alert alert-danger p-3 rounded mt-2",
-          shiny::tags$h4(shiny::icon("exclamation-triangle"), " Validation Issues Found!", class = "mb-2"),
+          shiny::tags$h4(shiny::icon("exclamation-triangle"), " Validation issues found", class = "mb-2"),
           shiny::tags$p("Fix the issues listed above, then re-upload your metadata file.", class = "mb-0")
         )
       }
     })
-    
-    # =====================================================
-    # ZIP DOWNLOAD
-    # =====================================================
-    output$download_zip <- shiny::downloadHandler(
-      filename = function() {
-        dataset_name <- ctx$data$dataset_name %||% "exchange"
-        contact      <- ctx$data$contact_lastname %||% ""
-        version      <- ctx$data$version %||% 1
-        parts <- Filter(nzchar, c(contact, dataset_name, as.character(version)))
-        paste0(paste(parts, collapse = "_"), "_", Sys.Date(), ".zip")
-      },
-      content = function(file) {
-        req(zip_ready())
-        req(!is.null(ctx$files$obs_file))
-        req(!is.null(ctx$files$meta_file))
-        
-        obs_path  <- ctx$files$obs_file$datapath
-        meta_path <- ctx$files$meta_file$datapath
-        
-        if (!file.exists(obs_path)) {
-          shiny::showNotification("Observation file missing.", type = "error")
-          return(NULL)
-        }
-        if (!file.exists(meta_path)) {
-          shiny::showNotification("Metadata file missing.", type = "error")
-          return(NULL)
-        }
-        
-        shiny::withProgress(message = "Preparing exchange files...", value = 0, {
-          
-          shiny::setProgress(0.1, detail = "Creating temp directory...")
-          out_dir <- file.path(tempdir(), paste0("exchange_", format(Sys.time(), "%Y%m%d%H%M%S")))
-          dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
-          on.exit(unlink(out_dir, recursive = TRUE), add = TRUE)
-          
-          shiny::setProgress(0.3, detail = "Generating exchange files...")
-          tryCatch(
-            create_exchange_files(
-              obs_file   = obs_path,
-              meta_file  = meta_path,
-              output_dir = out_dir
-            ),
-            error = function(e) {
-              shiny::showNotification(paste("Error:", e$message), type = "error")
-              stop(e)
-            }
-          )
-          
-          shiny::setProgress(0.7, detail = "Zipping files...")
-          files_to_zip <- list.files(out_dir, full.names = TRUE, recursive = TRUE)
-          
-          # Also include the source obs + meta xlsx
-          extra <- c(obs_path, meta_path)
-          extra <- extra[file.exists(extra)]
-          
-          zip::zipr(zipfile = file, files = c(files_to_zip, extra))
-          
-          shiny::setProgress(1, detail = "Done!")
-        })
-      },
-      contentType = "application/zip"
-    )
     
     # =====================================================
     # SUNBURST HIERARCHY PLOT
@@ -544,20 +372,17 @@ mod_tab2_server <- function(id, ctx, session) {
     df_hierarchy_reactive <- reactive({
       req(input$meta_file$datapath)
       
-      meta_path  <- input$meta_file$datapath
+      meta_path   <- input$meta_file$datapath
       sheet_names <- setdiff(
         readxl::excel_sheets(meta_path),
         c("instructions", "DropList", "ListOfVariables")
       )
-      
       sheet_data <- setNames(
         lapply(sheet_names, function(s) readxl::read_excel(meta_path, sheet = s)[-1:-6, ]),
         sheet_names
       )
-      
       sheet_data[["sample"]]$sample_date <- as.Date(
-        as.numeric(sheet_data[["sample"]]$sample_date),
-        origin = "1899-12-30"
+        as.numeric(sheet_data[["sample"]]$sample_date), origin = "1899-12-30"
       )
       
       df_joined <- dplyr::left_join(
@@ -567,21 +392,21 @@ mod_tab2_server <- function(id, ctx, session) {
         dplyr::left_join(sheet_data[["site"]], by = "site_label",
                          relationship = "many-to-many") |>
         dplyr::mutate(
-          plot_label_clean  = dplyr::coalesce(plot_label.x, plot_label.y),
-          year              = lubridate::year(sample_date),
-          network_label     = dplyr::coalesce(network_label, site_label),
-          site_label_full   = dplyr::if_else(
+          plot_label_clean = dplyr::coalesce(plot_label.x, plot_label.y),
+          year             = lubridate::year(sample_date),
+          network_label    = dplyr::coalesce(network_label, site_label),
+          site_label_full  = dplyr::if_else(
             site_label == network_label | is.na(site_label),
             paste0(network_label, "_site"),
             paste0(network_label, "__", site_label)
           ),
-          plot_label_full   = dplyr::if_else(
+          plot_label_full  = dplyr::if_else(
             is.na(plot_label_clean) | plot_label_clean == site_label,
             paste0(site_label_full, "_plot"),
             paste0(site_label_full, "__", plot_label_clean)
           ),
-          tree_label_full   = paste0(plot_label_full, "__", tree_label),
-          year_label        = paste0(tree_label_full, "__", year),
+          tree_label_full  = paste0(plot_label_full, "__", tree_label),
+          year_label       = paste0(tree_label_full, "__", year),
           sample_label_full = paste0(year_label, "__", sample_id)
         )
       
@@ -633,7 +458,8 @@ mod_tab2_server <- function(id, ctx, session) {
         sheet_names
       )
       
-      df_joined <- dplyr::left_join(sheet_data[["sample"]], sheet_data[["tree"]], by = "tree_label") |>
+      df_joined <- dplyr::left_join(sheet_data[["sample"]], sheet_data[["tree"]],
+                                    by = "tree_label") |>
         dplyr::left_join(sheet_data[["site"]], by = c("site_label", "plot_label")) |>
         dplyr::group_by(
           network_label, site_label, plot_label, tree_label,
@@ -642,7 +468,6 @@ mod_tab2_server <- function(id, ctx, session) {
         ) |>
         dplyr::summarise(n = dplyr::n(), .groups = "drop")
       
-      # optional sunburst filter
       selection <- plotly::event_data("plotly_click", source = "sunburst_selection")
       if (!is.null(selection)) {
         df_h    <- df_hierarchy_reactive()
@@ -659,9 +484,7 @@ mod_tab2_server <- function(id, ctx, session) {
       
       DT::datatable(
         df_joined,
-        rownames = FALSE,
-        filter   = "top",
-        class    = "table-dark",
+        rownames = FALSE, filter = "top", class = "table-dark",
         options  = list(paging = TRUE, searching = TRUE, autoWidth = TRUE,
                         scrollY = TRUE, dom = "Blfrtip",
                         columnDefs = list(list(className = "dt-center", targets = "_all")))
@@ -669,47 +492,64 @@ mod_tab2_server <- function(id, ctx, session) {
     })
     
     # =====================================================
+    # ZIP DOWNLOAD
+    # =====================================================
+    output$download_zip <- shiny::downloadHandler(
+      filename = function() {
+        parts <- Filter(nzchar, c(
+          ctx$data$contact_lastname %||% "",
+          ctx$data$dataset_name     %||% "exchange",
+          as.character(ctx$data$version %||% 1)
+        ))
+        paste0(paste(parts, collapse = "_"), "_", Sys.Date(), ".zip")
+      },
+      content = function(file) {
+        req(is_valid())
+        req(!is.null(ctx$files$obs_file), !is.null(ctx$files$meta_file))
+        obs_path  <- ctx$files$obs_file$datapath
+        meta_path <- ctx$files$meta_file$datapath
+        shiny::withProgress(message = "Preparing exchange files...", value = 0, {
+          shiny::setProgress(0.1)
+          out_dir <- file.path(tempdir(), paste0("exchange_", format(Sys.time(), "%Y%m%d%H%M%S")))
+          dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+          on.exit(unlink(out_dir, recursive = TRUE), add = TRUE)
+          shiny::setProgress(0.3)
+          tryCatch(
+            create_exchange_files(obs_file = obs_path, meta_file = meta_path, output_dir = out_dir),
+            error = function(e) {
+              shiny::showNotification(paste("Error:", e$message), type = "error")
+              stop(e)
+            }
+          )
+          shiny::setProgress(0.7)
+          files_to_zip <- list.files(out_dir, full.names = TRUE, recursive = TRUE)
+          extra <- c(obs_path, meta_path)
+          extra <- extra[file.exists(extra)]
+          zip::zipr(zipfile = file, files = c(files_to_zip, extra))
+          shiny::setProgress(1)
+        })
+      },
+      contentType = "application/zip"
+    )
+    
+    # =====================================================
     # NEXT BUTTON (TAB2 → TAB3 via FSM)
     # =====================================================
     observe({
-      shinyjs::toggleState("next_btn", condition = isTRUE(tab2$is_valid))
+      shinyjs::toggleState("next_btn", condition = contract_tab2(ctx)$data_ok)
     })
     
     observeEvent(input$next_btn, {
-      tbl <- validation_tbl()
-      valid <- is.data.frame(tbl) && nrow(tbl) == 0
-      req(isTRUE(state$valid))
-      message("➡️ TAB2 NEXT CLICK → FSM TRIGGERED")
-      ctx$fsm_trigger(ctx$fsm_trigger() + 1)
+      req(contract_tab2(ctx)$data_ok)
+      ctx$data$tab2_complete <- TRUE
+      message("🔥 tab2 complete — FSM will advance")
     })
     
     # =====================================================
-    # HIERARCHY EXPORT
-    # =====================================================
-    ctx$data$tab2_hierarchy <- reactive({
-      req(meta_hierarchy())
-      build_xylo_hierarchy(meta_hierarchy())
-    })
-    
-    # =====================================================
-    # DEBUG PANEL
-    # =====================================================
-    output$debug_tab2 <- renderPrint({
-      state <- validation_state()
-      list(
-        meta_uploaded    = ctx$state$tab2$file$uploaded,
-        validation_rows  = if (!is.null(state$tbl)) nrow(state$tbl) else NULL,
-        valid            = state$valid,
-        zip_ready        = zip_ready()
-      )
-    })
-    
-    # =====================================================
-    # EXPORTS
+    # RETURN
     # =====================================================
     return(list(
       validation = validation_tbl,
-      zip_ready  = zip_ready,
       hierarchy  = meta_hierarchy
     ))
   })

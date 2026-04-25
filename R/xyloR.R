@@ -21,7 +21,6 @@ xyloR <- function() {
   # UI
   # ======================================================
   ui <- shiny::fluidPage(
-    
     shinyjs::useShinyjs(),
     
     theme = bslib::bs_theme(
@@ -31,14 +30,6 @@ xyloR <- function() {
       font_scale = 0.8
     ),
     
-    htmltools::tags$head(
-      htmltools::tags$script(src = "https://unpkg.com/@popperjs/core@2"),
-      htmltools::tags$script(src = "https://unpkg.com/tippy.js@6")
-    ),
-    
-    htmltools::includeCSS("www/custom_styles.css"),
-    htmltools::includeScript("www/custom_scripts.js"),
-    
     shiny::titlePanel("GloboXylo Data Collector"),
     
     bslib::navset_card_tab(
@@ -47,11 +38,11 @@ xyloR <- function() {
       bslib::nav_panel("1. Upload observation", value = "tab1", mod_tab1_ui("tab1")),
       bslib::nav_panel("2. Upload metadata", value = "tab2", mod_tab2_ui("tab2")),
       bslib::nav_panel("Observation", value = "tab3", mod_tab3_ui("tab3")),
-      bslib::nav_panel("Site", value = "tab4", mod_tab2_ui("tab4")),
-      bslib::nav_panel("Tree", value = "tab5", mod_tab2_ui("tab5")),
-      bslib::nav_panel("Sample", value = "tab6", mod_tab2_ui("tab6")),
-      bslib::nav_panel("Person", value = "tab7", mod_tab2_ui("tab7")),
-      bslib::nav_panel("Publication", value = "tab8", mod_tab2_ui("tab8"))
+      bslib::nav_panel("Site", value = "tab4", mod_tab4_ui("tab4")),
+      bslib::nav_panel("Tree", value = "tab5", mod_tab5_ui("tab5")),
+      bslib::nav_panel("Sample", value = "tab6", mod_tab6_ui("tab6")),
+      bslib::nav_panel("Person", value = "tab7", mod_tab7_ui("tab7")),
+      bslib::nav_panel("Publication", value = "tab8", mod_tab8_ui("tab8"))
     )
   )
   
@@ -63,29 +54,20 @@ xyloR <- function() {
     ctx <- create_app_context()
     
     # ======================================================
-    # FSM STATE
+    # FSM (STATE ONLY — SINGLE SOURCE OF TRUTH)
     # ======================================================
-    ctx$fsm <- list(
-      state = "tab1",
-      events = list()
-    )
-    
-    ctx$fsm_trigger <- reactiveVal(0)
+    # ctx$fsm already initialised in create_app_context() — do not re-assign here
     
     # ======================================================
-    # 🔒 SAFE WRITE GUARD (STEP 1)
+    # SAFE WRITE (DATA ONLY)
     # ======================================================
     safe_write <- function(name, value, allow_overwrite = FALSE) {
       
       locked_fields <- c("obs_truth", "tbl1")
       
-      if (allow_overwrite) {
-        ctx$data[[name]] <- value
-        return(invisible(TRUE))
-      }
-      
-      if (name %in% locked_fields && !is.null(ctx$data[[name]])) {
-        message("⚠️ blocked overwrite of ctx$data$", name)
+      if (!allow_overwrite &&
+          name %in% locked_fields &&
+          !is.null(ctx$data[[name]])) {
         return(invisible(FALSE))
       }
       
@@ -94,143 +76,135 @@ xyloR <- function() {
     }
     
     # ======================================================
-    # 📦 BOOT LAYER (SINGLE SOURCE OF TRUTH INIT)
+    # BOOT — obs file (tab1): populate obs_truth immediately
     # ======================================================
-    ctx$boot_done <- FALSE
-    
-    observe({
-      
+    observeEvent(ctx$files$obs_file, {
       req(ctx$files$obs_file)
-      req(ctx$files$meta_file)
-      
-      if (isTRUE(ctx$boot_done)) return()
-      
-      message("🚀 BOOT: ONE-TIME initialization")
-      
-      # -------------------------
-      # OBS LOAD
-      # -------------------------
+
       obs_raw <- openxlsx::readWorkbook(
         ctx$files$obs_file$datapath,
-        sheet = "Xylo_obs_data",
+        sheet    = "Xylo_obs_data",
         startRow = 1
       )[-(1:6), ] |> tibble::tibble()
-      
-      drop_species <- openxlsx::readWorkbook(
-        ctx$files$obs_file$datapath,
-        sheet = "DropList",
-        colNames = TRUE
-      ) |> dplyr::select(tree_species, species_code)
-      
-      obs_raw <- obs_raw |>
-        dplyr::left_join(drop_species, by = "tree_species") |>
-        dplyr::relocate(species_code, .after = tree_species)
-      
-      # -------------------------
-      # META LOAD
-      # -------------------------
-      meta_raw <- openxlsx::readWorkbook(
-        ctx$files$meta_file$datapath,
-        sheet = "site"
-      )
-      
-      # -------------------------
-      # GLOBAL STATE (SAFE WRITE)
-      # -------------------------
+
       safe_write("obs_truth", obs_raw)
       safe_write("draft_obs", obs_raw)
-      safe_write("tbl1", meta_raw)
-      
-      safe_write("obs_raw", obs_raw)
-      safe_write("meta_raw", meta_raw)
-      
-      ctx$boot_done <- TRUE
-      
-      message("✅ BOOT COMPLETE")
+      message("✅ BOOT: obs_truth loaded")
     })
-    
+
     # ======================================================
-    # 📊 CENTRAL VALIDATION ENGINE
+    # BOOT — sync tbl1 + site_info from meta (set by mod_tab2)
+    # Fires whenever ctx$data$meta is assigned in mod_tab2
+    # ======================================================
+    observe({
+      req(is.list(ctx$data$meta), !is.null(ctx$data$meta$site))
+      ctx$data$tbl1 <- ctx$data$meta$site
+      ctx$data$site_info <- ctx$data$meta$site |>
+        dplyr::select(dplyr::any_of(c("site_label", "latitude", "longitude"))) |>
+        dplyr::distinct()
+      message("✅ BOOT: tbl1 + site_info synced from ctx$data$meta$site")
+    })
+
+    # ======================================================
+    # VALIDATION ENGINE (runs once when both inputs are ready — NO invalidateLater)
     # ======================================================
     ctx$validation <- reactive({
-      
-      req(ctx$data$obs_truth)
-      req(ctx$data$tbl1)
-      
-      invalidateLater(100, session)  # 🔥 forces re-check across modules
-      
-      xylo_validation_engine(
-        ctx$data$obs_truth,
-        ctx$data$tbl1
+      req(is.data.frame(ctx$data$obs_truth), is.list(ctx$data$meta))
+      tryCatch(
+        xylo_validation_engine(ctx$data$obs_truth, ctx$data$meta),
+        error = function(e) {
+          message("⚠️ validation engine error: ", e$message)
+          list(all = data.frame())
+        }
       )
     })
-    
-    # observe({
-    #   ctx$state$validation <- ctx$validation()
-    # })
-    
+
     # ======================================================
-    # 🔁 FSM SNAPSHOT
+    # CONTRACTS
     # ======================================================
-    get_fsm_snapshot <- function(ctx) {
-      
+    contract_tab1 <- function(ctx) {
+
+      ui_ok     <- isTRUE(ctx$data$tab1_ui_valid  %||% FALSE)
+      validated <- isTRUE(ctx$data$tab1_validated %||% FALSE)
+      data_ok   <- is.data.frame(ctx$data$obs_truth) && nrow(ctx$data$obs_truth) > 0
+      checks_ok <- isTRUE(ctx$data$tab1_checks_ok  %||% FALSE)
+      complete  <- isTRUE(ctx$data$tab1_complete    %||% FALSE)
+
       list(
-        tab1_complete = all(c(
-          isTRUE(ctx$state$tab1$inputdata$valid %||% FALSE),
-          isTRUE(ctx$state$tab1$file$uploaded %||% FALSE),
-          isTRUE(ctx$state$tab1$file$loaded %||% FALSE),
-          isTRUE(ctx$state$tab1$validation$ui_valid %||% FALSE)
-        )),
-        tab2_complete = isTRUE(ctx$state$tab2$validation$all_valid %||% FALSE)
+        ready     = ui_ok && validated && data_ok && checks_ok && complete,
+        ui_ok     = ui_ok,
+        validated = validated,
+        data_ok   = data_ok,
+        checks_ok = checks_ok,
+        complete  = complete
       )
     }
-    
-    # ======================================================
-    # FSM TRANSITION ENGINE
-    # ======================================================
-    fsm_transition <- function(ctx) {
-      
-      snapshot <- get_fsm_snapshot(ctx)
-      
-      if (ctx$fsm$state == "tab1" && isTRUE(snapshot$tab1_complete)) {
-        ctx$fsm$state <- "tab2"
-        message("➡️ FSM: tab1 → tab2")
-        return()
-      }
-      
-      if (ctx$fsm$state == "tab2" && isTRUE(snapshot$tab2_complete)) {
-        ctx$fsm$state <- "tab3"
-        message("➡️ FSM: tab2 → tab3")
-        return()
-      }
-    }
-    
-    observeEvent(ctx$fsm_trigger(), {
-      fsm_transition(ctx)
-    })
-    
-    observeEvent(ctx$fsm_trigger(), {
-      
-      state <- ctx$fsm$state
-      
-      bslib::nav_select(
-        id = "tabs",
-        selected = state,
-        session = session
+
+    contract_tab2 <- function(ctx) {
+
+      obs      <- ctx$data$obs_truth
+      meta     <- ctx$data$meta
+      complete <- isTRUE(ctx$data$tab2_complete %||% FALSE)  # set by next_btn in mod_tab2
+
+      data_ok <- is.data.frame(obs) && nrow(obs) > 0 &&
+                 is.list(meta)      && !is.null(meta$site)
+
+      list(
+        ready    = data_ok && complete,
+        data_ok  = data_ok,
+        complete = complete
       )
-    })
+    }
     
     # ======================================================
     # MODULES
     # ======================================================
-    mod_tab1_server("tab1", ctx, session)
-    mod_tab2_server("tab2", ctx, session)
-    mod_tab3_server("tab3", ctx, session)
+    tab1 <- mod_tab1_server("tab1", ctx, session)
+    tab2 <- mod_tab2_server("tab2", ctx, session)
+    tab3 <- mod_tab3_server("tab3", ctx, session)
+    
     mod_tab4_server("tab4", ctx, session)
     mod_tab5_server("tab5", ctx, session)
     mod_tab6_server("tab6", ctx, session)
     mod_tab7_server("tab7", ctx, session)
     mod_tab8_server("tab8", ctx, session)
+    
+    # ======================================================
+    # FSM REACTIVE DRIVER (CLEAN SINGLE SOURCE OF TRUTH)
+    # ======================================================
+    observe({
+      
+      state      <- ctx$fsm$state
+      tab1_ready <- contract_tab1(ctx)$ready
+      tab2_ready <- contract_tab2(ctx)$ready
+
+      new_state <- dplyr::case_when(
+        state == "tab1" && isTRUE(tab1_ready) ~ "tab2",
+        state == "tab2" && isTRUE(tab2_ready) ~ "tab3",
+        .default = state
+      )
+
+      # Guard: only write when state actually changes — prevents reactive loop
+      if (!identical(new_state, state)) {
+        message("➡️ FSM: ", state, " → ", new_state)
+        ctx$fsm$state <- new_state
+      }
+    })
+    
+    # ======================================================
+    # NAVIGATION (STATE ONLY)
+    # ======================================================
+    observe({
+      
+      req(ctx$fsm$state)
+      
+      bslib::nav_select(
+        id = "tabs",
+        selected = ctx$fsm$state,
+        session = session
+      )
+    })
   }
+  
   shiny::shinyApp(ui, server)
 }

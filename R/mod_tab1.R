@@ -227,63 +227,76 @@ mod_tab1_ui <- function(id) {
 #' @importFrom plotly renderPlotly plot_ly layout
 #' @importFrom DT renderDataTable datatable
 mod_tab1_server <- function(id, ctx, session) {
-
+  
   moduleServer(id, function(input, output, session) {
-
+    
     ns <- session$ns
+    
+    # =========================================================
+    # CONTRACT (PURE)
+    # =========================================================
+    contract_tab1 <- function(ctx) {
+      
+      ui_ok     <- isTRUE(ctx$data$tab1_ui_valid  %||% FALSE)
+      validated <- isTRUE(ctx$data$tab1_validated %||% FALSE)
+      data_ok   <- is.data.frame(ctx$data$obs_truth) && nrow(ctx$data$obs_truth) > 0
+      checks_ok <- isTRUE(ctx$data$tab1_checks_ok  %||% FALSE)
+      complete  <- isTRUE(ctx$data$tab1_complete    %||% FALSE)
 
-    # =========================================================
-    # SAFE INIT
-    # =========================================================
-    isolate({
-      ctx$state$tab1 <- list(
-        data_ready = FALSE,
-        file       = list(uploaded = FALSE, loaded = FALSE),
-        inputdata  = list(valid = FALSE, confirmed = FALSE),
-        validation = list(ui_valid = FALSE)
+      list(
+        ready     = ui_ok && validated && data_ok && checks_ok && complete,
+        ui_ok     = ui_ok,
+        validated = validated,
+        data_ok   = data_ok,
+        checks_ok = checks_ok,
+        complete  = complete
       )
-    })
+    }
 
     # =========================================================
-    # DEBUG OBSERVER
-    # =========================================================
-    observe({
-      message(
-        "🔍 TAB1 STATE:",
-        " input_valid=", ctx$state$tab1$inputdata$valid,
-        " uploaded=",    ctx$state$tab1$file$uploaded,
-        " loaded=",      ctx$state$tab1$file$loaded,
-        " ui_valid=",    ctx$state$tab1$validation$ui_valid
-      )
-    })
-
-    # =========================================================
-    # 1. INPUT VALIDATION (LIVE)
+    # 1. INPUT VALIDATION → ctx$data ONLY
     # =========================================================
     observe({
       nm  <- input$dataset_name %||% ""
       ver <- suppressWarnings(as.numeric(input$version))
       dsc <- trimws(input$description %||% "")
 
-      valid <-
+      ctx$data$tab1_ui_valid <-
         nzchar(nm) &&
         nchar(nm) >= 3 && nchar(nm) <= 8 &&
         grepl("^[A-Z0-9]+$", nm) &&
         !is.na(ver) && ver >= 1 && ver <= 99 &&
         nzchar(dsc) && nchar(dsc) >= 50
-
-      ctx$state$tab1$inputdata$valid <- valid
     })
 
     # =========================================================
-    # 2. HEADER COLOUR (1.1)
+    # 2. HEADER COLOURS
     # =========================================================
     observe({
-      cls <- if (isTRUE(ctx$state$tab1$inputdata$valid)) "bg-success" else "bg-danger"
-      opp <- if (cls == "bg-success") "bg-danger" else "bg-success"
+      cls_11 <- if (isTRUE(ctx$data$tab1_ui_valid)) "bg-success" else "bg-danger"
       shinyjs::runjs(sprintf(
-        "$('#%s').removeClass('%s').addClass('%s')",
-        ns("card_header1_1"), opp, cls
+        "$('#%s').removeClass('bg-success bg-danger').addClass('%s')",
+        ns("card_header1_1"), cls_11
+      ))
+
+      cls_12 <- if (isTRUE(ctx$data$tab1_validated)) "bg-success" else "bg-warning"
+      shinyjs::runjs(sprintf(
+        "$('#%s').removeClass('bg-success bg-warning').addClass('%s')",
+        ns("card_header1_2"), cls_12
+      ))
+
+      cls_13 <- if (isTRUE(ctx$data$tab1_validated) &&
+                    is.data.frame(ctx$data$obs_truth) &&
+                    nrow(ctx$data$obs_truth) > 0) "bg-success" else "bg-danger"
+      shinyjs::runjs(sprintf(
+        "$('#%s').removeClass('bg-success bg-danger').addClass('%s')",
+        ns("card_header2"), cls_13
+      ))
+
+      cls_14 <- if (isTRUE(ctx$data$tab1_checks_ok)) "bg-success" else "bg-danger"
+      shinyjs::runjs(sprintf(
+        "$('#%s').removeClass('bg-success bg-danger').addClass('%s')",
+        ns("card_header1_4"), cls_14
       ))
     })
 
@@ -291,21 +304,97 @@ mod_tab1_server <- function(id, ctx, session) {
     # 3. SUBMIT BUTTON STATE
     # =========================================================
     observe({
-      shinyjs::toggleState("submit", condition = isTRUE(ctx$state$tab1$inputdata$valid))
+      shinyjs::toggleState("submit", condition = isTRUE(ctx$data$tab1_ui_valid))
     })
 
     # =========================================================
-    # 4. SUBMIT — REVEAL CARDS 1.2 + 1.3
+    # 3b. SUBMIT → unlock upload cards
     # =========================================================
     observeEvent(input$submit, {
-      req(ctx$state$tab1$inputdata$valid)
-      ctx$state$tab1$inputdata$confirmed <- TRUE
+      req(isTRUE(ctx$data$tab1_ui_valid))
+      ctx$data$tab1_validated <- TRUE
       shinyjs::show("card_1")
       shinyjs::show("card_2")
+      message("✅ tab1 form validated — upload cards unlocked")
     })
 
     # =========================================================
-    # 5. DOWNLOAD TEMPLATE
+    # 3c. CHECKBOXES → ctx flag
+    # =========================================================
+    observe({
+      ctx$data$tab1_checks_ok <-
+        isTRUE(input$validate_location)      &&
+        isTRUE(input$validate_data_coverage) &&
+        isTRUE(input$validate_observation)
+    })
+
+    # =========================================================
+    # 4. FILE UPLOAD — populate ctx + show card_1_4
+    # =========================================================
+    observeEvent(input$obs_file, {
+      req(input$obs_file)
+
+      obs       <- load_xylo_obs_clean_contract(input$obs_file$datapath)
+      site_info <- extract_site_info(input$obs_file$datapath)
+
+      ctx$files$obs_file        <- input$obs_file
+      ctx$data$obs_truth        <- obs
+      ctx$data$site_info        <- site_info
+      ctx$data$dataset_name     <- input$dataset_name
+      ctx$data$version          <- input$version
+      ctx$data$embargo          <- input$embargo
+      ctx$data$description      <- input$description
+      ctx$data$contact_lastname <- tryCatch({
+        wb_tmp <- openxlsx::loadWorkbook(input$obs_file$datapath)
+        as.character(
+          openxlsx::readWorkbook(wb_tmp, sheet = "obs_data_info",
+                                 rows = 2, cols = 2, colNames = FALSE)[1, 1]
+        )
+      }, error = function(e) "—")
+
+      sites <- unique(trimws(as.character(site_info$site_label)))
+      updateSelectInput(session, "site_filter", choices = sites, selected = sites[1])
+
+      shinyjs::show("card_1_4")
+      message("📂 obs_file uploaded → obs_truth + site_info populated, card_1_4 unlocked")
+    }, ignoreInit = TRUE)
+
+    # =========================================================
+    # 5. DEBUG
+    # =========================================================
+    observe({
+      message(
+        "🔍 TAB1 ui_valid=", ctx$data$tab1_ui_valid,
+        " | ready=", contract_tab1(ctx)$ready
+      )
+    })
+
+    # =========================================================
+    # 6. NEXT BUTTON STATE
+    # =========================================================
+    tab1_gate_ok <- reactive({
+      isTRUE(ctx$data$tab1_ui_valid)   &&
+      isTRUE(ctx$data$tab1_validated)  &&
+      is.data.frame(ctx$data$obs_truth) &&
+      nrow(ctx$data$obs_truth) > 0     &&
+      isTRUE(ctx$data$tab1_checks_ok)
+    })
+
+    observe({
+      shinyjs::toggleState("next_btn", condition = tab1_gate_ok())
+    })
+
+    # =========================================================
+    # 7. FSM TRIGGER — Continue button
+    # =========================================================
+    observeEvent(input$next_btn, {
+      req(tab1_gate_ok())          # does NOT require tab1_complete — that's what we're setting
+      ctx$data$tab1_complete <- TRUE
+      message("🔥 tab1 complete — FSM will advance")
+    })
+
+    # =========================================================
+    # 8. DOWNLOADS
     # =========================================================
     output$download_template <- downloadHandler(
       filename = function() {
@@ -317,9 +406,6 @@ mod_tab1_server <- function(id, ctx, session) {
       }
     )
 
-    # =========================================================
-    # 6. DOWNLOAD EXAMPLE
-    # =========================================================
     output$download_example_obs <- downloadHandler(
       filename = function() "Example_xylo_data.xlsx",
       content = function(file) {
@@ -329,96 +415,10 @@ mod_tab1_server <- function(id, ctx, session) {
     )
 
     # =========================================================
-    # 7. FILE UPLOAD — POPULATE CTX
-    # =========================================================
-    observeEvent(input$obs_file, {
-      req(input$obs_file)
-
-      obs       <- load_xylo_obs_clean_contract(input$obs_file$datapath)
-      site_info <- extract_site_info(input$obs_file$datapath)
-
-      ctx$files$obs_file         <- input$obs_file
-      ctx$data$obs               <- obs
-      ctx$data$site_info         <- site_info
-      ctx$data$dataset_name      <- input$dataset_name
-      ctx$data$version           <- input$version
-      ctx$data$embargo           <- input$embargo
-      ctx$data$description       <- input$description
-      ctx$data$contact_lastname  <- tryCatch({
-        wb_tmp <- openxlsx::loadWorkbook(input$obs_file$datapath)
-        as.character(
-          openxlsx::readWorkbook(wb_tmp, sheet = "obs_data_info",
-                                 rows = 2, cols = 2, colNames = FALSE)[1, 1]
-        )
-      }, error = function(e) "—")
-
-      ctx$state$tab1$file$uploaded <- TRUE
-      ctx$state$tab1$file$loaded   <- TRUE
-      ctx$state$tab1$data_ready    <- TRUE
-
-      message("🟢 TAB1 DATA READY = TRUE")
-
-      sites <- unique(trimws(as.character(site_info$site_label)))
-      updateSelectInput(session, "site_filter", choices = sites, selected = sites[1])
-
-      shinyjs::removeClass("card_header2", "bg-danger")
-      shinyjs::addClass("card_header2",    "bg-success")
-      shinyjs::show("card_1_4")
-
-    }, ignoreInit = TRUE)
-
-    # =========================================================
-    # 8. CHECKBOX VALIDATION (TAB1 GATE)
-    # =========================================================
-    observe({
-      ctx$state$tab1$validation$ui_valid <-
-        isTRUE(input$validate_location)      &&
-        isTRUE(input$validate_data_coverage) &&
-        isTRUE(input$validate_observation)
-    })
-
-    # =========================================================
-    # 9. HEADER COLOUR (1.4)
-    # =========================================================
-    observe({
-      cls <- if (isTRUE(ctx$state$tab1$validation$ui_valid)) "bg-success" else "bg-danger"
-      opp <- if (cls == "bg-success") "bg-danger" else "bg-success"
-      shinyjs::runjs(sprintf(
-        "$('#%s').removeClass('%s').addClass('%s')",
-        ns("card_header1_4"), opp, cls
-      ))
-    })
-
-    # =========================================================
-    # 10. NEXT BUTTON STATE + FSM TRIGGER
-    # =========================================================
-    observe({
-      shinyjs::toggleState(
-        "next_btn",
-        condition = isTRUE(
-          ctx$state$tab1$inputdata$valid &&
-            ctx$state$tab1$file$uploaded &&
-            ctx$state$tab1$validation$ui_valid
-        )
-      )
-    })
-
-    observeEvent(input$next_btn, {
-      req(
-        ctx$state$tab1$inputdata$valid,
-        ctx$state$tab1$file$uploaded,
-        ctx$state$tab1$validation$ui_valid
-      )
-      ctx$fsm$events$go_next <- TRUE
-      ctx$fsm_trigger(ctx$fsm_trigger() + 1)
-      message("➡️ TAB1 NEXT CLICK → FSM TRIGGERED")
-    })
-
-    # =========================================================
-    # 11. LEAFLET MAP
+    # 9. LEAFLET MAP
     # =========================================================
     output$mymap <- leaflet::renderLeaflet({
-      req(isTRUE(ctx$state$tab1$data_ready), input$site_filter)
+      req(isTRUE(is.data.frame(ctx$data$obs_truth)), input$site_filter)
 
       si  <- ctx$data$site_info
       si$site_label <- trimws(as.character(si$site_label))
@@ -426,7 +426,7 @@ mod_tab1_server <- function(id, ctx, session) {
       si  <- si[si$site_label == sel, , drop = FALSE]
 
       shiny::validate(
-        need(nrow(si) > 0,         "No matching site"),
+        need(nrow(si) > 0,            "No matching site"),
         need(!is.na(si$latitude[1]),  "Missing latitude"),
         need(!is.na(si$longitude[1]), "Missing longitude")
       )
@@ -441,19 +441,19 @@ mod_tab1_server <- function(id, ctx, session) {
     })
 
     # =========================================================
-    # 12. DATA COVERAGE PLOT
+    # 10. DATA COVERAGE PLOT
     # =========================================================
     output$data_coverage_plot <- plotly::renderPlotly({
-      req(isTRUE(ctx$state$tab1$data_ready), input$site_filter, input$color)
+      req(is.data.frame(ctx$data$obs_truth), input$site_filter, input$color)
 
-      df <- ctx$data$obs
+      df <- ctx$data$obs_truth
       df <- df[df$site_label == trimws(input$site_filter), , drop = FALSE]
 
       shiny::validate(
-        need(nrow(df) > 0,                    "No data for selected site"),
-        need("sample_date" %in% names(df),    "Missing column: sample_date"),
-        need("tree_label"  %in% names(df),    "Missing column: tree_label"),
-        need(input$color    %in% names(df),   paste("Missing column:", input$color))
+        need(nrow(df) > 0,                  "No data for selected site"),
+        need("sample_date" %in% names(df),  "Missing column: sample_date"),
+        need("tree_label"  %in% names(df),  "Missing column: tree_label"),
+        need(input$color   %in% names(df),  paste("Missing column:", input$color))
       )
 
       plotly::plot_ly(
@@ -472,8 +472,8 @@ mod_tab1_server <- function(id, ctx, session) {
         marker = list(size = 8, opacity = 0.75)
       ) |>
         plotly::layout(
-          xaxis       = list(title = "Date",       color = "white", showgrid = FALSE),
-          yaxis       = list(title = "Tree label", color = "white", categoryorder = "category ascending"),
+          xaxis         = list(title = "Date",       color = "white", showgrid = FALSE),
+          yaxis         = list(title = "Tree label", color = "white", categoryorder = "category ascending"),
           plot_bgcolor  = "#2e2e2e",
           paper_bgcolor = "#2e2e2e",
           font          = list(color = "white"),
@@ -482,10 +482,10 @@ mod_tab1_server <- function(id, ctx, session) {
     })
 
     # =========================================================
-    # 13. KEY INFO TABLE
+    # 11. KEY INFO TABLE
     # =========================================================
     output$key_info_table <- DT::renderDataTable({
-      req(isTRUE(ctx$state$tab1$data_ready), input$site_filter)
+      req(is.data.frame(ctx$data$obs_truth), input$site_filter)
 
       si <- ctx$data$site_info |>
         dplyr::filter(trimws(site_label) == trimws(input$site_filter))
@@ -496,13 +496,12 @@ mod_tab1_server <- function(id, ctx, session) {
         need(!is.na(si$longitude[1]), "Missing longitude")
       )
 
-      df <- ctx$data$obs
+      df <- ctx$data$obs_truth
 
       key_info <- tibble::tibble(
         Field = c(
           "Site", "Coordinates", "Elevation",
-          "Network",
-          "Contact",
+          "Network", "Contact",
           "Date From", "Date To",
           "N Trees", "N Dates", "N Samples"
         ),
@@ -528,18 +527,20 @@ mod_tab1_server <- function(id, ctx, session) {
         rownames = FALSE,
         colnames = c("Field", "Value"),
         class    = "table-dark compact",
-        options  = list(dom = "t", paging = FALSE, autoWidth = TRUE,
-                        columnDefs = list(list(className = "dt-left", targets = "_all")))
+        options  = list(
+          dom = "t", paging = FALSE, autoWidth = TRUE,
+          columnDefs = list(list(className = "dt-left", targets = "_all"))
+        )
       )
     })
 
     # =========================================================
-    # 14. REPETITION TABLE (obs_table)
+    # 12. REPETITION TABLE
     # =========================================================
     output$obs_table <- DT::renderDataTable({
-      req(isTRUE(ctx$state$tab1$data_ready), input$site_filter)
+      req(is.data.frame(ctx$data$obs_truth), input$site_filter)
 
-      df <- ctx$data$obs
+      df <- ctx$data$obs_truth
 
       excluded <- c(
         "sample_date", "sample_id", "tree_species", "tree_label", "plot_label",
@@ -559,7 +560,8 @@ mod_tab1_server <- function(id, ctx, session) {
         dplyr::group_by(measure_type, variable) |>
         dplyr::summarise(avg_non_na = round(mean(non_na_count), 4), .groups = "drop") |>
         dplyr::mutate(
-          variable = factor(variable, levels = intersect(c("cz", "ez", "tz", "mz", "pr"), unique(variable)))
+          variable = factor(variable,
+            levels = intersect(c("cz", "ez", "tz", "mz", "pr"), unique(variable)))
         ) |>
         dplyr::arrange(variable) |>
         tidyr::pivot_wider(names_from = variable, values_from = avg_non_na)
@@ -568,10 +570,15 @@ mod_tab1_server <- function(id, ctx, session) {
         grouped,
         rownames = FALSE,
         class    = "table-dark compact",
-        options  = list(dom = "t", paging = FALSE, autoWidth = TRUE,
-                        columnDefs = list(list(className = "dt-center", targets = "_all")))
+        options  = list(
+          dom = "t", paging = FALSE, autoWidth = TRUE,
+          columnDefs = list(list(className = "dt-center", targets = "_all"))
+        )
       )
     })
 
+    return(list(
+      ui_valid = reactive(ctx$data$tab1_ui_valid)
+    ))
   })
 }
