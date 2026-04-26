@@ -13,8 +13,32 @@ mod_tab2_server(id, ctx, session)
 }
 \value{
 No return value, called for side effects.
+
+A \code{shiny.tag.list} containing the UI elements of the module.
+
+No return value, called for side effects.
 }
 \description{
+Server logic for the "Metadata Management" tab module.
+
+Handles:
+\itemize{
+\item Uploading and validating metadata files,
+\item Providing metadata template download functionality,
+\item Rendering a sunburst plot to visualize hierarchical metadata structure,
+\item Displaying validation results and feedback messages based on metadata quality.
+}
+
+A shiny module for the "Metadata Management" tab.
+
+This module provides a user interface for managing metadata files and validating them:
+\enumerate{
+\item Uploading and validating metadata files,
+\item Downloading metadata templates or example data,
+\item Visualizing hierarchical metadata structures using a sunburst plot,
+\item Displaying validation messages and feedback.
+}
+
 Server logic for the "Metadata Management" tab module.
 
 Handles:

@@ -232,24 +232,29 @@ mod_tab1_server <- function(id, ctx, session) {
     
     ns <- session$ns
     
+    observe({
+      ctx$state$tab1 <- tab1_contract(ctx)
+    })
+    
     # =========================================================
     # CONTRACT (PURE)
     # =========================================================
     contract_tab1 <- function(ctx) {
       
-      ui_ok     <- isTRUE(ctx$data$tab1_ui_valid  %||% FALSE)
+      ui_ok     <- isTRUE(ctx$data$tab1_ui_valid %||% FALSE)
       validated <- isTRUE(ctx$data$tab1_validated %||% FALSE)
-      data_ok   <- is.data.frame(ctx$data$obs_truth) && nrow(ctx$data$obs_truth) > 0
-      checks_ok <- isTRUE(ctx$data$tab1_checks_ok  %||% FALSE)
-      complete  <- isTRUE(ctx$data$tab1_complete    %||% FALSE)
-
+      
+      data_ok   <- is.data.frame(ctx$data$obs_truth) &&
+        nrow(ctx$data$obs_truth) > 0
+      
+      checks_ok <- isTRUE(ctx$data$tab1_checks_ok %||% FALSE)
+      
       list(
-        ready     = ui_ok && validated && data_ok && checks_ok && complete,
-        ui_ok     = ui_ok,
+        ready = ui_ok && validated && data_ok && checks_ok,
+        ui_ok = ui_ok,
         validated = validated,
-        data_ok   = data_ok,
-        checks_ok = checks_ok,
-        complete  = complete
+        data_ok = data_ok,
+        checks_ok = checks_ok
       )
     }
 
@@ -268,7 +273,7 @@ mod_tab1_server <- function(id, ctx, session) {
         !is.na(ver) && ver >= 1 && ver <= 99 &&
         nzchar(dsc) && nchar(dsc) >= 50
     })
-
+    
     # =========================================================
     # 2. HEADER COLOURS
     # =========================================================
@@ -304,7 +309,10 @@ mod_tab1_server <- function(id, ctx, session) {
     # 3. SUBMIT BUTTON STATE
     # =========================================================
     observe({
-      shinyjs::toggleState("submit", condition = isTRUE(ctx$data$tab1_ui_valid))
+      shinyjs::toggleState(
+        "submit",
+        condition = isTRUE(ctx$data$tab1_ui_valid)
+      )
     })
 
     # =========================================================
@@ -373,11 +381,7 @@ mod_tab1_server <- function(id, ctx, session) {
     # 6. NEXT BUTTON STATE
     # =========================================================
     tab1_gate_ok <- reactive({
-      isTRUE(ctx$data$tab1_ui_valid)   &&
-      isTRUE(ctx$data$tab1_validated)  &&
-      is.data.frame(ctx$data$obs_truth) &&
-      nrow(ctx$data$obs_truth) > 0     &&
-      isTRUE(ctx$data$tab1_checks_ok)
+      contract_tab1(ctx)$ready
     })
 
     observe({

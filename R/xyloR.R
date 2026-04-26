@@ -53,10 +53,20 @@ xyloR <- function() {
     
     ctx <- create_app_context()
     
+    ctx$data$validation_global <- data.frame()
+    
     # ======================================================
-    # FSM (STATE ONLY — SINGLE SOURCE OF TRUTH)
+    # CTX state
     # ======================================================
-    # ctx$fsm already initialised in create_app_context() — do not re-assign here
+    ctx$state <- list(
+      tab1 = NULL,
+      tab2 = NULL,
+      tab3 = NULL
+    )
+    
+    update_state <- function(ctx, tab, contract) {
+      ctx$state[[tab]] <- contract
+    }
     
     # ======================================================
     # SAFE WRITE (DATA ONLY)
@@ -174,20 +184,24 @@ xyloR <- function() {
     # ======================================================
     observe({
       
-      state      <- ctx$fsm$state
-      tab1_ready <- contract_tab1(ctx)$ready
-      tab2_ready <- contract_tab2(ctx)$ready
-
-      new_state <- dplyr::case_when(
-        state == "tab1" && isTRUE(tab1_ready) ~ "tab2",
-        state == "tab2" && isTRUE(tab2_ready) ~ "tab3",
-        .default = state
-      )
-
-      # Guard: only write when state actually changes — prevents reactive loop
-      if (!identical(new_state, state)) {
-        message("➡️ FSM: ", state, " → ", new_state)
-        ctx$fsm$state <- new_state
+      current <- ctx$fsm$state
+      
+      tab1 <- tab1_contract(ctx)
+      tab2 <- tab2_contract(ctx)
+      
+      next_state <- current
+      
+      if (current == "tab1" && isTRUE(tab1$ready)) {
+        next_state <- "tab2"
+      }
+      
+      if (current == "tab2" && isTRUE(tab2$ready)) {
+        next_state <- "tab3"
+      }
+      
+      if (!identical(next_state, current)) {
+        message("➡️ FSM: ", current, " → ", next_state)
+        ctx$fsm$state <- next_state
       }
     })
     

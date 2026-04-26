@@ -38,57 +38,67 @@ get_column_configs <- function(WB, WB_meta, dobs) {
   # If WB_meta is loaded, add the rest
   
   if (!is.null(WB_meta)) {
-    droplist2 <- openxlsx::readWorkbook(WB_meta, sheet = "DropList")
-    
+    droplist2 <- tryCatch(
+      openxlsx::readWorkbook(WB_meta, sheet = "DropList"),
+      error = function(e) {
+        message("⚠️ DropList sheet not found in meta file: ", conditionMessage(e))
+        NULL
+      }
+    )
+
+    if (is.null(droplist2)) return(configs)
+
+    safe_pull <- function(df, col) {
+      if (col %in% names(df)) df |> dplyr::select(dplyr::all_of(col)) |> dplyr::filter(!is.na(.data[[col]])) |> dplyr::pull()
+      else character(0)
+    }
+
     # tbl3 Site
-    country_code_droplist <- droplist2 %>% select(country_code) %>% filter(!is.na(country_code)) %>% pull()
-    koppen_climate_value_droplist <- droplist2 %>% select(koppen_climate_value) %>% filter(!is.na(koppen_climate_value)) %>% pull() %>% as.character()
-    koppen_climate_code_droplist <- droplist2 %>% select(koppen_climate_code) %>% filter(!is.na(koppen_climate_code)) %>% pull()
-    koppen_climate_classification_droplist <- droplist2 %>% select(koppen_climate_classification) %>% filter(!is.na(koppen_climate_classification)) %>% pull()
-    site_topography_droplist <- droplist2 %>% select(site_topography) %>% filter(!is.na(site_topography)) %>% pull()
-    soil_depth_droplist <- droplist2 %>% select(soil_depth) %>% filter(!is.na(soil_depth)) %>% pull()
-    soil_water_holding_capacity_droplist <- droplist2 %>% select(soil_water_holding_capacity) %>% filter(!is.na(soil_water_holding_capacity)) %>% pull()
-    soil_moisture_droplist <- droplist2 %>% select(soil_moisture) %>% filter(!is.na(soil_moisture)) %>% pull()
-    forest_stand_composition_droplist <- droplist2 %>% select(forest_stand_composition) %>% filter(!is.na(forest_stand_composition)) %>% pull()
-    forest_stand_structure_droplist <- droplist2 %>% select(forest_stand_structure) %>% filter(!is.na(forest_stand_structure)) %>% pull()
-    forest_stand_age_structure_droplist <- droplist2 %>% select(forest_stand_age_structure) %>% filter(!is.na(forest_stand_age_structure)) %>% pull()
-    forest_stand_age_droplist <- droplist2 %>% select(forest_stand_age) %>% filter(!is.na(forest_stand_age)) %>% pull()
-    forest_stand_management_intensity <- droplist2 %>% select(forest_stand_management_intensity) %>% filter(!is.na(forest_stand_management_intensity)) %>% pull()
-    
+    country_code_droplist                    <- safe_pull(droplist2, "country_code")
+    koppen_climate_value_droplist            <- safe_pull(droplist2, "koppen_climate_value") |> as.character()
+    koppen_climate_code_droplist             <- safe_pull(droplist2, "koppen_climate_code")
+    koppen_climate_classification_droplist   <- safe_pull(droplist2, "koppen_climate_classification")
+    site_topography_droplist                 <- safe_pull(droplist2, "site_topography")
+    soil_depth_droplist                      <- safe_pull(droplist2, "soil_depth")
+    soil_water_holding_capacity_droplist     <- safe_pull(droplist2, "soil_water_holding_capacity")
+    soil_moisture_droplist                   <- safe_pull(droplist2, "soil_moisture")
+    forest_stand_composition_droplist        <- safe_pull(droplist2, "forest_stand_composition")
+    forest_stand_structure_droplist          <- safe_pull(droplist2, "forest_stand_structure")
+    forest_stand_age_structure_droplist      <- safe_pull(droplist2, "forest_stand_age_structure")
+    forest_stand_age_droplist                <- safe_pull(droplist2, "forest_stand_age")
+    forest_stand_management_intensity        <- safe_pull(droplist2, "forest_stand_management_intensity")
+
     # tbl4 Tree
-    # tree_species_droplist <- droplist2 %>% select(tree_species) %>% filter(!is.na(tree_species)) %>% pull()
-    # itrddb_species_code_droplist <- droplist2 %>% select(itrddb_species_code) %>% filter(!is.na(itrddb_species_code)) %>% pull()
-    phylogenetic_group_droplist <- droplist2 %>% select(phylogenetic_group) %>% filter(!is.na(phylogenetic_group)) %>% pull()
-    leaf_habit_droplist <- droplist2 %>% select(leaf_habit) %>% filter(!is.na(leaf_habit)) %>% pull()
-    tree_ring_structure_droplist <- droplist2 %>% select(tree_ring_structure) %>% filter(!is.na(tree_ring_structure)) %>% pull()
-    tree_sex_droplist <- droplist2 %>% select(tree_sex) %>% filter(!is.na(tree_sex)) %>% pull()
-    tree_social_status_droplist <- droplist2 %>% select(tree_social_status) %>% filter(!is.na(tree_social_status)) %>% pull()
-    tree_health_status_droplist <- droplist2 %>% select(tree_health_status) %>% filter(!is.na(tree_health_status)) %>% pull()
-    tree_treatment_droplist <- droplist2 %>% select(tree_treatment) %>% filter(!is.na(tree_treatment)) %>% pull()
-    tree_sampling_pattern_droplist <- droplist2 %>% select(tree_sampling_pattern) %>% filter(!is.na(tree_sampling_pattern)) %>% pull()
-    tree_origin_droplist <- droplist2 %>% select(tree_origin) %>% filter(!is.na(tree_origin)) %>% pull()
+    phylogenetic_group_droplist     <- safe_pull(droplist2, "phylogenetic_group")
+    leaf_habit_droplist             <- safe_pull(droplist2, "leaf_habit")
+    tree_ring_structure_droplist    <- safe_pull(droplist2, "tree_ring_structure")
+    tree_sex_droplist               <- safe_pull(droplist2, "tree_sex")
+    tree_social_status_droplist     <- safe_pull(droplist2, "tree_social_status")
+    tree_health_status_droplist     <- safe_pull(droplist2, "tree_health_status")
+    tree_treatment_droplist         <- safe_pull(droplist2, "tree_treatment")
+    tree_sampling_pattern_droplist  <- safe_pull(droplist2, "tree_sampling_pattern")
+    tree_origin_droplist            <- safe_pull(droplist2, "tree_origin")
     
     # tbl5 Sample
-    sample_organ_droplist <- droplist2 %>% select(sample_organ) %>% filter(!is.na(sample_organ)) %>% pull()
-    sample_type_droplist <- droplist2 %>% select(sample_type) %>% filter(!is.na(sample_type)) %>% pull()
-    sample_embedding_droplist <- droplist2 %>% select(sample_embedding) %>% filter(!is.na(sample_embedding)) %>% pull()
-    sample_staining_method_droplist <- droplist2 %>% select(sample_staining_method) %>% filter(!is.na(sample_staining_method)) %>% pull()
-    sample_mounting_method_droplist <- droplist2 %>% select(sample_mounting_method) %>% filter(!is.na(sample_mounting_method)) %>% pull()
-    sample_observation_method_droplist <- droplist2 %>% select(sample_observation_method) %>% filter(!is.na(sample_observation_method)) %>% pull()
-    sample_section_archived_droplist <- droplist2 %>% select(sample_section_archived) %>% filter(!is.na(sample_section_archived)) %>% pull() %>% toupper()
-    sample_archived_droplist <- droplist2 %>% select(sample_archived) %>% filter(!is.na(sample_archived)) %>% pull() %>% toupper()
-    sample_image_archived_droplist <- droplist2 %>% select(sample_image_archived) %>% filter(!is.na(sample_image_archived)) %>% pull() %>% toupper()
-    sample_image_annotated_droplist <- droplist2 %>% select(sample_image_annotated) %>% filter(!is.na(sample_image_annotated)) %>% pull() %>% toupper()
-    coupled_anatomical_data_droplist <- droplist2 %>% select(coupled_anatomical_data) %>% filter(!is.na(coupled_anatomical_data)) %>% pull() %>% toupper()
-    reaction_wood_droplist <- droplist2 %>% select(reaction_wood) %>% filter(!is.na(reaction_wood)) %>% pull() %>% toupper()
-    
+    sample_organ_droplist              <- safe_pull(droplist2, "sample_organ")
+    sample_type_droplist               <- safe_pull(droplist2, "sample_type")
+    sample_embedding_droplist          <- safe_pull(droplist2, "sample_embedding")
+    sample_staining_method_droplist    <- safe_pull(droplist2, "sample_staining_method")
+    sample_mounting_method_droplist    <- safe_pull(droplist2, "sample_mounting_method")
+    sample_observation_method_droplist <- safe_pull(droplist2, "sample_observation_method")
+    sample_section_archived_droplist   <- toupper(safe_pull(droplist2, "sample_section_archived"))
+    sample_archived_droplist           <- toupper(safe_pull(droplist2, "sample_archived"))
+    sample_image_archived_droplist     <- toupper(safe_pull(droplist2, "sample_image_archived"))
+    sample_image_annotated_droplist    <- toupper(safe_pull(droplist2, "sample_image_annotated"))
+    coupled_anatomical_data_droplist   <- toupper(safe_pull(droplist2, "coupled_anatomical_data"))
+    reaction_wood_droplist             <- toupper(safe_pull(droplist2, "reaction_wood"))
+
     # tbl6
-    person_role_droplist <- droplist2 %>% select(person_role) %>% filter(!is.na(person_role)) %>% pull()
-    country_droplist <- droplist2 %>% select(country) %>% filter(!is.na(country)) %>% pull()
-    # organization_name_droplist <- droplist2 %>% select(organization_name) %>% filter(!is.na(organization_name)) %>% pull()
-    
+    person_role_droplist      <- safe_pull(droplist2, "person_role")
+    country_droplist          <- safe_pull(droplist2, "country")
+
     # tbl7
-    publication_type_droplist <- droplist2 %>% select(publication_type) %>% filter(!is.na(publication_type)) %>% pull()
+    publication_type_droplist <- safe_pull(droplist2, "publication_type")
     
     
     extended_configs <- list(
