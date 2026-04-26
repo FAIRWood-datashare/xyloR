@@ -76,9 +76,10 @@ mod_tab3_ui <- function(id) {
 #' @importFrom htmltools tagList div
 #' @importFrom bsicons bs_icon
 #'
-mod_tab3_server <- function(id, ctx, session) {
+mod_tab3_server <- make_tab_module(
+  tab_id = "tab3",
   
-  moduleServer(id, function(input, output, session) {
+  init_fn = function(input, ctx) {
     
     observe({
       
@@ -86,12 +87,10 @@ mod_tab3_server <- function(id, ctx, session) {
       
       if (is.null(ctx$data$draft_obs)) {
         ctx$data$draft_obs <- ctx$data$obs_truth
-        message("TAB3 init draft_obs")
       }
       
       if (is.null(ctx$data$tbl1) && !is.null(ctx$data$site_info)) {
         ctx$data$tbl1 <- ctx$data$site_info
-        message("TAB3 init tbl1")
       }
     })
     
@@ -102,27 +101,50 @@ mod_tab3_server <- function(id, ctx, session) {
     observeEvent(input$tbl2, {
       ctx$data$draft_obs <- rhandsontable::hot_to_r(input$tbl2)
     })
+  },
+  
+  view_fn = function(ctx) {
     
-    observeEvent(input$save_obs, {
-      
-      ctx$data$obs_truth <- ctx$data$draft_obs
-      
-      message("TAB3 saved")
-    })
-    
-    observe({
-      
+    is_synced <- reactive({
       req(ctx$data$obs_truth, ctx$data$draft_obs)
-      
-      ctx$signals$tab3_done <- identical(
-        ctx$data$obs_truth,
-        ctx$data$draft_obs
-      )
-      
-      message("TAB3 signal:", ctx$signals$tab3_done)
+      identical(ctx$data$obs_truth, ctx$data$draft_obs)
     })
     
-    invisible(NULL)
-  })
-}
-
+    list(
+      is_synced = is_synced,
+      tab3_ready = reactive(isTRUE(is_synced()))
+    )
+  },
+  
+  signal_fn = function(ctx, view) {
+    isTRUE(view$tab3_ready())
+  },
+  
+  ui_fn = function(output, input, ctx, ns, view) {
+    
+    output$tbl1 <- rhandsontable::renderRHandsontable({
+      req(ctx$data$tbl1)
+      rhandsontable::rhandsontable(ctx$data$tbl1)
+    })
+    
+    output$tbl2 <- rhandsontable::renderRHandsontable({
+      req(ctx$data$draft_obs)
+      rhandsontable::rhandsontable(ctx$data$draft_obs)
+    })
+    
+    output$sync_status <- shiny::renderUI({
+      
+      if (isTRUE(view$tab3_ready())) {
+        shiny::tags$div(
+          class = "alert alert-success",
+          "✔ Tables are synchronized"
+        )
+      } else {
+        shiny::tags$div(
+          class = "alert alert-warning",
+          "⚠ Unsaved changes detected"
+        )
+      }
+    })
+  }
+)

@@ -114,13 +114,12 @@ mod_tab2_ui <- function(id) {
 #' @importFrom lubridate year
 #' @importFrom tibble tibble
 #' 
-mod_tab2_server <- function(id, ctx, session) {
+mod_tab2_server <- make_tab_module(
+  tab_id = "tab2",
   
-  moduleServer(id, function(input, output, session) {
+  init_fn = function(input, ctx) {
     
     observeEvent(input$meta_file, {
-      
-      req(input$meta_file)
       
       meta <- tryCatch(
         read_xylo_meta_raw(input$meta_file$datapath) |>
@@ -132,13 +131,13 @@ mod_tab2_server <- function(id, ctx, session) {
       )
       
       req(!is.null(meta))
-      
       ctx$data$meta <- meta
-      message("TAB2: meta loaded")
     })
+  },
+  
+  view_fn = function(ctx) {
     
     validation_tbl <- reactive({
-      
       req(ctx$data$obs_truth, ctx$data$meta)
       
       tryCatch(
@@ -154,22 +153,45 @@ mod_tab2_server <- function(id, ctx, session) {
       is.data.frame(df) && nrow(df) == 0
     })
     
-    observe({
-      ctx$signals$tab2_done <- isTRUE(is_valid())
-      message("TAB2 signal:", ctx$signals$tab2_done)
-    })
+    list(
+      validation_tbl = validation_tbl,
+      is_valid = is_valid
+    )
+  },
+  
+  signal_fn = function(ctx, view) {
+    isTRUE(view$is_valid())
+  },
+  
+  ui_fn = function(output, input, ctx, ns, view) {
     
     output$validation_table <- DT::renderDT({
-      DT::datatable(validation_tbl())
+      
+      df <- view$validation_tbl()
+      
+      if (nrow(df) == 0) {
+        return(DT::datatable(data.frame(Status = "✔ Valid")))
+      }
+      
+      DT::datatable(df)
     })
     
     output$validation_message <- shiny::renderUI({
-      if (isTRUE(is_valid())) "✔ Valid" else "✖ Invalid"
+      
+      if (isTRUE(view$is_valid())) {
+        shiny::tags$div(
+          class = "alert alert-success",
+          "Validation passed"
+        )
+      } else {
+        shiny::tags$div(
+          class = "alert alert-danger",
+          "Fix validation errors"
+        )
+      }
     })
-    
-    invisible(NULL)
-  })
-}
+  }
+)
 
 
 

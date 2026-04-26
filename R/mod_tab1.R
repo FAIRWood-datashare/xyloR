@@ -99,15 +99,14 @@ mod_tab1_ui <- function(id) {
 #' @importFrom leaflet renderLeaflet leaflet addTiles setView addMarkers leafletOptions
 #' @importFrom plotly renderPlotly plot_ly layout
 #' @importFrom DT renderDataTable datatable
-mod_tab1_server <- function(id, ctx, session) {
+mod_tab1_server <- make_tab_module(
+  tab_id = "tab1",
   
-  moduleServer(id, function(input, output, session) {
+  init_fn = function(input, ctx) {
     
     observeEvent(input$obs_file, {
       
       req(input$obs_file)
-      
-      ctx$files$obs_file <- input$obs_file
       
       obs_raw <- tryCatch(
         openxlsx::readWorkbook(
@@ -125,36 +124,59 @@ mod_tab1_server <- function(id, ctx, session) {
       
       ctx$data$obs_truth <- obs_raw
       ctx$data$draft_obs <- obs_raw
-      
-      message("TAB1: file loaded")
     })
+  },
+  
+  view_fn = function(ctx) {
     
-    sanity_ok <- reactive({
-      
+    sanity_tbl <- reactive({
       req(ctx$data$obs_truth)
       df <- ctx$data$obs_truth
       
-      all(
-        nrow(df) > 0,
-        "site_label" %in% names(df),
-        !any(is.na(df$site_label))
+      data.frame(
+        check = c("has rows", "has site_label", "no missing site_label"),
+        status = c(
+          nrow(df) > 0,
+          "site_label" %in% names(df),
+          !any(is.na(df$site_label))
+        )
       )
     })
     
-    observe({
-      ctx$signals$tab1_done <- sanity_ok()
-      message("TAB1 signal:", ctx$signals$tab1_done)
-    })
+    list(
+      sanity_tbl = sanity_tbl,
+      sanity_ok = reactive(all(sanity_tbl()$status))
+    )
+  },
+  
+  signal_fn = function(ctx, view) {
+    isTRUE(view$sanity_ok())
+  },
+  
+  ui_fn = function(output, input, ctx, ns, view) {
     
     output$sanity_table <- DT::renderDT({
-      req(ctx$data$obs_truth)
-      DT::datatable(ctx$data$obs_truth)
+      DT::datatable(view$sanity_tbl(), rownames = FALSE)
     })
     
     output$sanity_message <- shiny::renderUI({
-      if (isTRUE(sanity_ok())) "✔ OK" else "✖ ERROR"
+      
+      if (isTRUE(view$sanity_ok())) {
+        shiny::tags$div(
+          class = "alert alert-success",
+          "✔ Observation file passed sanity checks"
+        )
+      } else {
+        shiny::tags$div(
+          class = "alert alert-danger",
+          "✖ Issues detected in observation file"
+        )
+      }
     })
     
-    invisible(NULL)
-  })
-}
+    output$obs_preview <- DT::renderDT({
+      req(ctx$data$obs_truth)
+      DT::datatable(head(ctx$data$obs_truth, 50))
+    })
+  }
+)
