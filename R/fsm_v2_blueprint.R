@@ -1,55 +1,55 @@
 
 
-make_tab_module <- function(tab_id,
-                            init_fn,
-                            view_fn,
-                            signal_fn,
-                            ui_fn) {
-  
-  function(id, ctx, session) {
-    
-    moduleServer(id, function(input, output, session) {
-      
-      ns <- session$ns
-      
-      # =====================================================
-      # 1. INIT (OPTIONAL SIDE EFFECTS)
-      # =====================================================
-      observe({
-        init_fn(input, ctx)
-      })
-      
-      # =====================================================
-      # 2. VIEW (PURE REACTIVE FUNCTIONS ONLY)
-      # =====================================================
-      view <- view_fn(ctx)
-      
-      # =====================================================
-      # 3. SIGNAL (FSM INPUT ONLY)
-      # =====================================================
-      observe({
-        ctx$signals[[paste0(tab_id, "_done")]] <- signal_fn(ctx, view)
-      })
-      
-      # =====================================================
-      # 4. UI
-      # =====================================================
-      ui_fn(output, input, ctx, ns, view)
-      
-      # =====================================================
-      # 5. NO NAVIGATION LOGIC
-      # =====================================================
-      observeEvent(input$next_btn, {
-        shiny::showNotification(
-          "Navigation handled by FSM v2 engine",
-          type = "message"
-        )
-      })
-      
-      invisible(NULL)
-    })
-  }
-}
+# make_tab_module <- function(tab_id,
+#                             init_fn,
+#                             view_fn,
+#                             signal_fn,
+#                             ui_fn) {
+#   
+#   function(id, ctx, session) {
+#     
+#     moduleServer(id, function(input, output, session) {
+#       
+#       ns <- session$ns
+#       
+#       # =====================================================
+#       # 1. INIT (OPTIONAL SIDE EFFECTS)
+#       # =====================================================
+#       observe({
+#         init_fn(input, ctx)
+#       })
+#       
+#       # =====================================================
+#       # 2. VIEW (PURE REACTIVE FUNCTIONS ONLY)
+#       # =====================================================
+#       view <- view_fn(ctx)
+#       
+#       # =====================================================
+#       # 3. SIGNAL (FSM INPUT ONLY)
+#       # =====================================================
+#       observe({
+#         ctx$signals[[paste0(tab_id, "_done")]] <- signal_fn(ctx, view)
+#       })
+#       
+#       # =====================================================
+#       # 4. UI
+#       # =====================================================
+#       ui_fn(output, input, ctx, ns, view)
+#       
+#       # =====================================================
+#       # 5. NO NAVIGATION LOGIC
+#       # =====================================================
+#       observeEvent(input$next_btn, {
+#         shiny::showNotification(
+#           "Navigation handled by FSM v2 engine",
+#           type = "message"
+#         )
+#       })
+#       
+#       invisible(NULL)
+#     })
+#   }
+# }
 
 ##############
 # mod_tab4_server <- make_tab_module(

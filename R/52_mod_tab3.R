@@ -81,38 +81,38 @@ mod_tab3_server <- make_tab_module(
   
   init_fn = function(input, ctx) {
     
-    observe({
-      
-      req(ctx$data$obs_truth)
-      
-      if (is.null(ctx$data$draft_obs)) {
-        ctx$data$draft_obs <- ctx$data$obs_truth
-      }
-      
-      if (is.null(ctx$data$tbl1) && !is.null(ctx$data$site_info)) {
-        ctx$data$tbl1 <- ctx$data$site_info
-      }
-    })
+    # ONLY initialization (no observers)
     
-    observeEvent(input$tbl1, {
-      ctx$data$tbl1 <- rhandsontable::hot_to_r(input$tbl1)
-    })
+    if (!is.null(ctx$data$obs_truth) && is.null(ctx$data$draft_obs)) {
+      ctx$data$draft_obs <- ctx$data$obs_truth
+      
+      # 🔥 FREEZE VIEW SNAPSHOT
+      ctx$view$tbl2 <- ctx$data$draft_obs
+    }
     
-    observeEvent(input$tbl2, {
-      ctx$data$draft_obs <- rhandsontable::hot_to_r(input$tbl2)
-    })
+    if (!is.null(ctx$data$site_info) && is.null(ctx$data$tbl1)) {
+      ctx$data$tbl1 <- ctx$data$site_info
+      
+      # 🔥 FREEZE VIEW SNAPSHOT
+      ctx$view$tbl1 <- ctx$data$tbl1
+    }
   },
   
   view_fn = function(ctx) {
     
-    is_synced <- reactive({
-      req(ctx$data$obs_truth, ctx$data$draft_obs)
-      identical(ctx$data$obs_truth, ctx$data$draft_obs)
-    })
-    
     list(
-      is_synced = is_synced,
-      tab3_ready = reactive(isTRUE(is_synced()))
+      tbl1 = reactive(ctx$view$tbl1),
+      tbl2 = reactive(ctx$view$tbl2),
+      
+      is_synced = reactive({
+        req(ctx$data$obs_truth, ctx$data$draft_obs)
+        identical(ctx$data$obs_truth, ctx$data$draft_obs)
+      }),
+      
+      tab3_ready = reactive({
+        req(ctx$data$obs_truth, ctx$data$draft_obs)
+        identical(ctx$data$obs_truth, ctx$data$draft_obs)
+      })
     )
   },
   
@@ -122,14 +122,17 @@ mod_tab3_server <- make_tab_module(
   
   ui_fn = function(output, input, ctx, ns, view) {
     
+    # =====================================================
+    # RENDER ONLY FROM VIEW (CRITICAL FIX)
+    # =====================================================
     output$tbl1 <- rhandsontable::renderRHandsontable({
-      req(ctx$data$tbl1)
-      rhandsontable::rhandsontable(ctx$data$tbl1)
+      req(view$tbl1())
+      rhandsontable::rhandsontable(view$tbl1())
     })
     
     output$tbl2 <- rhandsontable::renderRHandsontable({
-      req(ctx$data$draft_obs)
-      rhandsontable::rhandsontable(ctx$data$draft_obs)
+      req(view$tbl2())
+      rhandsontable::rhandsontable(view$tbl2())
     })
     
     output$sync_status <- shiny::renderUI({
@@ -145,6 +148,23 @@ mod_tab3_server <- make_tab_module(
           "⚠ Unsaved changes detected"
         )
       }
+    })
+    
+    # =====================================================
+    # ONLY WRITE POINT (NO VIEW TOUCHING ELSEWHERE)
+    # =====================================================
+    observeEvent(input$save_obs, {
+      
+      req(input$tbl1, input$tbl2)
+      
+      ctx$data$tbl1 <- rhandsontable::hot_to_r(input$tbl1)
+      ctx$data$draft_obs <- rhandsontable::hot_to_r(input$tbl2)
+      
+      # 🔥 UPDATE VIEW ONLY HERE (NO REACTIVITY CHAINS)
+      ctx$view$tbl1 <- ctx$data$tbl1
+      ctx$view$tbl2 <- ctx$data$draft_obs
+      
+      message("💾 SAFE SAVE COMMIT")
     })
   }
 )
