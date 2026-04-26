@@ -14,54 +14,40 @@ create_app_context <- function() {
   ctx <- new.env(parent = emptyenv())
   
   # =====================================================
-  # 1. FSM (NAVIGATION ONLY)
+  # FSM STATE (NAVIGATION ONLY)
   # =====================================================
-  ctx$fsm <- reactiveValues(
+  ctx$fsm <- shiny::reactiveValues(
     state = "tab1"
   )
   
-  ctx$fsm_trigger <- shiny::reactiveVal(0)
-  
   # =====================================================
-  # 2. DATA LAYER (SINGLE SOURCE OF TRUTH)
+  # SIGNALS (FSM INPUT ONLY)
   # =====================================================
-  ctx$data <- shiny::reactiveValues(
-    
-    # RAW DATA
-    raw_obs  = NULL,
-    raw_meta = NULL,
-    
-    # CORE DATASETS
-    obs_truth = NULL,
-    tbl1      = NULL,
-    
-    # EDIT BUFFERS
-    draft_obs  = NULL,
-    draft_meta = NULL,
-    
-    # VALIDATION OUTPUT
-    validation_global = NULL,
-    
-    # SITE INFO (shared)
-    site_info = NULL,
-    
-    # COLUMN CONFIGS (shared UI config, NOT state)
-    column_configs = NULL,
-    
-    # TAB1 FLOW FLAGS
-    tab1_ui_valid  = FALSE,
-    tab1_validated = FALSE,
-    tab1_checks_ok = FALSE,
-    tab1_complete  = FALSE
+  ctx$signals <- shiny::reactiveValues(
+    tab1_done = FALSE,
+    tab2_done = FALSE,
+    tab3_done = FALSE
   )
   
   # =====================================================
-  # 3. FILE STORAGE — must be reactiveValues so observers
-  #    (boot, upload) fire when files are assigned
+  # DATA LAYER (NO FLOW LOGIC)
+  # =====================================================
+  ctx$data <- shiny::reactiveValues(
+    obs_truth = NULL,
+    meta = NULL,
+    draft_obs = NULL,
+    tbl1 = NULL,
+    site_info = NULL,
+    validation_global = NULL
+  )
+  
+  # =====================================================
+  # FILES
   # =====================================================
   ctx$files <- shiny::reactiveValues(
-    obs_file  = NULL,
-    meta_file = NULL
+    obs_file = NULL,
+    meta_file = NULL,
+    temp_folder = NULL
   )
   
   ctx

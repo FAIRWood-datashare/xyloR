@@ -22,181 +22,54 @@
 #' @importFrom shinyjs runjs
 #' 
 mod_tab1_ui <- function(id) {
-
   ns <- shiny::NS(id)
-
-  shiny::fluidRow(
-
-    # =========================================================
-    # LEFT COLUMN — FORMS
-    # =========================================================
-    shiny::column(
-      3,
-      class = "bg-light p-2 border-end",
-
-      # ── Step 1: dataset setup ─────────────────────────────
-      tags$div(
-        tags$small("Step 1 — Dataset setup", class = "text-muted"),
-        tags$hr(style = "margin: 6px 0;")
-      ),
-
-      bslib::card(
-        div(
-          id    = ns("card_header1_1"),
-          class = "card-header bg-danger py-1",
-          "1.1 Dataset"
-        ),
-
-        bslib::card_body(
-          class = "py-2",
-          shiny::textInput(ns("dataset_name"), "Name (3–8 uppercase chars)"),
-          shiny::numericInput(ns("version"), "Version", value = 1, min = 1, max = 99),
-          shiny::dateInput(
-            ns("embargo"),
-            "Embargo end date",
-            value = Sys.Date(),
-            min   = Sys.Date(),
-            max   = Sys.Date() + 3650,
-            format = "yyyy-mm-dd"
-          ),
-          shiny::textAreaInput(ns("description"), "Description (≥ 50 chars)", height = "120px"),
-          shiny::actionButton(ns("submit"), "Validate", class = "btn btn-primary w-100")
-        )
-      ),
-
-      # ── Step 2: templates (optional) ─────────────────────
-      tags$div(
-        tags$small("Step 2 — Data preparation", class = "text-muted"),
-        tags$hr(style = "margin: 6px 0;")
-      ),
-
-      bslib::card(
-        id    = ns("card_1"),
-        style = "display:none;",
-
-        bslib::card_header(
-          "1.2 Templates (optional)",
-          id    = ns("card_header1_2"),
-          class = "bg-warning py-1",
-          bslib::tooltip(
-            bsicons::bs_icon("question-circle"),
-            "Download a blank template to fill in, or an example for reference.",
-            placement = "right"
+  
+  bslib::nav_panel(
+    title = "Upload observation",
+    value = "tab1",
+    
+    shiny::fluidRow(
+      
+      # LEFT PANEL
+      shiny::column(
+        3,
+        class = "bg-light p-2 border-end",
+        
+        bslib::card(
+          bslib::card_header("1.1 Upload observation file"),
+          bslib::card_body(
+            shiny::fileInput(ns("obs_file"), "Observation Excel (.xlsx)"),
+            shiny::textOutput(ns("upload_status"))
           )
         ),
-
-        bslib::card_body(
-          class = "py-2",
-          shiny::fluidRow(
-            shiny::column(6,
-              shiny::downloadButton(ns("download_template"),    "Blank",   class = "btn btn-primary   w-100"),
-              tags$small("Your input file",  class = "text-muted")
-            ),
-            shiny::column(6,
-              shiny::downloadButton(ns("download_example_obs"), "Example", class = "btn btn-secondary w-100"),
-              tags$small("Reference format", class = "text-muted")
+        
+        bslib::card(
+          bslib::card_header("1.2 Sanity check"),
+          bslib::card_body(
+            DT::DTOutput(ns("sanity_table")),
+            shiny::uiOutput(ns("sanity_message"))
+          )
+        ),
+        
+        bslib::card(
+          bslib::card_body(
+            shiny::actionButton(
+              ns("next_btn"),
+              "Continue →",
+              class = "btn btn-primary w-100"
             )
           )
         )
       ),
-
-      # ── Step 3: upload ────────────────────────────────────
-      bslib::card(
-        id    = ns("card_2"),
-        style = "display:none;",
-
-        bslib::card_header(
-          "1.3 Upload",
-          id    = ns("card_header2"),
-          class = "card-header bg-danger py-1"
-        ),
-
-        bslib::card_body(
-          class = "py-2",
-          shiny::fileInput(ns("obs_file"), "Observation file (.xlsx)"),
-          shiny::selectInput(ns("site_filter"), "Site", choices = NULL)
-        )
-      ),
-
-      # ── Step 4: validation checkboxes ────────────────────
-      tags$div(
-        tags$small("Step 3 — Validation & review", class = "text-muted"),
-        tags$hr(style = "margin: 6px 0;")
-      ),
-
-      bslib::card(
-        id    = ns("card_1_4"),
-        style = "display:none;",
-
-        bslib::card_header(
-          "1.4 Validate",
-          id    = ns("card_header1_4"),
-          class = "card-header bg-danger py-1"
-        ),
-
-        bslib::card_body(
-          class = "py-2",
-          shiny::checkboxInput(ns("validate_location"),      "Location ok"),
-          shiny::checkboxInput(ns("validate_data_coverage"), "Coverage ok"),
-          shiny::checkboxInput(ns("validate_observation"),   "Observations ok"),
-          shiny::actionButton(ns("next_btn"), "Continue →", class = "btn btn-primary w-100")
-        )
-      )
-    ),
-
-    # =========================================================
-    # RIGHT COLUMN — OUTPUTS
-    # =========================================================
-    shiny::column(
-      9,
-
-      # Leaflet map
-      bslib::card(
-        bslib::card_header("Map preview", class = "bg-light py-1"),
-        bslib::card_body(
-          style = "height:400px; padding:0; overflow:hidden;",
-          div(
-            style = "height:100%; width:100%;",
-            leaflet::leafletOutput(ns("mymap"), height = "100%")
+      
+      # RIGHT PANEL (preview)
+      shiny::column(
+        9,
+        bslib::card(
+          bslib::card_header("Observation preview"),
+          bslib::card_body(
+            DT::DTOutput(ns("obs_preview"))
           )
-        )
-      ),
-
-      # Data-coverage plot + colour selector
-      bslib::card(
-        id = ns("card_data_coverage"),
-
-        bslib::card_header(
-          div(
-            style = "display:flex; justify-content:space-between; align-items:center;",
-            span("Data coverage"),
-            shiny::selectInput(
-              ns("color"), NULL,
-              choices  = c("tree_species", "sample_id", "plot_label"),
-              selected = "tree_species",
-              width    = "180px"
-            )
-          ),
-          class = "bg-light py-1"
-        ),
-        bslib::card_body(
-          plotly::plotlyOutput(ns("data_coverage_plot"), height = "300px")
-        )
-      ),
-
-      # Key info table
-      bslib::card(
-        bslib::card_header("Key information", class = "bg-light py-1"),
-        bslib::card_body(
-          DT::DTOutput(ns("key_info_table"))
-        )
-      ),
-
-      # Average repetition table
-      bslib::card(
-        bslib::card_header("Average repetitions per sample & measure type", class = "bg-light py-1"),
-        bslib::card_body(
-          DT::DTOutput(ns("obs_table"))
         )
       )
     )
@@ -230,359 +103,58 @@ mod_tab1_server <- function(id, ctx, session) {
   
   moduleServer(id, function(input, output, session) {
     
-    ns <- session$ns
-    
-    observe({
-      ctx$state$tab1 <- tab1_contract(ctx)
-    })
-    
-    # =========================================================
-    # CONTRACT (PURE)
-    # =========================================================
-    contract_tab1 <- function(ctx) {
-      
-      ui_ok     <- isTRUE(ctx$data$tab1_ui_valid %||% FALSE)
-      validated <- isTRUE(ctx$data$tab1_validated %||% FALSE)
-      
-      data_ok   <- is.data.frame(ctx$data$obs_truth) &&
-        nrow(ctx$data$obs_truth) > 0
-      
-      checks_ok <- isTRUE(ctx$data$tab1_checks_ok %||% FALSE)
-      
-      list(
-        ready = ui_ok && validated && data_ok && checks_ok,
-        ui_ok = ui_ok,
-        validated = validated,
-        data_ok = data_ok,
-        checks_ok = checks_ok
-      )
-    }
-
-    # =========================================================
-    # 1. INPUT VALIDATION → ctx$data ONLY
-    # =========================================================
-    observe({
-      nm  <- input$dataset_name %||% ""
-      ver <- suppressWarnings(as.numeric(input$version))
-      dsc <- trimws(input$description %||% "")
-
-      ctx$data$tab1_ui_valid <-
-        nzchar(nm) &&
-        nchar(nm) >= 3 && nchar(nm) <= 8 &&
-        grepl("^[A-Z0-9]+$", nm) &&
-        !is.na(ver) && ver >= 1 && ver <= 99 &&
-        nzchar(dsc) && nchar(dsc) >= 50
-    })
-    
-    # =========================================================
-    # 2. HEADER COLOURS
-    # =========================================================
-    observe({
-      cls_11 <- if (isTRUE(ctx$data$tab1_ui_valid)) "bg-success" else "bg-danger"
-      shinyjs::runjs(sprintf(
-        "$('#%s').removeClass('bg-success bg-danger').addClass('%s')",
-        ns("card_header1_1"), cls_11
-      ))
-
-      cls_12 <- if (isTRUE(ctx$data$tab1_validated)) "bg-success" else "bg-warning"
-      shinyjs::runjs(sprintf(
-        "$('#%s').removeClass('bg-success bg-warning').addClass('%s')",
-        ns("card_header1_2"), cls_12
-      ))
-
-      cls_13 <- if (isTRUE(ctx$data$tab1_validated) &&
-                    is.data.frame(ctx$data$obs_truth) &&
-                    nrow(ctx$data$obs_truth) > 0) "bg-success" else "bg-danger"
-      shinyjs::runjs(sprintf(
-        "$('#%s').removeClass('bg-success bg-danger').addClass('%s')",
-        ns("card_header2"), cls_13
-      ))
-
-      cls_14 <- if (isTRUE(ctx$data$tab1_checks_ok)) "bg-success" else "bg-danger"
-      shinyjs::runjs(sprintf(
-        "$('#%s').removeClass('bg-success bg-danger').addClass('%s')",
-        ns("card_header1_4"), cls_14
-      ))
-    })
-
-    # =========================================================
-    # 3. SUBMIT BUTTON STATE
-    # =========================================================
-    observe({
-      shinyjs::toggleState(
-        "submit",
-        condition = isTRUE(ctx$data$tab1_ui_valid)
-      )
-    })
-
-    # =========================================================
-    # 3b. SUBMIT → unlock upload cards
-    # =========================================================
-    observeEvent(input$submit, {
-      req(isTRUE(ctx$data$tab1_ui_valid))
-      ctx$data$tab1_validated <- TRUE
-      shinyjs::show("card_1")
-      shinyjs::show("card_2")
-      message("✅ tab1 form validated — upload cards unlocked")
-    })
-
-    # =========================================================
-    # 3c. CHECKBOXES → ctx flag
-    # =========================================================
-    observe({
-      ctx$data$tab1_checks_ok <-
-        isTRUE(input$validate_location)      &&
-        isTRUE(input$validate_data_coverage) &&
-        isTRUE(input$validate_observation)
-    })
-
-    # =========================================================
-    # 4. FILE UPLOAD — populate ctx + show card_1_4
-    # =========================================================
     observeEvent(input$obs_file, {
+      
       req(input$obs_file)
-
-      obs       <- load_xylo_obs_clean_contract(input$obs_file$datapath)
-      site_info <- extract_site_info(input$obs_file$datapath)
-
-      ctx$files$obs_file        <- input$obs_file
-      ctx$data$obs_truth        <- obs
-      ctx$data$site_info        <- site_info
-      ctx$data$dataset_name     <- input$dataset_name
-      ctx$data$version          <- input$version
-      ctx$data$embargo          <- input$embargo
-      ctx$data$description      <- input$description
-      ctx$data$contact_lastname <- tryCatch({
-        wb_tmp <- openxlsx::loadWorkbook(input$obs_file$datapath)
-        as.character(
-          openxlsx::readWorkbook(wb_tmp, sheet = "obs_data_info",
-                                 rows = 2, cols = 2, colNames = FALSE)[1, 1]
-        )
-      }, error = function(e) "—")
-
-      sites <- unique(trimws(as.character(site_info$site_label)))
-      updateSelectInput(session, "site_filter", choices = sites, selected = sites[1])
-
-      shinyjs::show("card_1_4")
-      message("📂 obs_file uploaded → obs_truth + site_info populated, card_1_4 unlocked")
-    }, ignoreInit = TRUE)
-
-    # =========================================================
-    # 5. DEBUG
-    # =========================================================
+      
+      ctx$files$obs_file <- input$obs_file
+      
+      obs_raw <- tryCatch(
+        openxlsx::readWorkbook(
+          input$obs_file$datapath,
+          sheet = "Xylo_obs_data",
+          startRow = 1
+        )[-(1:6), ] |> tibble::as_tibble(),
+        error = function(e) {
+          shiny::showNotification(e$message, type = "error")
+          NULL
+        }
+      )
+      
+      req(!is.null(obs_raw))
+      
+      ctx$data$obs_truth <- obs_raw
+      ctx$data$draft_obs <- obs_raw
+      
+      message("TAB1: file loaded")
+    })
+    
+    sanity_ok <- reactive({
+      
+      req(ctx$data$obs_truth)
+      df <- ctx$data$obs_truth
+      
+      all(
+        nrow(df) > 0,
+        "site_label" %in% names(df),
+        !any(is.na(df$site_label))
+      )
+    })
+    
     observe({
-      message(
-        "🔍 TAB1 ui_valid=", ctx$data$tab1_ui_valid,
-        " | ready=", contract_tab1(ctx)$ready
-      )
+      ctx$signals$tab1_done <- sanity_ok()
+      message("TAB1 signal:", ctx$signals$tab1_done)
     })
-
-    # =========================================================
-    # 6. NEXT BUTTON STATE
-    # =========================================================
-    tab1_gate_ok <- reactive({
-      contract_tab1(ctx)$ready
+    
+    output$sanity_table <- DT::renderDT({
+      req(ctx$data$obs_truth)
+      DT::datatable(ctx$data$obs_truth)
     })
-
-    observe({
-      shinyjs::toggleState("next_btn", condition = tab1_gate_ok())
+    
+    output$sanity_message <- shiny::renderUI({
+      if (isTRUE(sanity_ok())) "✔ OK" else "✖ ERROR"
     })
-
-    # =========================================================
-    # 7. FSM TRIGGER — Continue button
-    # =========================================================
-    observeEvent(input$next_btn, {
-      req(tab1_gate_ok())          # does NOT require tab1_complete — that's what we're setting
-      ctx$data$tab1_complete <- TRUE
-      message("🔥 tab1 complete — FSM will advance")
-    })
-
-    # =========================================================
-    # 8. DOWNLOADS
-    # =========================================================
-    output$download_template <- downloadHandler(
-      filename = function() {
-        paste0(input$dataset_name %||% "Dataset", "_xylo_data_", Sys.Date(), ".xlsx")
-      },
-      content = function(file) {
-        tp <- system.file("extdata", "Datasetname_xylo_data_yyyy-mm-dd.xlsx", package = "xyloR")
-        file.copy(tp, file, overwrite = TRUE)
-      }
-    )
-
-    output$download_example_obs <- downloadHandler(
-      filename = function() "Example_xylo_data.xlsx",
-      content = function(file) {
-        tp <- system.file("extdata", "Ltal2007_xylo_data_2025-09-01.xlsx", package = "xyloR")
-        file.copy(tp, file, overwrite = TRUE)
-      }
-    )
-
-    # =========================================================
-    # 9. LEAFLET MAP
-    # =========================================================
-    output$mymap <- leaflet::renderLeaflet({
-      req(isTRUE(is.data.frame(ctx$data$obs_truth)), input$site_filter)
-
-      si  <- ctx$data$site_info
-      si$site_label <- trimws(as.character(si$site_label))
-      sel <- trimws(as.character(input$site_filter))
-      si  <- si[si$site_label == sel, , drop = FALSE]
-
-      shiny::validate(
-        need(nrow(si) > 0,            "No matching site"),
-        need(!is.na(si$latitude[1]),  "Missing latitude"),
-        need(!is.na(si$longitude[1]), "Missing longitude")
-      )
-
-      lat <- as.numeric(si$latitude[1])
-      lng <- as.numeric(si$longitude[1])
-
-      leaflet::leaflet(options = leaflet::leafletOptions(zoomControl = TRUE)) |>
-        leaflet::addTiles() |>
-        leaflet::setView(lng = lng, lat = lat, zoom = 11) |>
-        leaflet::addMarkers(lng = lng, lat = lat, popup = si$site_label[1])
-    })
-
-    # =========================================================
-    # 10. DATA COVERAGE PLOT
-    # =========================================================
-    output$data_coverage_plot <- plotly::renderPlotly({
-      req(is.data.frame(ctx$data$obs_truth), input$site_filter, input$color)
-
-      df <- ctx$data$obs_truth
-      df <- df[df$site_label == trimws(input$site_filter), , drop = FALSE]
-
-      shiny::validate(
-        need(nrow(df) > 0,                  "No data for selected site"),
-        need("sample_date" %in% names(df),  "Missing column: sample_date"),
-        need("tree_label"  %in% names(df),  "Missing column: tree_label"),
-        need(input$color   %in% names(df),  paste("Missing column:", input$color))
-      )
-
-      plotly::plot_ly(
-        df,
-        x     = ~sample_date,
-        y     = ~tree_label,
-        color = as.factor(df[[input$color]]),
-        type  = "scatter",
-        mode  = "markers",
-        text  = ~paste(
-          "Tree:", tree_label,
-          "<br>Date:", sample_date,
-          "<br>", input$color, ":", df[[input$color]]
-        ),
-        hoverinfo = "text",
-        marker = list(size = 8, opacity = 0.75)
-      ) |>
-        plotly::layout(
-          xaxis         = list(title = "Date",       color = "white", showgrid = FALSE),
-          yaxis         = list(title = "Tree label", color = "white", categoryorder = "category ascending"),
-          plot_bgcolor  = "#2e2e2e",
-          paper_bgcolor = "#2e2e2e",
-          font          = list(color = "white"),
-          legend        = list(orientation = "h", y = -0.2)
-        )
-    })
-
-    # =========================================================
-    # 11. KEY INFO TABLE
-    # =========================================================
-    output$key_info_table <- DT::renderDataTable({
-      req(is.data.frame(ctx$data$obs_truth), input$site_filter)
-
-      si <- ctx$data$site_info |>
-        dplyr::filter(trimws(site_label) == trimws(input$site_filter))
-
-      shiny::validate(
-        need(nrow(si) > 0,            "No site selected"),
-        need(!is.na(si$latitude[1]),  "Missing latitude"),
-        need(!is.na(si$longitude[1]), "Missing longitude")
-      )
-
-      df <- ctx$data$obs_truth
-
-      key_info <- tibble::tibble(
-        Field = c(
-          "Site", "Coordinates", "Elevation",
-          "Network", "Contact",
-          "Date From", "Date To",
-          "N Trees", "N Dates", "N Samples"
-        ),
-        Value = c(
-          si$site_label[1],
-          paste0(
-            "Lat=",  round(as.numeric(si$latitude[1]),  4),
-            " | Lon=", round(as.numeric(si$longitude[1]), 4)
-          ),
-          as.character(si$elevation[1]),
-          paste(unique(df$network_label), collapse = ", "),
-          ctx$data$contact_lastname %||% "—",
-          format(min(df$sample_date, na.rm = TRUE), "%Y-%m-%d"),
-          format(max(df$sample_date, na.rm = TRUE), "%Y-%m-%d"),
-          as.character(length(unique(df$tree_label))),
-          as.character(length(unique(df$sample_date))),
-          as.character(length(unique(paste(df$sample_label, df$sample_id, sep = "_"))))
-        )
-      )
-
-      DT::datatable(
-        key_info,
-        rownames = FALSE,
-        colnames = c("Field", "Value"),
-        class    = "table-dark compact",
-        options  = list(
-          dom = "t", paging = FALSE, autoWidth = TRUE,
-          columnDefs = list(list(className = "dt-left", targets = "_all"))
-        )
-      )
-    })
-
-    # =========================================================
-    # 12. REPETITION TABLE
-    # =========================================================
-    output$obs_table <- DT::renderDataTable({
-      req(is.data.frame(ctx$data$obs_truth), input$site_filter)
-
-      df <- ctx$data$obs_truth
-
-      excluded <- c(
-        "sample_date", "sample_id", "tree_species", "tree_label", "plot_label",
-        "site_label", "network_label", "sample_label", "measure_type",
-        "measure_repetition", "sample_comment"
-      )
-      cols_inc <- setdiff(names(df), excluded)
-
-      shiny::validate(need(length(cols_inc) > 0, "No measurement columns found"))
-
-      grouped <- df |>
-        dplyr::filter(dplyr::if_any(dplyr::all_of(cols_inc), ~ !is.na(.))) |>
-        tidyr::pivot_longer(dplyr::all_of(cols_inc), names_to = "variable", values_to = "value") |>
-        dplyr::filter(!is.na(value)) |>
-        dplyr::group_by(measure_type, sample_label, sample_id, variable) |>
-        dplyr::summarise(non_na_count = dplyr::n(), .groups = "drop") |>
-        dplyr::group_by(measure_type, variable) |>
-        dplyr::summarise(avg_non_na = round(mean(non_na_count), 4), .groups = "drop") |>
-        dplyr::mutate(
-          variable = factor(variable,
-            levels = intersect(c("cz", "ez", "tz", "mz", "pr"), unique(variable)))
-        ) |>
-        dplyr::arrange(variable) |>
-        tidyr::pivot_wider(names_from = variable, values_from = avg_non_na)
-
-      DT::datatable(
-        grouped,
-        rownames = FALSE,
-        class    = "table-dark compact",
-        options  = list(
-          dom = "t", paging = FALSE, autoWidth = TRUE,
-          columnDefs = list(list(className = "dt-center", targets = "_all"))
-        )
-      )
-    })
-
-    return(list(
-      ui_valid = reactive(ctx$data$tab1_ui_valid)
-    ))
+    
+    invisible(NULL)
   })
 }
