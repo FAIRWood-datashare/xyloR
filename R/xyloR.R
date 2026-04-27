@@ -33,9 +33,6 @@ xyloR <- function() {
       bslib::nav_panel("Tab2", value = "tab2", mod_tab2_ui("tab2")),
       bslib::nav_panel("Tab3", value = "tab3", mod_tab3_ui("tab3")),
       
-      # =====================================================
-      # 🔥 DEBUG / FSM INSPECTOR TAB
-      # =====================================================
       bslib::nav_panel(
         "FSM Debug",
         value = "debug",
@@ -49,35 +46,19 @@ xyloR <- function() {
               style = "padding:10px; border:1px solid #444; border-radius:6px;",
               
               shiny::tags$h4("FSM Runtime Inspector"),
-              
               shiny::tags$hr(),
               
               shiny::tags$b("State: "),
               shiny::textOutput("fsm_state"),
               
-              shiny::tags$br(),
-              
-              shiny::tags$b("Transition: "),
-              shiny::textOutput("fsm_transition"),
-              
-              shiny::tags$br(),
-              
-              shiny::tags$b("Trigger: "),
-              shiny::textOutput("fsm_trigger"),
-              
-              shiny::tags$br(),
-              
-              shiny::tags$b("Timestamp: "),
-              shiny::textOutput("fsm_timestamp")
+              shiny::br(),
+              shiny::tags$b("Last Transition Table:"),
+              DT::dataTableOutput("fsm_history_table")
             )
           ),
           
           shiny::column(
             8,
-            
-            # =====================================================
-            # 🔥 FSM LIVE GRAPH VISUALIZER
-            # =====================================================
             visNetwork::visNetworkOutput("fsm_graph", height = "450px")
           )
         ),
@@ -100,6 +81,18 @@ xyloR <- function() {
     ctx <- create_app_context()
     
     # =====================================================
+    # INIT DEBUG HISTORY (CRITICAL FIX)
+    # =====================================================
+    ctx$debug$history <- shiny::reactiveVal(
+      data.frame(
+        from = character(),
+        to = character(),
+        trigger = character(),
+        timestamp = as.POSIXct(character())
+      )
+    )
+    
+    # =====================================================
     # MODULES
     # =====================================================
     mod_tab1_server("tab1", ctx, session)
@@ -107,7 +100,7 @@ xyloR <- function() {
     mod_tab3_server("tab3", ctx, session)
     
     # =====================================================
-    # FSM v2 (STATE + DEBUG TRACKING)
+    # FSM ENGINE
     # =====================================================
     observe({
       
@@ -141,18 +134,24 @@ xyloR <- function() {
         
         ctx$fsm$state <- next_state
         
-        ctx$debug$last_transition_from <- current
-        ctx$debug$last_transition_to <- next_state
-        ctx$debug$last_trigger <- trigger
-        ctx$debug$timestamp <- Sys.time()
+        # =====================================================
+        # SAFE HISTORY APPEND (NO rbind growth issues later)
+        # =====================================================
+        hist <- ctx$debug$history()
         
-        message("FSM: ", current, " → ", next_state,
-                " | trigger: ", trigger)
+        new_row <- data.frame(
+          from = current,
+          to = next_state,
+          trigger = trigger,
+          timestamp = Sys.time()
+        )
+        
+        ctx$debug$history(rbind(hist, new_row))
       }
     })
     
     # =====================================================
-    # NAVIGATION LAYER
+    # NAVIGATION
     # =====================================================
     observe({
       
@@ -168,27 +167,22 @@ xyloR <- function() {
     })
     
     # =====================================================
-    # 🔥 FSM DEBUG TEXT OUTPUTS
+    # FSM STATE OUTPUT
     # =====================================================
-    
     output$fsm_state <- shiny::renderText({
       ctx$fsm$state
     })
     
-    output$fsm_transition <- shiny::renderText({
-      paste(ctx$debug$last_transition_from,
-            "→",
-            ctx$debug$last_transition_to)
+    # =====================================================
+    # HISTORY TABLE
+    # =====================================================
+    output$fsm_history_table <- DT::renderDataTable({
+      DT::datatable(ctx$debug$history(), options = list(pageLength = 5))
     })
     
-    output$fsm_trigger <- shiny::renderText({
-      ctx$debug$last_trigger
-    })
-    
-    output$fsm_timestamp <- shiny::renderText({
-      as.character(ctx$debug$timestamp)
-    })
-    
+    # =====================================================
+    # SIGNALS
+    # =====================================================
     output$sig_tab1 <- shiny::renderText({
       paste("tab1_done:", ctx$signals$tab1_done)
     })
@@ -202,20 +196,17 @@ xyloR <- function() {
     })
     
     # =====================================================
-    # 🔥 FSM LIVE GRAPH VISUALIZER
+    # FSM GRAPH (SAFE VERSION)
     # =====================================================
     output$fsm_graph <- visNetwork::renderVisNetwork({
-      
-      req(ctx$fsm$state)
       
       nodes <- data.frame(
         id = c("tab1", "tab2", "tab3", "DONE"),
         label = c("Tab 1", "Tab 2", "Tab 3", "DONE"),
-        color = c(
-          if (ctx$fsm$state == "tab1") "#00C853" else "#2C3E50",
-          if (ctx$fsm$state == "tab2") "#00C853" else "#2C3E50",
-          if (ctx$fsm$state == "tab3") "#00C853" else "#2C3E50",
-          if (ctx$fsm$state == "DONE") "#00C853" else "#2C3E50"
+        color = ifelse(
+          c("tab1","tab2","tab3","DONE") == ctx$fsm$state,
+          "#00C853",
+          "#2C3E50"
         ),
         shape = "box"
       )
@@ -228,11 +219,7 @@ xyloR <- function() {
       
       visNetwork::visNetwork(nodes, edges) |>
         visNetwork::visNodes(font = list(color = "white")) |>
-        visNetwork::visEdges(color = list(color = "#888")) |>
-        visNetwork::visOptions(
-          highlightNearest = TRUE,
-          nodesIdSelection = TRUE
-        )
+        visNetwork::visEdges(color = "#888")
     })
   }
   

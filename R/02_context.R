@@ -13,26 +13,22 @@ create_app_context <- function() {
   
   ctx <- new.env(parent = emptyenv())
   
-  # =====================================================
-  # FSM STATE (NAVIGATION ONLY)
-  # =====================================================
   ctx$fsm <- shiny::reactiveValues(
-    state = "tab1"
+    state = "tab1",
+    focus_tab = NULL,
+    focus_field = NULL,
+    focus_row = NULL,
+    focus_id = NULL
   )
   
-  # =====================================================
-  # SIGNALS (FSM INPUT ONLY)
-  # =====================================================
   ctx$signals <- shiny::reactiveValues(
     tab1_done = FALSE,
     tab2_done = FALSE,
     tab3_done = FALSE
   )
   
-  # =====================================================
-  # DATA LAYER (SOURCE OF TRUTH ONLY)
-  # =====================================================
   ctx$data <- shiny::reactiveValues(
+    obs_raw = NULL,        # ADD
     obs_truth = NULL,
     meta = NULL,
     draft_obs = NULL,
@@ -40,38 +36,40 @@ create_app_context <- function() {
     site_info = NULL
   )
   
-  # =====================================================
-  # VIEW LAYER (STRUCTURED, NOT FREE-FORM)
-  # =====================================================
   ctx$view <- shiny::reactiveValues(
-    
-    # TAB1 VIEW STATE
     tab1 = NULL,
-    
-    # TAB2 VIEW STATE
     tab2 = NULL,
-    
-    # TAB3 VIEW STATE
     tab3 = NULL
   )
   
-  # =====================================================
-  # FILES LAYER
-  # =====================================================
   ctx$files <- shiny::reactiveValues(
     obs_file = NULL,
     meta_file = NULL,
     temp_folder = NULL
   )
   
-  # =====================================================
-  # DEBUG
-  # =====================================================
+  ctx$validation <- shiny::reactiveValues(
+    global = NULL,
+    last_run = NULL
+  )
+  
+  ctx$state <- shiny::reactiveValues(
+    export_ready = FALSE,
+    tab1_ready = FALSE,
+    tab2_ready = FALSE,
+    tab3_ready = FALSE
+  )
+  
   ctx$debug <- shiny::reactiveValues(
     last_transition_from = NULL,
     last_transition_to = NULL,
     last_trigger = NULL,
     timestamp = NULL
+  )
+  
+  ctx$edit <- shiny::reactiveValues(
+    pending_changes = list(),
+    lock = FALSE
   )
   
   ctx

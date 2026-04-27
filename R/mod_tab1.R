@@ -122,8 +122,27 @@ mod_tab1_server <- make_tab_module(
       
       req(!is.null(obs_raw))
       
-      ctx$data$obs_truth <- obs_raw
-      ctx$data$draft_obs <- obs_raw
+      # -----------------------------------------
+      # 1. RAW LAYER (keep original)
+      # -----------------------------------------
+      ctx$data$obs_raw <- obs_raw
+      
+      # -----------------------------------------
+      # 2. CLEAN LAYER (currently identity, but explicit)
+      # -----------------------------------------
+      obs_clean <- obs_raw   # placeholder for future cleaning pipeline
+      ctx$data$obs_truth <- obs_clean
+      
+      # -----------------------------------------
+      # 3. DRAFT (UI editable layer)
+      # -----------------------------------------
+      ctx$data$draft_obs <- obs_clean
+      
+      # -----------------------------------------
+      # 4. TRIGGER GLOBAL VALIDATION (IMPORTANT)
+      # -----------------------------------------
+      ctx <<- validate_cross_tab(ctx)
+      ctx <<- compute_export_state(ctx)
     })
   },
   
