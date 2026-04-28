@@ -27,12 +27,15 @@ mod_tab2_ui <- function(id) {
     shiny::fluidRow(
       
       # =====================================================
-      # LEFT PANEL
+      # LEFT PANEL (TOOLS + INPUTS)
       # =====================================================
       shiny::column(
         3,
         class = "bg-light p-2 border-end",
         
+        # -------------------------
+        # TEMPLATE DOWNLOAD
+        # -------------------------
         bslib::card(
           bslib::card_header("2.1 Template"),
           bslib::card_body(
@@ -41,6 +44,9 @@ mod_tab2_ui <- function(id) {
           )
         ),
         
+        # -------------------------
+        # UPLOAD
+        # -------------------------
         bslib::card(
           bslib::card_header("2.2 Upload"),
           bslib::card_body(
@@ -49,49 +55,52 @@ mod_tab2_ui <- function(id) {
           )
         ),
         
-        # =====================================================
-        # VALIDATION + EXPORT (CONTROL ROOM)
-        # =====================================================
-        shiny::div(
-          id = ns("validation_card"),
-          style = "display:none;",
-          
-          bslib::card(
-            bslib::card_header("Validation & Export"),
-            bslib::card_body(
-              
-              DT::DTOutput(ns("validation_table")),
-              shiny::uiOutput(ns("validation_message")),
-              
-              shiny::br(),
-              shiny::uiOutput(ns("export_button")),
-              
-              shiny::br(),
-              
-              # 🔥 NEW BLOCKER PANEL
-              shiny::uiOutput(ns("blocker_panel")),
-              
-              shiny::br(),
-              
-              shiny::actionButton(ns("next_btn"), "Continue →")
-            )
+        # -------------------------
+        # VALIDATION SUMMARY (NEW CENTER PIECE)
+        # -------------------------
+        bslib::card(
+          bslib::card_header("Validation Status"),
+          bslib::card_body(
+            shiny::uiOutput(ns("validation_message")),
+            shiny::uiOutput(ns("blocker_panel"))
+          )
+        ),
+        
+        # -------------------------
+        # EXPORT CONTROL
+        # -------------------------
+        bslib::card(
+          bslib::card_header("Export"),
+          bslib::card_body(
+            shiny::uiOutput(ns("export_button"))
           )
         )
       ),
       
       # =====================================================
-      # RIGHT PANEL
+      # RIGHT PANEL (DATA + STRUCTURE VIEW)
       # =====================================================
       shiny::column(
         9,
+        
+        # -------------------------
+        # STRUCTURE VISUALIZATION
+        # -------------------------
         bslib::card(
           bslib::card_header("Structure"),
-          plotly::plotlyOutput(ns("hierarchy"))
+          bslib::card_body(
+            plotly::plotlyOutput(ns("hierarchy"))
+          )
         ),
         
+        # -------------------------
+        # DATA TABLE (MAIN WORKSPACE)
+        # -------------------------
         bslib::card(
-          bslib::card_header("Metadata"),
-          DT::DTOutput(ns("meta_table"))
+          bslib::card_header("Metadata Editor"),
+          bslib::card_body(
+            DT::DTOutput(ns("meta_table"))
+          )
         )
       )
     )

@@ -15,42 +15,58 @@ mod_tab3_ui <- function(id) {
   ns <- shiny::NS(id)
   
   bslib::nav_panel(
-    title = "Observations",
+    title = "Export",
     value = "tab3",
     
     shiny::fluidRow(
       
-      # LEFT PANEL
+      # =====================================================
+      # LEFT PANEL (EXPORT CONTROL)
+      # =====================================================
       shiny::column(
-        2,
+        3,
         class = "bg-light p-2 border-end",
         
         bslib::card(
+          bslib::card_header("3.1 Export Status"),
           bslib::card_body(
-            shiny::actionButton(
-              ns("save_obs"),
-              "Save",
-              class = "btn-primary"
-            )
-          )
-        )
-      ),
-      
-      # MAIN PANEL
-      shiny::column(
-        10,
-        
-        bslib::card(
-          bslib::card_header("Site info"),
-          bslib::card_body(
-            rhandsontable::rHandsontableOutput(ns("tbl1"))
+            shiny::textOutput(ns("export_status"))
           )
         ),
         
         bslib::card(
-          bslib::card_header("Observations"),
+          bslib::card_header("3.2 Actions"),
           bslib::card_body(
-            rhandsontable::rHandsontableOutput(ns("tbl2"))
+            shiny::uiOutput(ns("export_button")),
+            shiny::downloadButton(ns("download_log"), "Log")
+          )
+        ),
+        
+        bslib::card(
+          bslib::card_header("Validation Summary"),
+          bslib::card_body(
+            shiny::uiOutput(ns("final_validation"))
+          )
+        )
+      ),
+      
+      # =====================================================
+      # RIGHT PANEL (SUMMARY VIEW)
+      # =====================================================
+      shiny::column(
+        9,
+        
+        bslib::card(
+          bslib::card_header("Final Structure Overview"),
+          bslib::card_body(
+            plotly::plotlyOutput(ns("final_hierarchy"))
+          )
+        ),
+        
+        bslib::card(
+          bslib::card_header("Export Preview"),
+          bslib::card_body(
+            DT::DTOutput(ns("export_preview"))
           )
         )
       )
