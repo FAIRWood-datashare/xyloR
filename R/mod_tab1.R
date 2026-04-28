@@ -203,46 +203,51 @@ mod_tab1_server <- function(id, ctx, session_global) {
     
     ns <- session$ns
     
-    apply_ui_state <- function(header_id, button_id, valid, ns) {
-      
-      hid <- (header_id)
-      bid <- (button_id)
-      
-      # =========================
-      # HEADER COLOR
-      # =========================
-      shinyjs::removeClass(hid, "bg-success")
-      shinyjs::removeClass(hid, "bg-danger")
-      
+    apply_ui_state <- function(header_id, button_id, valid) {
+
+      # ----------------------------------------------------------
+      # BUTTON: shinyjs::enable/disable use the module session
+      # automatically — pass the plain (non-ns) id only.
+      # ----------------------------------------------------------
       if (isTRUE(valid)) {
-        shinyjs::addClass(hid, "bg-success")
+        shinyjs::enable(button_id)
+        shinyjs::runjs(sprintf(
+          "document.getElementById('%s').classList.remove('btn-secondary');
+           document.getElementById('%s').classList.add('btn-success');",
+          ns(button_id), ns(button_id)
+        ))
       } else {
-        shinyjs::addClass(hid, "bg-danger")
+        shinyjs::disable(button_id)
+        shinyjs::runjs(sprintf(
+          "document.getElementById('%s').classList.remove('btn-success');
+           document.getElementById('%s').classList.add('btn-secondary');",
+          ns(button_id), ns(button_id)
+        ))
       }
-      
-      # =========================
-      # BUTTON ENABLE/DISABLE
-      # =========================
-      shinyjs::toggleState(id = bid, condition = isTRUE(valid))
-      
-      # =========================
-      # BUTTON COLOR (THIS WAS MISSING)
-      # =========================
-      shinyjs::removeClass(bid, "btn-success")
-      shinyjs::removeClass(bid, "btn-secondary")
-      
-      if (isTRUE(valid)) {
-        shinyjs::addClass(bid, "btn-success")
-      } else {
-        shinyjs::addClass(bid, "btn-secondary")
-      }
+
+      # ----------------------------------------------------------
+      # HEADER: bslib card_header nests the id inside a <div
+      # class="card-header"> wrapper, so we target by id directly
+      # via querySelector. ns() is needed here for the DOM id.
+      # ----------------------------------------------------------
+      color <- if (isTRUE(valid)) "#198754" else "#dc3545"   # BS5 success / danger
+      shinyjs::runjs(sprintf(
+        "var el = document.getElementById('%s');
+         if (el) { el.style.backgroundColor = '%s'; el.style.color = '#fff'; }",
+        ns(header_id), color
+      ))
     }
     
     # =====================================================
     # STEP STATE
     # =====================================================
     step <- reactiveVal(0)
-    
+
+    # Increments every time the UI is (re)rendered for a step.
+    # The effect observer watches this so it always re-fires
+    # after DOM rebuild, even when dataset_valid() hasn't changed.
+    step_rendered <- reactiveVal(0)
+
     # =====================================================
     # FORM SYNC (UI → CTX ONLY)
     # =====================================================
@@ -266,9 +271,21 @@ mod_tab1_server <- function(id, ctx, session_global) {
     # UI RENDER (STABLE)
     # =====================================================
     output$tab1_ui <- renderUI({
-      render_tab1_ui(step(), ctx, ns)
-    })
-    
+      isolate({
+        render_tab1_ui(step(), ctx, ns)
+      })
+    }) |> bindEvent(step(), ignoreNULL = FALSE, ignoreInit = FALSE)
+
+    # Bump step_rendered after every renderUI completes so the
+    # effect observer knows the DOM is ready.
+    outputOptions(output, "tab1_ui", suspendWhenHidden = FALSE)
+    observe({
+      step()                          # take dependency on step
+      shinyjs::delay(50, {            # wait 50 ms for DOM to paint
+        step_rendered(step_rendered() + 1L)
+      })
+    }) |> bindEvent(step(), ignoreNULL = FALSE, ignoreInit = FALSE)
+
     # =====================================================
     # START
     # =====================================================
@@ -277,8 +294,9 @@ mod_tab1_server <- function(id, ctx, session_global) {
     })
     
     # =====================================================
-    # FORM SYNC OBSERVERS (SAFE)
-    # =====================================================
+    # FORM SYNC OBSERVERS — write to ctx$form only,
+    # never recreate inputs (step() not touched here)
+    # ======================================================
     observeEvent(input$dataset_name, {
       ctx$form$dataset_name <- input$dataset_name
     }, ignoreInit = TRUE)
@@ -297,12 +315,13 @@ mod_tab1_server <- function(id, ctx, session_global) {
     
     # =====================================================
     # CENTRAL VALIDATION (SOURCE OF TRUTH)
+    # Reads from ctx$form so it works after back-navigation
     # =====================================================
     dataset_valid <- reactive({
       
-      name <- ctx$form$dataset_name
+      name    <- ctx$form$dataset_name
       version <- ctx$form$version
-      desc <- ctx$form$description
+      desc    <- ctx$form$description
       embargo <- ctx$form$embargo
       
       if (is.null(name) || is.null(version) || is.null(desc) || is.null(embargo))
@@ -362,29 +381,34 @@ mod_tab1_server <- function(id, ctx, session_global) {
     })
     
     # =====================================================
-    # STEP 1 HEADER + BUTTON (FIXED — LIKE STEP 3 STYLE)
+    # STEP 1 EFFECT
+    # Depends on dataset_valid() AND step_rendered() so it
+    # re-fires both when validation changes (typing) AND right
+    # after the DOM is rebuilt on back-navigation.
     # =====================================================
     observe({
-      
-      req(step() == 1)
-      
-      apply_ui_state(
-        header_id = "card_header1",
-        button_id = ("submit"),
-        valid     = dataset_valid()
-      )
+      step_rendered()          # re-run after every DOM rebuild
+      valid <- dataset_valid()
+      s     <- step()
+      if (s == 1) {
+        apply_ui_state(
+          header_id = "card_header1",
+          button_id = "submit",
+          valid     = valid
+        )
+      }
     })
-    
+
     # =====================================================
     # STEP 1 → STEP 2
     # =====================================================
     observeEvent(input$submit, {
-      
+
       if (!dataset_valid()) {
         showNotification("Fix validation errors first", type = "error")
         return()
       }
-      
+
       commit_form()
       step(2)
     })
@@ -395,15 +419,16 @@ mod_tab1_server <- function(id, ctx, session_global) {
     observeEvent(input$back_btn, {
       
       current <- step()
-      step(max(0, current - 1))
+      target  <- max(0L, current - 1L)
       
-      if (current - 1 == 1) {
-        
-        updateTextInput(session, "dataset_name", value = ctx$form$dataset_name %||% "")
-        updateNumericInput(session, "version", value = ctx$form$version %||% 1)
-        updateTextAreaInput(session, "description", value = ctx$form$description %||% "")
-        updateDateInput(session, "embargo", value = ctx$form$embargo %||% Sys.Date())
+      if (target == 1L) {
+        updateTextInput(session,     "dataset_name", value = ctx$form$dataset_name %||% "")
+        updateNumericInput(session,  "version",      value = ctx$form$version      %||% 1)
+        updateTextAreaInput(session, "description",  value = ctx$form$description  %||% "")
+        updateDateInput(session,     "embargo",      value = ctx$form$embargo      %||% Sys.Date())
       }
+      
+      step(target)
     })
     
     # =====================================================
@@ -455,7 +480,7 @@ mod_tab1_server <- function(id, ctx, session_global) {
       
       req(!is.null(df))
       
-      ctx$data$obs_raw <- df
+      ctx$data$obs_raw   <- df
       ctx$data$obs_truth <- df
       ctx$data$draft_obs <- df
       
@@ -468,33 +493,21 @@ mod_tab1_server <- function(id, ctx, session_global) {
         isTRUE(input$validate_observation)
     })
     
-    # observe({
-    #   shinyjs::toggleState(id = ns("next_btn"), condition = validation_ok())
-    # })
-    # 
-    # observe({
-    #   shinyjs::toggleClass(
-    #     id = ns("card_header_validation"),
-    #     class = "bg-success",
-    #     condition = validation_ok()
-    #   )
-    #   
-    #   shinyjs::toggleClass(
-    #     id = ns("card_header_validation"),
-    #     class = "bg-danger",
-    #     condition = !validation_ok()
-    #   )
-    # })
-    
+    # STEP 3 EFFECT
+    # Same pattern: step_rendered() ensures re-application
+    # after DOM rebuild (back navigation from a future step).
+    # =====================================================
     observe({
-      
-      req(step() == 3)
-      
-      apply_ui_state(
-        header_id = "card_header_validation",
-        button_id = "next_btn",
-        valid     = validation_ok()
-      )
+      step_rendered()
+      valid <- validation_ok()
+      s     <- step()
+      if (s == 3) {
+        apply_ui_state(
+          header_id = "card_header_validation",
+          button_id = "next_btn",
+          valid     = valid
+        )
+      }
     })
     
     observeEvent(input$next_btn, {
