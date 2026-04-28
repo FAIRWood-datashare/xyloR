@@ -74,18 +74,31 @@ create_app_context <- function() {
   
   ctx$form <- shiny::reactiveValues(
     
-    # STEP 1 (metadata form state)
     dataset_name = NULL,
     version = NULL,
     description = NULL,
     embargo = NULL,
     
-    # STEP 2 (file selection state)
     obs_file = NULL,
     
-    # future expansion (STEP 3+ editable UI state)
     metadata = NULL
   )
+  
+  # ctx$ui <- shiny::reactiveValues(
+  #   
+  #   tab1 = list(
+  #     header_valid = FALSE,
+  #     submit_valid = FALSE
+  #   ),
+  #   
+  #   tab2 = list(
+  #     header_valid = FALSE
+  #   ),
+  #   
+  #   tab3 = list(
+  #     header_valid = FALSE
+  #   )
+  # )
   
   ctx
 }

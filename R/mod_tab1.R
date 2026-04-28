@@ -40,10 +40,13 @@ mod_tab1_ui <- function(id) {
 # =====================================================
 # UI RENDER FUNCTION
 # =====================================================
-render_tab1_ui <- function(step, ns) {
+render_tab1_ui <- function(step, ctx, ns) {
   
   switch(as.character(step),
          
+         # =====================================================
+         # STEP 0
+         # =====================================================
          "0" = div(
            class = "p-5 text-center",
            h3("📊 Upload Observation Wizard"),
@@ -51,24 +54,30 @@ render_tab1_ui <- function(step, ns) {
            actionButton(ns("start_wizard"), "Start")
          ),
          
+         # =====================================================
+         # STEP 1 (FIXED: STABLE INPUTS)
+         # =====================================================
          "1" = bslib::card(
-           bslib::card_header(id = ns("card_header1"), "1. Dataset definition"),
+           
+           bslib::card_header(
+             id = ns("card_header1"),
+             # class = "bg-danger",   # default only (NO reactive UI rebuild here)
+             "1. Dataset definition"
+           ),
            
            bslib::card_body(
              
-             # Dataset name + status
+             # --- stable inputs (IMPORTANT FIX) ---
              div(
                textInput(ns("dataset_name"), "Dataset name"),
                uiOutput(ns("v_name"))
              ),
              
-             # Version + status
              div(
-               numericInput(ns("version"), "Data version", 1, 1, 99),
+               numericInput(ns("version"), "Data version", value = 1, min = 1, max = 99),
                uiOutput(ns("v_version"))
              ),
              
-             # Embargo + status
              div(
                dateInput(
                  ns("embargo"),
@@ -80,7 +89,6 @@ render_tab1_ui <- function(step, ns) {
                uiOutput(ns("v_embargo"))
              ),
              
-             # Description + status
              div(
                textAreaInput(ns("description"), "Description"),
                uiOutput(ns("v_description"))
@@ -88,27 +96,36 @@ render_tab1_ui <- function(step, ns) {
              
              br(),
              
+             # --- button (kept stable, no reactive class here) ---
              actionButton(
                ns("submit"),
                "Continue →",
-               class = "btn btn-primary"
+               class = "btn btn-secondary",
+               disabled = TRUE
              )
            )
          ),
          
+         # =====================================================
+         # STEP 2
+         # =====================================================
          "2" = tagList(
            actionButton(ns("back_btn"), "← Back", class = "btn btn-secondary mb-2"),
            
            bslib::card(
-             bslib::card_header("2. Dataset actions"),
+             bslib::card_header(id = ns("hdr_step2"), "2. Dataset actions"),
              bslib::card_body(
                downloadButton(ns("download_template"), "Download template"),
                br(), br(),
-               fileInput(ns("obs_file"), "Upload observation file")
+               fileInput(ns("obs_file"), "Upload observation file"),
+               uiOutput(ns("file_status"))
              )
            )
          ),
          
+         # =====================================================
+         # STEP 3
+         # =====================================================
          "3" = tagList(
            actionButton(ns("back_btn"), "← Back", class = "btn btn-secondary mb-2"),
            
@@ -126,7 +143,7 @@ render_tab1_ui <- function(step, ns) {
                ),
                
                bslib::card(
-                 bslib::card_header(id = ns("card_header_validation"), "Validation"),
+                 bslib::card_header(id = ns("card_header_validation"), "3. Validation"),
                  bslib::card_body(
                    checkboxInput(ns("validate_location"), "Validate location"),
                    checkboxInput(ns("validate_data_coverage"), "Validate coverage"),
@@ -186,17 +203,50 @@ mod_tab1_server <- function(id, ctx, session_global) {
     
     ns <- session$ns
     
+    apply_ui_state <- function(header_id, button_id, valid, ns) {
+      
+      hid <- (header_id)
+      bid <- (button_id)
+      
+      # =========================
+      # HEADER COLOR
+      # =========================
+      shinyjs::removeClass(hid, "bg-success")
+      shinyjs::removeClass(hid, "bg-danger")
+      
+      if (isTRUE(valid)) {
+        shinyjs::addClass(hid, "bg-success")
+      } else {
+        shinyjs::addClass(hid, "bg-danger")
+      }
+      
+      # =========================
+      # BUTTON ENABLE/DISABLE
+      # =========================
+      shinyjs::toggleState(id = bid, condition = isTRUE(valid))
+      
+      # =========================
+      # BUTTON COLOR (THIS WAS MISSING)
+      # =========================
+      shinyjs::removeClass(bid, "btn-success")
+      shinyjs::removeClass(bid, "btn-secondary")
+      
+      if (isTRUE(valid)) {
+        shinyjs::addClass(bid, "btn-success")
+      } else {
+        shinyjs::addClass(bid, "btn-secondary")
+      }
+    }
+    
     # =====================================================
     # STEP STATE
     # =====================================================
     step <- reactiveVal(0)
     
     # =====================================================
-    # FORM SYNC HELPERS (SOURCE OF TRUTH)
+    # FORM SYNC (UI → CTX ONLY)
     # =====================================================
-    
-    sync_form_from_inputs <- function() {
-      
+    sync_form <- function() {
       ctx$form$dataset_name <- input$dataset_name
       ctx$form$version      <- input$version
       ctx$form$description  <- input$description
@@ -204,7 +254,6 @@ mod_tab1_server <- function(id, ctx, session_global) {
     }
     
     commit_form <- function() {
-      
       ctx$data$meta <- list(
         dataset_name = ctx$form$dataset_name,
         version      = ctx$form$version,
@@ -214,10 +263,10 @@ mod_tab1_server <- function(id, ctx, session_global) {
     }
     
     # =====================================================
-    # UI RENDER
+    # UI RENDER (STABLE)
     # =====================================================
     output$tab1_ui <- renderUI({
-      render_tab1_ui(step(), ns)
+      render_tab1_ui(step(), ctx, ns)
     })
     
     # =====================================================
@@ -228,163 +277,133 @@ mod_tab1_server <- function(id, ctx, session_global) {
     })
     
     # =====================================================
-    # CENTRAL VALIDATION (SINGLE SOURCE OF TRUTH)
+    # FORM SYNC OBSERVERS (SAFE)
+    # =====================================================
+    observeEvent(input$dataset_name, {
+      ctx$form$dataset_name <- input$dataset_name
+    }, ignoreInit = TRUE)
+    
+    observeEvent(input$version, {
+      ctx$form$version <- input$version
+    }, ignoreInit = TRUE)
+    
+    observeEvent(input$description, {
+      ctx$form$description <- input$description
+    }, ignoreInit = TRUE)
+    
+    observeEvent(input$embargo, {
+      ctx$form$embargo <- input$embargo
+    }, ignoreInit = TRUE)
+    
+    # =====================================================
+    # CENTRAL VALIDATION (SOURCE OF TRUTH)
     # =====================================================
     dataset_valid <- reactive({
       
-      req(ctx$form$dataset_name,
-          ctx$form$version,
-          ctx$form$description,
-          ctx$form$embargo)
+      name <- ctx$form$dataset_name
+      version <- ctx$form$version
+      desc <- ctx$form$description
+      embargo <- ctx$form$embargo
       
-      nchar(ctx$form$dataset_name) >= 3 &&
-        nchar(ctx$form$dataset_name) <= 8 &&
-        grepl("^[A-Z0-9]+$", ctx$form$dataset_name) &&
-        ctx$form$version >= 1 && ctx$form$version <= 99 &&
-        nchar(trimws(ctx$form$description)) >= 50 &&
-        as.Date(ctx$form$embargo) >= Sys.Date() &&
-        as.Date(ctx$form$embargo) <= Sys.Date() + 365*10
+      if (is.null(name) || is.null(version) || is.null(desc) || is.null(embargo))
+        return(FALSE)
+      
+      name_ok <- nchar(name) >= 3 &&
+        nchar(name) <= 8 &&
+        grepl("^[A-Z0-9]+$", name)
+      
+      version_ok <- version >= 1 && version <= 99
+      
+      desc_ok <- nchar(trimws(desc)) >= 50
+      
+      embargo_ok <- as.Date(embargo) >= Sys.Date() &&
+        as.Date(embargo) <= Sys.Date() + 365*10
+      
+      name_ok && version_ok && desc_ok && embargo_ok
     })
     
-    observeEvent(input$dataset_name, sync_form_from_inputs())
-    observeEvent(input$version, sync_form_from_inputs())
-    observeEvent(input$description, sync_form_from_inputs())
-    observeEvent(input$embargo, sync_form_from_inputs())
-    
     # =====================================================
-    # FIELD VALIDATION HELPERS (LIVE FEEDBACK)
+    # LIVE VALIDATION LABELS (SAFE)
     # =====================================================
     
     output$v_name <- renderUI({
-      req(input$dataset_name)
+      ok <- !is.null(ctx$form$dataset_name) &&
+        nchar(ctx$form$dataset_name) >= 3 &&
+        nchar(ctx$form$dataset_name) <= 8 &&
+        grepl("^[A-Z0-9]*$", ctx$form$dataset_name)
       
-      ok <- nchar(input$dataset_name) >= 3 &&
-        nchar(input$dataset_name) <= 8 &&
-        grepl("^[A-Z0-9]+$", input$dataset_name)
-      
-      if (ok) tags$span("✔ valid", style = "color: green; font-size: 12px;")
-      else tags$span("✖ 3–8 uppercase letters/numbers", style = "color: red; font-size: 12px;")
+      if (ok) tags$span("✔ valid", style="color:green;font-size:12px;")
+      else tags$span("✖ 3–8 uppercase letters/numbers", style="color:red;font-size:12px;")
     })
     
     output$v_version <- renderUI({
-      req(input$version)
+      ok <- !is.null(ctx$form$version) &&
+        ctx$form$version >= 1 && ctx$form$version <= 99
       
-      ok <- input$version >= 1 && input$version <= 99
-      
-      if (ok) tags$span("✔ valid", style = "color: green; font-size: 12px;")
-      else tags$span("✖ must be 1–99", style = "color: red; font-size: 12px;")
+      if (ok) tags$span("✔ valid", style="color:green;font-size:12px;")
+      else tags$span("✖ must be 1–99", style="color:red;font-size:12px;")
     })
     
     output$v_description <- renderUI({
-      req(input$description)
+      ok <- !is.null(ctx$form$description) &&
+        nchar(trimws(ctx$form$description)) >= 50
       
-      ok <- nchar(trimws(input$description)) >= 50
-      
-      if (ok) tags$span("✔ valid", style = "color: green; font-size: 12px;")
-      else tags$span("✖ at least 50 characters", style = "color: red; font-size: 12px;")
+      if (ok) tags$span("✔ valid", style="color:green;font-size:12px;")
+      else tags$span("✖ at least 50 characters", style="color:red;font-size:12px;")
     })
     
     output$v_embargo <- renderUI({
-      req(input$embargo)
+      ok <- !is.null(ctx$form$embargo) &&
+        as.Date(ctx$form$embargo) >= Sys.Date() &&
+        as.Date(ctx$form$embargo) <= Sys.Date() + 365*10
       
-      ok <- as.Date(input$embargo) >= Sys.Date() &&
-        as.Date(input$embargo) <= Sys.Date() + 365*10
-      
-      if (ok) tags$span("✔ valid", style = "color: green; font-size: 12px;")
-      else tags$span("✖ invalid date range", style = "color: red; font-size: 12px;")
+      if (ok) tags$span("✔ valid", style="color:green;font-size:12px;")
+      else tags$span("✖ invalid date range", style="color:red;font-size:12px;")
     })
     
     # =====================================================
-    # BUTTON ENABLE/DISABLE
-    # =====================================================
-    observe({
-      shinyjs::toggleState(id = ns("submit"), condition = dataset_valid())
-    })
-    
-    # =====================================================
-    # HEADER COLOR (LIVE)
+    # STEP 1 HEADER + BUTTON (FIXED — LIKE STEP 3 STYLE)
     # =====================================================
     observe({
       
-      if (step() != 1) return()
+      req(step() == 1)
       
-      if (dataset_valid()) {
-        shinyjs::addClass(id = ns("card_header1"), class = "bg-success")
-        shinyjs::removeClass(id = ns("card_header1"), class = "bg-danger")
-      } else {
-        shinyjs::addClass(id = ns("card_header1"), class = "bg-danger")
-        shinyjs::removeClass(id = ns("card_header1"), class = "bg-success")
-      }
+      apply_ui_state(
+        header_id = "card_header1",
+        button_id = ("submit"),
+        valid     = dataset_valid()
+      )
     })
     
     # =====================================================
-    # CONTINUE → STEP 2
+    # STEP 1 → STEP 2
     # =====================================================
     observeEvent(input$submit, {
       
       if (!dataset_valid()) {
-        showNotification("Please fix validation errors", type = "error")
+        showNotification("Fix validation errors first", type = "error")
         return()
       }
       
-      showNotification("Dataset validated", type = "message")
-      
-      # 🔥 SAVE FORM → DATA
       commit_form()
-      
       step(2)
     })
     
     # =====================================================
-    # BACK BUTTON (SAFE EXTENSION)
+    # BACK BUTTON
     # =====================================================
     observeEvent(input$back_btn, {
       
-      current <- isolate(step())
+      current <- step()
+      step(max(0, current - 1))
       
-      if (current > 0) step(current - 1)
-      
-      # 🔥 RESTORE FORM VALUES INTO UI
-      updateTextInput(session, "dataset_name",
-                      value = ctx$form$dataset_name %||% "")
-      
-      updateNumericInput(session, "version",
-                         value = ctx$form$version %||% 1)
-      
-      updateTextAreaInput(session, "description",
-                          value = ctx$form$description %||% "")
-      
-      updateDateInput(session, "embargo",
-                      value = ctx$form$embargo %||% Sys.Date())
-    })
-    
-    # =====================================================
-    # UPLOAD (STEP 2 → STEP 3)
-    # =====================================================
-    observeEvent(input$obs_file, {
-      
-      req(input$obs_file)
-      
-      df <- tryCatch(
-        openxlsx::readWorkbook(
-          input$obs_file$datapath,
-          sheet = "Xylo_obs_data",
-          startRow = 1
-        )[-(1:6), ] |> tibble::as_tibble(),
-        error = function(e) {
-          showNotification(e$message, type = "error")
-          NULL
-        }
-      )
-      
-      req(!is.null(df))
-      
-      ctx$form$obs_file <- input$obs_file
-      ctx$data$obs_raw   <- df
-      ctx$data$obs_truth <- df
-      ctx$data$draft_obs <- df
-      
-      step(3)
+      if (current - 1 == 1) {
+        
+        updateTextInput(session, "dataset_name", value = ctx$form$dataset_name %||% "")
+        updateNumericInput(session, "version", value = ctx$form$version %||% 1)
+        updateTextAreaInput(session, "description", value = ctx$form$description %||% "")
+        updateDateInput(session, "embargo", value = ctx$form$embargo %||% Sys.Date())
+      }
     })
     
     # =====================================================
@@ -415,39 +434,75 @@ mod_tab1_server <- function(id, ctx, session_global) {
     })
     
     # =====================================================
-    # STEP 3 VALIDATION GATE
+    # STEP 2 + 3 (UNCHANGED WORKING LOGIC)
     # =====================================================
+    
+    observeEvent(input$obs_file, {
+      
+      req(input$obs_file)
+      
+      df <- tryCatch(
+        openxlsx::readWorkbook(
+          input$obs_file$datapath,
+          sheet = "Xylo_obs_data",
+          startRow = 1
+        )[-(1:6), ] |> tibble::as_tibble(),
+        error = function(e) {
+          showNotification(e$message, type = "error")
+          NULL
+        }
+      )
+      
+      req(!is.null(df))
+      
+      ctx$data$obs_raw <- df
+      ctx$data$obs_truth <- df
+      ctx$data$draft_obs <- df
+      
+      step(3)
+    })
+    
     validation_ok <- reactive({
       isTRUE(input$validate_location) &&
         isTRUE(input$validate_data_coverage) &&
         isTRUE(input$validate_observation)
     })
     
-    observe({
-      shinyjs::toggleState(id = ns("next_btn"), condition = validation_ok())
-    })
+    # observe({
+    #   shinyjs::toggleState(id = ns("next_btn"), condition = validation_ok())
+    # })
+    # 
+    # observe({
+    #   shinyjs::toggleClass(
+    #     id = ns("card_header_validation"),
+    #     class = "bg-success",
+    #     condition = validation_ok()
+    #   )
+    #   
+    #   shinyjs::toggleClass(
+    #     id = ns("card_header_validation"),
+    #     class = "bg-danger",
+    #     condition = !validation_ok()
+    #   )
+    # })
     
     observe({
-      if (validation_ok()) {
-        shinyjs::addClass(id = ns("card_header_validation"), class = "bg-success")
-        shinyjs::removeClass(id = ns("card_header_validation"), class = "bg-danger")
-      } else {
-        shinyjs::addClass(id = ns("card_header_validation"), class = "bg-danger")
-        shinyjs::removeClass(id = ns("card_header_validation"), class = "bg-success")
-      }
+      
+      req(step() == 3)
+      
+      apply_ui_state(
+        header_id = "card_header_validation",
+        button_id = "next_btn",
+        valid     = validation_ok()
+      )
     })
     
-    # =====================================================
-    # FINAL → FSM
-    # =====================================================
     observeEvent(input$next_btn, {
       
       if (!validation_ok()) {
         showNotification("Please complete validation", type = "error")
         return()
       }
-      
-      showNotification("Validation complete → moving forward", type = "message")
       
       ctx$signals$tab1_done <- TRUE
     })
