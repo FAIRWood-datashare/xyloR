@@ -4,7 +4,7 @@
 \alias{mod_tab8_server}
 \title{Server Logic for Publication Tab}
 \usage{
-mod_tab8_server(id, ctx, session)
+mod_tab8_server(id, ctx)
 }
 \arguments{
 \item{id}{The module ID for the server logic.}

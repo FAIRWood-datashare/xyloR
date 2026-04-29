@@ -13,8 +13,17 @@ create_app_context <- function() {
   
   ctx <- new.env(parent = emptyenv())
   
+  # =====================================================
+  # 📚 EXPORT REGISTRY (APPEND-ONLY LOG)
+  # =====================================================
+  ctx$registry <- list()
+  ctx$registry$exports <- list()
+  
+  # =====================================================
+  # 📦 DATA LAYERS
+  # =====================================================
   ctx$data <- shiny::reactiveValues(
-    obs_raw = NULL,        # ADD
+    obs_raw = NULL,
     obs_truth = NULL,
     meta = NULL,
     draft_obs = NULL,
@@ -22,23 +31,35 @@ create_app_context <- function() {
     site_info = NULL
   )
   
+  # =====================================================
+  # 🧭 VIEW STATE
+  # =====================================================
   ctx$view <- shiny::reactiveValues(
     tab1 = NULL,
     tab2 = NULL,
     tab3 = NULL
   )
   
+  # =====================================================
+  # 📁 FILE HANDLING
+  # =====================================================
   ctx$files <- shiny::reactiveValues(
     obs_file = NULL,
     meta_file = NULL,
     temp_folder = NULL
   )
   
+  # =====================================================
+  # 🧪 VALIDATION STATE
+  # =====================================================
   ctx$validation <- shiny::reactiveValues(
     global = NULL,
     last_run = NULL
   )
   
+  # =====================================================
+  # 🧭 APP STATE FLAGS
+  # =====================================================
   ctx$state <- shiny::reactiveValues(
     export_ready = FALSE,
     tab1_ready = FALSE,
@@ -46,6 +67,9 @@ create_app_context <- function() {
     tab3_ready = FALSE
   )
   
+  # =====================================================
+  # 🐞 DEBUG / TRACE
+  # =====================================================
   ctx$debug <- shiny::reactiveValues(
     last_transition_from = NULL,
     last_transition_to = NULL,
@@ -53,11 +77,17 @@ create_app_context <- function() {
     timestamp = NULL
   )
   
+  # =====================================================
+  # ✍️ EDIT CONTROL
+  # =====================================================
   ctx$edit <- shiny::reactiveValues(
     pending_changes = list(),
     lock = FALSE
   )
   
+  # =====================================================
+  # 🧾 FORM INPUTS
+  # =====================================================
   ctx$form <- shiny::reactiveValues(
     
     dataset_name = NULL,
@@ -70,5 +100,18 @@ create_app_context <- function() {
     metadata = NULL
   )
   
-  ctx
+  # =====================================================
+  # 🧠 ENRICHMENT CACHE (ORCID / DOI)  ← NEW
+  # =====================================================
+  ctx$cache <- shiny::reactiveValues(
+    orcid = list(),
+    doi = list()
+  )
+  
+  # =====================================================
+  # 📸 STATE SNAPSHOT (EXPORT FREEZE) ← NEW
+  # =====================================================
+  ctx$snapshot <- shiny::reactiveVal(NULL)
+  
+  return(ctx)
 }

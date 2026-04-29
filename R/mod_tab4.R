@@ -23,60 +23,51 @@ mod_tab4_ui <- function(id) {
   ns <- shiny::NS(id)
   
   bslib::nav_panel(
-    title = "Export",
+    title = "Metadata",
     value = "tab4",
     
     fluidRow(
       
-      # =====================================================
-      # LEFT PANEL (CONTROL)
-      # =====================================================
+      # LEFT: metadata editor
       column(
-        4,
+        6,
         
         bslib::card(
-          bslib::card_header("4.1 Final validation"),
+          bslib::card_header("4.1 Site Metadata Editor"),
           
           bslib::card_body(
             
-            uiOutput(ns("final_status")),
+            fileInput(ns("meta_upload"), "Upload metadata Excel (optional)"),
+            
+            tags$hr(),
+            
+            uiOutput(ns("meta_editor_ui")),
             
             tags$hr(),
             
             actionButton(
-              ns("run_final_check"),
-              "Run final check",
+              ns("save_meta"),
+              "Save metadata working copy",
               class = "btn btn-primary w-100"
-            )
-          )
-        ),
-        
-        bslib::card(
-          bslib::card_header("4.2 Export"),
-          
-          bslib::card_body(
-            
-            uiOutput(ns("export_state")),
-            
-            downloadButton(
-              ns("download_zip"),
-              "Download package",
-              class = "btn btn-success w-100"
             )
           )
         )
       ),
       
-      # =====================================================
-      # RIGHT PANEL (SUMMARY)
-      # =====================================================
+      # RIGHT: validation + preview
       column(
-        8,
+        6,
         
         bslib::card(
-          bslib::card_header("Dataset summary"),
+          bslib::card_header("4.2 Metadata validation"),
+          
           bslib::card_body(
-            DT::DTOutput(ns("summary_table"))
+            
+            uiOutput(ns("meta_status")),
+            
+            tags$hr(),
+            
+            DT::DTOutput(ns("meta_preview"))
           )
         )
       )
@@ -105,100 +96,105 @@ mod_tab4_server <- function(id, ctx) {
     ns <- session$ns
     
     # =====================================================
-    # 🧠 SINGLE SOURCE OF TRUTH (EXPORT GATE)
+    # 📦 METADATA SOURCE (prefill from obs if available)
     # =====================================================
-    export_ready <- reactive({
+    meta_base <- reactive({
       
-      isTRUE(ctx$v2$dataset_valid) &&
-        isTRUE(ctx$v2$obs_uploaded) &&
-        isTRUE(ctx$v2$qa_ready) &&
-        isTRUE(ctx$v2$meta_ready)
+      req(ctx$data$site_info)
+      
+      ctx$data$site_info
     })
     
     # =====================================================
-    # 🧠 SYNC V2 EXPORT FLAG (ONLY HERE)
+    # 📥 UPLOAD OVERRIDE (optional external Excel)
     # =====================================================
+    uploaded_meta <- reactive({
+      
+      req(input$meta_upload)
+      
+      readxl::read_excel(input$meta_upload$datapath)
+    })
+    
+    # =====================================================
+    # 🧠 WORKING COPY (CORE STATE FOR TAB 4)
+    # =====================================================
+    meta_working <- reactiveVal()
+    
     observe({
-      ctx$v2$export_ready <- export_ready()
-    })
-    
-    # =====================================================
-    # 📊 FINAL STATUS UI
-    # =====================================================
-    output$final_status <- renderUI({
       
-      if (export_ready()) {
-        tags$div(class = "alert alert-success", "✔ Dataset ready for export")
+      if (!is.null(input$meta_upload)) {
+        meta_working(uploaded_meta())
       } else {
-        tags$div(class = "alert alert-danger", "✖ Dataset incomplete")
+        meta_working(meta_base())
       }
     })
     
     # =====================================================
-    # 📦 EXPORT STATE UI
+    # 💾 SAVE ACTION (locks into ctx)
     # =====================================================
-    output$export_state <- renderUI({
+    observeEvent(input$save_meta, {
       
-      if (export_ready()) {
-        tags$div(class = "alert alert-success", "Export unlocked")
-      } else {
-        tags$div(class = "alert alert-secondary", "Export locked")
-      }
+      req(meta_working())
+      
+      ctx$data$meta$working_copy <- meta_working()
+      
+      ctx$state$meta_ready <- TRUE
     })
     
     # =====================================================
-    # 📋 SUMMARY (READ ONLY V2)
+    # 🧪 METADATA VALIDATION (LOCAL ONLY)
     # =====================================================
-    output$summary_table <- DT::renderDT({
+    meta_validation <- reactive({
       
-      data.frame(
-        step = c("Dataset", "Observation", "QA", "Metadata", "Export"),
-        status = c(
-          ctx$v2$dataset_valid,
-          ctx$v2$obs_uploaded,
-          ctx$v2$qa_ready,
-          ctx$v2$meta_ready,
-          ctx$v2$export_ready
-        )
+      req(meta_working())
+      
+      df <- meta_working()
+      
+      list(
+        complete = !any(is.na(df)),
+        n_sites = nrow(df)
       )
     })
     
-    # =====================================================
-    # 📦 DOWNLOAD HANDLER (GUARDED)
-    # =====================================================
-    output$download_zip <- downloadHandler(
+    # push into global validation layer
+    observe({
       
-      filename = function() {
-        paste0("xylo_export_", Sys.Date(), ".zip")
-      },
-      
-      content = function(file) {
-        
-        req(export_ready())
-        
-        tmp <- tempdir()
-        
-        saveRDS(ctx$data$obs_truth, file.path(tmp, "obs.rds"))
-        saveRDS(ctx$data$meta, file.path(tmp, "meta.rds"))
-        
-        zip::zipr(file, files = c(
-          file.path(tmp, "obs.rds"),
-          file.path(tmp, "meta.rds")
-        ))
-      }
-    )
+      ctx$validation$meta_initial_report <- meta_validation()
+    })
     
     # =====================================================
-    # 🧪 FINAL CHECK (OPTIONAL DEBUG ONLY)
+    # 📊 STATUS UI
     # =====================================================
-    observeEvent(input$run_final_check, {
+    output$meta_status <- renderUI({
       
-      if (export_ready()) {
-        showNotification("All checks passed", type = "message")
+      v <- meta_validation()
+      
+      if (isTRUE(v$complete)) {
+        tags$div(class = "alert alert-success", "✔ Metadata complete")
       } else {
-        showNotification("Missing required steps", type = "error")
+        tags$div(class = "alert alert-warning", "⚠ Missing metadata fields")
       }
     })
     
+    # =====================================================
+    # 📋 PREVIEW TABLE
+    # =====================================================
+    output$meta_preview <- DT::renderDT({
+      
+      req(meta_working())
+      
+      meta_working()
+    })
+    
+    # =====================================================
+    # 🧩 EDITOR SLOT (future handsontable plug-in)
+    # =====================================================
+    output$meta_editor_ui <- renderUI({
+      
+      tags$div(
+        class = "text-muted",
+        "Metadata editor will be inserted here (Handsontable or form UI)"
+      )
+    })
   })
 }
