@@ -28,7 +28,10 @@ create_app_context <- function() {
     meta = NULL,
     draft_obs = NULL,
     tbl1 = NULL,
-    site_info = NULL
+    site_info = NULL,
+    last_doi_metadata <- NULL,
+    last_doi_citation <- NULL,
+    orcid_results <- NULL
   )
   
   # =====================================================

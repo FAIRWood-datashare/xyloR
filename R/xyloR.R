@@ -33,10 +33,18 @@ xyloR <- function() {
       bslib::nav_panel("Tab2", value = "tab2", mod_tab2_ui("tab2")),
       bslib::nav_panel("Tab3", value = "tab3", mod_tab3_ui("tab3")),
       bslib::nav_panel("Tab4", value = "tab4", mod_tab4_ui("tab4")),
+      bslib::nav_panel("Tab5", value = "tab5", mod_tab5_ui("tab5")),
+      bslib::nav_panel("Tab6", value = "tab6", mod_tab6_ui("tab6")),
+      bslib::nav_panel("Tab7", value = "tab7", mod_tab7_ui("tab7")),
+      bslib::nav_panel("Tab8", value = "tab8", mod_tab8_ui("tab8")),
+      bslib::nav_panel("Tab9", value = "tab9", mod_tab9_ui("tab9")),
+      bslib::nav_panel("Tab10", value = "tab10", mod_tab10_ui("tab10")),
+      bslib::nav_panel("Tab11", value = "tab11", mod_tab11_ui("tab11")),
       
       bslib::nav_panel(
         "Debug",
         value = "debug",
+        mod_debug_ui("debug"),
         
         shiny::fluidRow(
           
@@ -65,35 +73,86 @@ xyloR <- function() {
       )
     )
   )
+
   
   server <- function(input, output, session) {
     
     # =====================================================
-    # CONTEXT
+    # CONTEXT (SINGLE SOURCE OF TRUTH)
     # =====================================================
     ctx <- create_app_context()
+    
+    # =====================================================
+    # STRUCTURE INITIALIZATION (LOCKED SHAPE)
+    # =====================================================
     ctx$v2 <- create_minimal_state()
     
-    # =====================================================
-    # SAFE DERIVED STATE STORE (IMPORTANT FIX)
-    # =====================================================
-    v2_state <- reactiveVal(NULL)
+    ctx$engine_cache <- shiny::reactiveVal(NULL)
+    ctx$external <- NULL
     
     # =====================================================
-    # V2 REACTOR (FIXED: NO SELF-WRITE LOOP)
+    # EXTERNAL SERVICE LAYER (ONLY ONCE)
     # =====================================================
+    ctx$external_api <- external_metadata_module(ctx)
+    
+    # =====================================================
+    # 🔒 CTX CONTRACT LOCK
+    # =====================================================
+    ctx_contract_lock <- function(ctx) {
+      
+      if (!is.null(ctx$external)) {
+        stop("❌ ctx$external is deprecated. Use ctx$external_api only.")
+      }
+      
+      if (is.null(ctx$external_api)) {
+        stop("❌ ctx$external_api missing")
+      }
+      
+      if (is.null(ctx$data)) {
+        stop("❌ ctx$data missing")
+      }
+      
+      invisible(TRUE)
+    }
+    
+    ctx_contract_lock(ctx)
+    
+    # runtime safety (optional but recommended)
     observe({
-      
-      req(ctx$v2)
-      
-      state <- compute_v2_state(ctx)
-      
-      v2_state(state)
+      invalidateLater(30000, session)
+      ctx_contract_lock(ctx)
     })
     
     # =====================================================
-    # APPLY DERIVED STATE (ONE DIRECTION ONLY)
+    # ENGINE
     # =====================================================
+    observe({
+      
+      req(ctx$data$obs$working_copy)
+      
+      ctx$engine_cache(update_state_engine(
+        obs    = ctx$data$obs$working_copy,
+        site   = ctx$data$site$working_copy,
+        tree   = ctx$data$tree$working_copy,
+        sample = ctx$data$sample$working_copy
+      ))
+    })
+    
+    ctx$engine <- shiny::reactive({
+      req(ctx$engine_cache())
+      ctx$engine_cache()
+    })
+    
+    # =====================================================
+    # DERIVED STATE
+    # =====================================================
+    v2_state <- shiny::reactiveVal(NULL)
+    
+    observe({
+      req(ctx$v2)
+      v2_state(compute_v2_state(ctx))
+    })
+    
     observe({
       
       state <- v2_state()
@@ -109,31 +168,25 @@ xyloR <- function() {
     })
     
     # =====================================================
-    # SAFE HISTORY STORE
+    # HISTORY
     # =====================================================
-    ctx$debug$history <- shiny::reactiveVal(
-      data.frame(
-        from = character(),
-        to = character(),
-        trigger = character(),
-        timestamp = as.POSIXct(character()),
-        stringsAsFactors = FALSE
-      )
-    )
+    ctx$debug$history <- shiny::reactiveVal(data.frame(
+      from = character(),
+      to = character(),
+      trigger = character(),
+      timestamp = as.POSIXct(character())
+    ))
     
     log_transition <- function(from, to, trigger) {
       
       old <- ctx$debug$history()
       
-      new_row <- data.frame(
+      ctx$debug$history(rbind(old, data.frame(
         from = ifelse(is.null(from), "START", from),
-        to = ifelse(is.null(to), NA_character_, to),
+        to = to,
         trigger = trigger,
-        timestamp = Sys.time(),
-        stringsAsFactors = FALSE
-      )
-      
-      ctx$debug$history(rbind(old, new_row))
+        timestamp = Sys.time()
+      )))
     }
     
     # =====================================================
@@ -143,24 +196,35 @@ xyloR <- function() {
     mod_tab2_server("tab2", ctx)
     mod_tab3_server("tab3", ctx)
     mod_tab4_server("tab4", ctx)
+    mod_tab5_server("tab5", ctx)
+    mod_tab6_server("tab6", ctx)
+    mod_tab7_server("tab7", ctx)
+    mod_tab8_server("tab8", ctx)
+    mod_tab9_server("tab9", ctx)
+    mod_tab10_server("tab10", ctx)
+    mod_tab11_server("tab11", ctx)
+    mod_debug_server("debug", ctx)
     
     # =====================================================
-    # NAVIGATION (SAFE)
+    # NAVIGATION
     # =====================================================
     observe({
+      
       req(ctx$v2$stage)
       
-      bslib::nav_select(
-        id = "tabs",
-        selected = ctx$v2$stage,
-        session = session
-      )
+      isolate({
+        bslib::nav_select(
+          id = "tabs",
+          selected = ctx$v2$stage,
+          session = session
+        )
+      })
     })
     
     # =====================================================
-    # TRANSITION TRACKING
+    # TRANSITIONS
     # =====================================================
-    last_stage <- reactiveVal(NULL)
+    last_stage <- shiny::reactiveVal(NULL)
     
     observe({
       
@@ -168,18 +232,13 @@ xyloR <- function() {
       
       if (!identical(ctx$v2$stage, last_stage())) {
         
-        log_transition(
-          from = last_stage(),
-          to = ctx$v2$stage,
-          trigger = "stage_change"
-        )
-        
+        log_transition(last_stage(), ctx$v2$stage, "stage_change")
         last_stage(ctx$v2$stage)
       }
     })
     
     # =====================================================
-    # DEBUG UI
+    # DEBUG OUTPUT
     # =====================================================
     output$v2_state <- renderText({
       paste0("V2 stage: ", ctx$v2$stage)
