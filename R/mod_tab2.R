@@ -21,85 +21,23 @@ mod_tab2_ui <- function(id) {
   ns <- shiny::NS(id)
   
   bslib::nav_panel(
-    title = "Metadata",
+    title = "Data ingestion",
     value = "tab2",
     
     shiny::fluidRow(
       
-      # =====================================================
-      # LEFT PANEL (TOOLS + INPUTS)
-      # =====================================================
       shiny::column(
-        3,
-        class = "bg-light p-2 border-end",
+        12,
         
-        # -------------------------
-        # TEMPLATE DOWNLOAD
-        # -------------------------
         bslib::card(
-          bslib::card_header("2.1 Template"),
+          bslib::card_header("2. Upload Observation Data"),
           bslib::card_body(
-            shiny::downloadButton(ns("download_meta_template"), "Template"),
-            shiny::downloadButton(ns("download_example_meta"), "Example")
-          )
-        ),
-        
-        # -------------------------
-        # UPLOAD
-        # -------------------------
-        bslib::card(
-          bslib::card_header("2.2 Upload"),
-          bslib::card_body(
-            shiny::fileInput(ns("meta_file"), NULL, accept = ".xlsx"),
-            shiny::textOutput(ns("meta_status"))
-          )
-        ),
-        
-        # -------------------------
-        # VALIDATION SUMMARY (NEW CENTER PIECE)
-        # -------------------------
-        bslib::card(
-          bslib::card_header("Validation Status"),
-          bslib::card_body(
-            shiny::uiOutput(ns("validation_message")),
-            shiny::uiOutput(ns("blocker_panel"))
-          )
-        ),
-        
-        # -------------------------
-        # EXPORT CONTROL
-        # -------------------------
-        bslib::card(
-          bslib::card_header("Export"),
-          bslib::card_body(
-            shiny::uiOutput(ns("export_button"))
-          )
-        )
-      ),
-      
-      # =====================================================
-      # RIGHT PANEL (DATA + STRUCTURE VIEW)
-      # =====================================================
-      shiny::column(
-        9,
-        
-        # -------------------------
-        # STRUCTURE VISUALIZATION
-        # -------------------------
-        bslib::card(
-          bslib::card_header("Structure"),
-          bslib::card_body(
-            plotly::plotlyOutput(ns("hierarchy"))
-          )
-        ),
-        
-        # -------------------------
-        # DATA TABLE (MAIN WORKSPACE)
-        # -------------------------
-        bslib::card(
-          bslib::card_header("Metadata Editor"),
-          bslib::card_body(
-            DT::DTOutput(ns("meta_table"))
+            
+            fileInput(ns("obs_file"), "Upload observation file (.xlsx)"),
+            
+            br(),
+            
+            shiny::uiOutput(ns("obs_status"))
           )
         )
       )
@@ -136,325 +74,73 @@ mod_tab2_ui <- function(id) {
 #' @importFrom lubridate year
 #' @importFrom tibble tibble
 #' 
-mod_tab2_server <- make_tab_module(
-  tab_id = "tab2",
+mod_tab2_server <- function(id, ctx) {
   
-  # =====================================================
-  # INIT (META INGESTION)
-  # =====================================================
-  init_fn = function(input, ctx) {
+  moduleServer(id, function(input, output, session) {
     
-    observeEvent(input$meta_file, {
+    # =====================================================
+    # 🟩 OBS INGESTION (CORE ENGINE)
+    # =====================================================
+    observeEvent(input$obs_file, {
       
-      meta <- tryCatch(
-        read_xylo_meta_raw(input$meta_file$datapath) |>
-          build_xylo_meta_clean(),
+      req(input$obs_file)
+      
+      obs <- tryCatch(
+        load_xylo_obs_clean_contract(input$obs_file$datapath),
         error = function(e) {
           shiny::showNotification(e$message, type = "error")
           NULL
         }
       )
       
-      req(!is.null(meta))
+      req(!is.null(obs))
       
-      ctx$data$meta <- meta
-      
-      # GLOBAL VALIDATION
-      ctx <<- validate_cross_tab(ctx)
-      ctx <<- compute_export_state(ctx)
-    })
-  },
-  
-  # =====================================================
-  # VIEW
-  # =====================================================
-  view_fn = function(ctx) {
-    
-    validation_tbl <- reactive({
-      req(ctx$data$obs_truth, ctx$data$meta)
-      
-      tryCatch(
-        xylo_validation_engine(ctx$data$obs_truth, ctx$data$meta),
+      site_info <- tryCatch(
+        extract_site_info(input$obs_file$datapath),
         error = function(e) {
-          data.frame(type = "error", message = e$message)
+          shiny::showNotification(e$message, type = "error")
+          NULL
         }
       )
-    })
-    
-    is_valid <- reactive({
-      df <- validation_tbl()
-      is.data.frame(df) && nrow(df) == 0
-    })
-    
-    export_ready <- reactive({
-      isTRUE(ctx$state$export_ready)
-    })
-    
-    focus_field <- reactive({
-      ctx$fsm$focus_field
-    })
-    
-    list(
-      validation_tbl = validation_tbl,
-      is_valid = is_valid,
-      export_ready = export_ready,
-      focus_field = focus_field
-    )
-  },
-  
-  # =====================================================
-  # ACTION (EXPORT)
-  # =====================================================
-  action_fn = function(input, output, ctx, view) {
-    
-    observeEvent(input$export, {
       
-      req(ctx$state$export_ready)
+      # =====================================================
+      # ✅ STORE DATA (SINGLE SOURCE OF TRUTH)
+      # =====================================================
+      ctx$data$obs_truth <- obs
+      ctx$data$site_info <- site_info
+      ctx$files$obs_file <- input$obs_file
       
-      zipfile <- tempfile(fileext = ".zip")
+      # =====================================================
+      # ✅ V2 STATE UPDATE
+      # =====================================================
+      ctx$v2$obs_uploaded     <- TRUE
+      ctx$v2$ingestion_valid  <- TRUE
       
-      saveRDS(ctx$data$obs_truth, "obs_clean.rds")
-      saveRDS(ctx$data$meta, "meta.rds")
+      # =====================================================
+      # 🚀 NAVIGATION → TAB3 (QA)
+      # =====================================================
+      ctx$v2$stage <- "tab3"
       
-      zip(zipfile, c("obs_clean.rds", "meta.rds"))
-      
-      shiny::showNotification("Export complete", type = "message")
-    })
-  },
-  
-  # =====================================================
-  # SIGNAL
-  # =====================================================
-  signal_fn = function(ctx, view) {
-    isTRUE(view$is_valid())
-  },
-  
-  # =====================================================
-  # UI OUTPUTS
-  # =====================================================
-  ui_fn = function(output, input, ctx, ns, view) {
-    
-    # =====================================================
-    # VALIDATION TABLE
-    # =====================================================
-    output$validation_table <- DT::renderDT({
-      
-      df <- view$validation_tbl()
-      
-      if (nrow(df) == 0) {
-        return(DT::datatable(data.frame(Status = "✔ Valid")))
-      }
-      
-      DT::datatable(df)
+      shiny::showNotification("Observation data uploaded successfully", type = "message")
     })
     
     # =====================================================
-    # MESSAGE
+    # 🟨 STATUS UI
     # =====================================================
-    output$validation_message <- shiny::renderUI({
+    output$obs_status <- renderUI({
       
-      if (isTRUE(view$is_valid())) {
-        shiny::tags$div(class = "alert alert-success", "Validation passed")
+      if (isTRUE(ctx$v2$obs_uploaded)) {
+        shiny::tags$div(
+          class = "alert alert-success",
+          "✔ Observation data uploaded"
+        )
       } else {
-        shiny::tags$div(class = "alert alert-danger", "Fix validation errors")
-      }
-    })
-    
-    # =====================================================
-    # BLOCKER PANEL (SAFE REACTIVE ACCESS)
-    # =====================================================
-    output$blocker_panel <- shiny::renderUI({
-      
-      val <- ctx$validation$global
-      if (is.null(val)) return(NULL)
-      
-      issues <- c(val$blockers, val$errors)
-      if (length(issues) == 0) return(NULL)
-      
-      shiny::tags$div(
-        class = "alert alert-danger",
-        
-        shiny::tags$strong("❌ Validation issues (click to navigate)"),
-        shiny::br(), shiny::br(),
-        
-        lapply(seq_along(issues), function(i) {
-          
-          issue <- issues[[i]]
-          
-          shiny::tags$div(
-            style = "
-            margin-bottom:10px;
-            padding:8px;
-            border:1px solid #ddd;
-            border-radius:6px;
-            cursor:pointer;
-            background:#fff;
-          ",
-            
-            onclick = sprintf(
-              "Shiny.setInputValue('%s', %d, {priority: 'event'})",
-              ns("jump_issue"), i
-            ),
-            
-            shiny::tags$strong(issue$message),
-            shiny::br(),
-            
-            if (!is.null(issue$tab)) {
-              shiny::tags$div(paste0("Tab: ", issue$tab), style="color:#666")
-            },
-            
-            if (!is.null(issue$field)) {
-              shiny::tags$div(paste0("Field: ", issue$field), style="color:#666")
-            },
-            
-            if (!is.null(issue$hint)) {
-              shiny::tags$div(shiny::tags$em(paste0("💡 ", issue$hint)))
-            }
-          )
-        })
-      )
-    })
-    
-    # =====================================================
-    # CLICK HANDLER
-    # =====================================================
-    observeEvent(input$jump_issue, {
-      
-      req(ctx$validation$global)
-      
-      issues <- c(
-        ctx$validation$global$blockers,
-        ctx$validation$global$errors
-      )
-      
-      issue <- issues[[input$jump_issue]]
-      req(!is.null(issue))
-      
-      ctx$fsm$focus_tab  <- issue$tab
-      ctx$fsm$focus_field <- issue$field
-      ctx$fsm$focus_row   <- ifelse(is.null(issue$row), NA, as.integer(issue$row))
-      
-      ctx$fsm$state <- issue$tab
-      
-      shiny::showNotification(
-        paste("Navigating to", issue$tab),
-        type = "message"
-      )
-    })
-    
-    # =====================================================
-    # EXPORT BUTTON
-    # =====================================================
-    output$export_button <- shiny::renderUI({
-      
-      if (isTRUE(view$export_ready())) {
-        shiny::actionButton(ns("export"), "Export ZIP", class = "btn-success")
-      } else {
-        shiny::tags$button(
-          "Export locked",
-          class = "btn btn-secondary",
-          disabled = NA
+        shiny::tags$div(
+          class = "alert alert-secondary",
+          "No file uploaded yet"
         )
       }
     })
     
-    # =====================================================
-    # META TABLE (FIXED + SAFE HIGHLIGHTING)
-    # =====================================================
-    output$meta_table <- DT::renderDT({
-      
-      df <- ctx$data$meta
-      
-      if (is.null(df) || !is.data.frame(df)) {
-        return(DT::datatable(data.frame(Status = "Meta not loaded or invalid")))
-      }
-      
-      val <- ctx$validation$global
-      if (is.null(val)) val <- list(errors=list(), warnings=list(), blockers=list())
-      
-      focus_row <- ctx$fsm$focus_row
-      focus_col <- ctx$fsm$focus_field
-      
-      dt <- DT::datatable(
-        df,
-        options = list(pageLength = 10),
-        selection = "none"
-      )
-      
-      # =====================================================
-      # ROW HIGHLIGHT (FOCUS ONLY - SIMPLE + RELIABLE)
-      # =====================================================
-      if (!is.null(focus_row) && !is.na(focus_row)) {
-        dt <- DT::formatStyle(
-          dt,
-          columns = names(df),
-          target = "row",
-          valueColumns = NULL,
-          backgroundColor = DT::styleEqual(focus_row, "#fff3cd")
-        )
-      }
-      
-      # =====================================================
-      # FIELD HIGHLIGHT (SAFE)
-      # =====================================================
-      if (!is.null(focus_col) && focus_col %in% names(df)) {
-        dt <- DT::formatStyle(
-          dt,
-          columns = focus_col,
-          backgroundColor = "#ffe8a1",
-          fontWeight = "bold"
-        )
-      }
-      
-      dt
-    })
-    
-    # =====================================================
-    # SCROLL TO ROW
-    # =====================================================
-    observe({
-      
-      req(ctx$fsm$focus_row)
-      
-      shinyjs::runjs(sprintf("
-      setTimeout(function(){
-        var table = document.getElementById('%s');
-        if (!table) return;
-
-        var row = table.querySelector('tbody tr:nth-child(%d)');
-        if (row) {
-          row.scrollIntoView({behavior: 'smooth', block: 'center'});
-        }
-      }, 150);
-    ", ns("meta_table"), ctx$fsm$focus_row))
-    })
-    
-    # =====================================================
-    # EDIT LOCK GUARD
-    # =====================================================
-    observeEvent(input$meta_table_cell_edit, {
-      
-      if (isTRUE(ctx$edit$lock)) return()
-      ctx$edit$lock <- TRUE
-      on.exit(ctx$edit$lock <- FALSE, add = TRUE)
-      
-      info <- input$meta_table_cell_edit
-      
-      df <- ctx$data$meta
-      req(df)
-      
-      i <- info$row
-      j <- info$col
-      v <- info$value
-      
-      df[i, j] <- DT::coerceValue(v, df[i, j])
-      
-      ctx$data$meta <- df
-      
-      ctx <<- validate_cross_tab(ctx)
-      ctx <<- compute_export_state(ctx)
-      
-      shiny::showNotification("Cell updated & revalidated", type = "message")
-    })
-  }
-)
+  })
+}

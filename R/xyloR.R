@@ -32,6 +32,7 @@ xyloR <- function() {
       bslib::nav_panel("Tab1", value = "tab1", mod_tab1_ui("tab1")),
       bslib::nav_panel("Tab2", value = "tab2", mod_tab2_ui("tab2")),
       bslib::nav_panel("Tab3", value = "tab3", mod_tab3_ui("tab3")),
+      bslib::nav_panel("Tab4", value = "tab4", mod_tab4_ui("tab4")),
       
       bslib::nav_panel(
         "FSM Debug",
@@ -79,6 +80,41 @@ xyloR <- function() {
   server <- function(input, output, session) {
     
     ctx <- create_app_context()
+    ctx$v2 <- create_minimal_state()
+    
+    observe({
+      
+      req(ctx$v2$stage)
+      
+      stage <- isolate(ctx$v2$stage)
+      
+      switch(stage,
+             
+             "tab1" = nav_select("tab1"),
+             "tab2" = nav_select("tab2"),
+             "tab3" = nav_select("tab3"),
+             "tab4" = nav_select("tab4"),
+             "tab5" = nav_select("tab5"),
+             "tab6" = nav_select("tab6"),
+             "tab7" = nav_select("tab7"),
+             "tab8" = nav_select("tab8"),
+             "tab9" = nav_select("tab9")
+             
+      )
+    })
+    
+    last_stage <- reactiveVal(NULL)
+    
+    observe({
+      
+      req(ctx$v2$stage)
+      
+      if (identical(ctx$v2$stage, last_stage()))
+        return()
+      
+      last_stage(ctx$v2$stage)
+      
+    })
     
     # =====================================================
     # INIT DEBUG HISTORY (CRITICAL FIX)
@@ -96,8 +132,9 @@ xyloR <- function() {
     # MODULES
     # =====================================================
     mod_tab1_server("tab1", ctx, session)
-    mod_tab2_server("tab2", ctx, session)
-    mod_tab3_server("tab3", ctx, session)
+    mod_tab2_server("tab2", ctx)
+    mod_tab3_server("tab3", ctx)
+    mod_tab4_server("tab4", ctx)
     
     # =====================================================
     # FSM ENGINE
@@ -155,15 +192,16 @@ xyloR <- function() {
     # =====================================================
     observe({
       
-      req(ctx$fsm$state)
+      stage <- ctx$v2$stage
+      req(stage)
       
-      isolate({
-        bslib::nav_select(
-          id = "tabs",
-          selected = ctx$fsm$state,
-          session = session
-        )
-      })
+      cat("NAV TARGET:", stage, "\n")
+      
+      bslib::nav_select(
+        id = "tabs",
+        selected = stage,
+        session = session
+      )
     })
     
     # =====================================================

@@ -9,7 +9,7 @@
 #' @importFrom bsicons bs_icon
 #' @importFrom rhandsontable rHandsontableOutput
 #' 
-mod_tab4_ui <- function(id) {
+mod_tab4_ui_ <- function(id) {
   ns <- shiny::NS(id)
 
   bslib::nav_panel(
@@ -53,7 +53,7 @@ mod_tab4_ui <- function(id) {
 #' @importFrom dplyr select mutate filter left_join ends_with
 #' @importFrom rhandsontable renderRHandsontable rhandsontable hot_to_r
 #'
-mod_tab4_server <- function(id, ctx, session) {
+mod_tab4_server_ <- function(id, ctx, session) {
   moduleServer(id, function(input, output, session) {
 
     # =====================================================
