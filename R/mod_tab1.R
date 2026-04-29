@@ -113,12 +113,15 @@ render_tab1_ui <- function(step, ctx, ns) {
            actionButton(ns("back_btn"), "← Back", class = "btn btn-secondary mb-2"),
            
            bslib::card(
-             bslib::card_header(id = ns("hdr_step2"), "2. Dataset actions"),
+             bslib::card_header("2. Upload data"),
              bslib::card_body(
+               
                downloadButton(ns("download_template"), "Download template"),
+               downloadButton(ns("download_example_obs"), "Download example"),
+               
                br(), br(),
-               fileInput(ns("obs_file"), "Upload observation file"),
-               uiOutput(ns("file_status"))
+               
+               fileInput(ns("obs_file"), "Upload observation file")
              )
            )
          ),
@@ -131,19 +134,32 @@ render_tab1_ui <- function(step, ctx, ns) {
            
            fluidRow(
              
+             # ================= LEFT PANEL =================
              column(
                4,
                
+               # ✅ Sanity
+               # bslib::card(
+               #   bslib::card_header("Sanity check"),
+               #   bslib::card_body(
+               #     DT::DTOutput(ns("sanity_table"))
+               #   )
+               # ),
+               
+               # ✅ Site selector (MOVED HERE)
+               selectInput(ns("site_filter"), "Select site", choices = NULL),
+               
+               # ✅ Key info
                bslib::card(
-                 bslib::card_header("Sanity check"),
+                 bslib::card_header("Key information"),
                  bslib::card_body(
-                   DT::DTOutput(ns("sanity_table")),
-                   uiOutput(ns("sanity_message"))
+                   DT::DTOutput(ns("key_info_table"))
                  )
                ),
                
+               # ✅ Validation
                bslib::card(
-                 bslib::card_header(id = ns("card_header_validation"), "3. Validation"),
+                 bslib::card_header(id = ns("card_header_validation"), "Validation"),
                  bslib::card_body(
                    checkboxInput(ns("validate_location"), "Validate location"),
                    checkboxInput(ns("validate_data_coverage"), "Validate coverage"),
@@ -158,12 +174,41 @@ render_tab1_ui <- function(step, ctx, ns) {
                )
              ),
              
+             # ================= RIGHT PANEL =================
              column(
                8,
+               
+               # ✅ Preview (you already have it)
+               # bslib::card(
+               #   bslib::card_header("Preview"),
+               #   bslib::card_body(
+               #     DT::DTOutput(ns("obs_preview"))
+               #   )
+               # ),
+               
+               # ✅ Map
                bslib::card(
-                 bslib::card_header("Preview"),
+                 bslib::card_header("Map"),
                  bslib::card_body(
-                   DT::DTOutput(ns("obs_preview"))
+                   leaflet::leafletOutput(ns("mymap"), height = "300px")
+                 )
+               ),
+               
+               # ✅ Plot
+               bslib::card(
+                 bslib::card_header("Data coverage"),
+                 bslib::card_body(
+                   selectInput(ns("color"), "Color by",
+                               choices = c("tree_species", "sample_id", "plot_label")),
+                   plotly::plotlyOutput(ns("data_coverage_plot"))
+                 )
+               ),
+               
+               # ✅ Coverage table
+               bslib::card(
+                 bslib::card_header("Coverage table"),
+                 bslib::card_body(
+                   DT::DTOutput(ns("obs_table"))
                  )
                )
              )
@@ -279,6 +324,7 @@ mod_tab1_server <- function(id, ctx, session_global) {
     # Bump step_rendered after every renderUI completes so the
     # effect observer knows the DOM is ready.
     outputOptions(output, "tab1_ui", suspendWhenHidden = FALSE)
+    
     observe({
       step()                          # take dependency on step
       shinyjs::delay(50, {            # wait 50 ms for DOM to paint
@@ -432,31 +478,245 @@ mod_tab1_server <- function(id, ctx, session_global) {
     })
     
     # =====================================================
-    # SANITY TABLE
+    # STEP 2a - DOWNLOAD TEMPLATES
     # =====================================================
-    output$sanity_table <- DT::renderDT({
-      
-      req(ctx$data$obs_truth)
-      
-      df <- ctx$data$obs_truth
-      
-      DT::datatable(data.frame(
-        check = c("rows", "site_label", "no NA site_label"),
-        status = c(
-          nrow(df) > 0,
-          "site_label" %in% names(df),
-          !any(is.na(df$site_label))
+    
+    output$download_template <- downloadHandler(
+      filename = function() {
+        paste0(ctx$form$dataset_name %||% "Dataset",
+               "_xylo_data_", Sys.Date(), ".xlsx")
+      },
+      content = function(file) {
+        tp <- system.file(
+          "extdata",
+          "Datasetname_xylo_data_yyyy-mm-dd.xlsx",
+          package = "xyloR"
         )
-      ), rownames = FALSE)
+        file.copy(tp, file, overwrite = TRUE)
+      }
+    )
+    
+    output$download_example_obs <- downloadHandler(
+      filename = function() "Example_xylo_data.xlsx",
+      content = function(file) {
+        tp <- system.file(
+          "extdata",
+          "Ltal2007_xylo_data_2025-09-01.xlsx",
+          package = "xyloR"
+        )
+        file.copy(tp, file, overwrite = TRUE)
+      }
+    )
+    
+    # =====================================================
+    # STEP 3 - MAR, COVERAGE, TABLE RENDERERS
+    # =====================================================
+    xylo_obs <- reactive({
+      req(ctx$data$obs_truth)
+      ctx$data$obs_truth
+    })
+    
+    site_info <- reactive({
+      req(ctx$data$site_info)
+      ctx$data$site_info
+    })
+    
+    obs_file_path <- reactive({
+      req(input$obs_file)
+      input$obs_file$datapath
     })
     
     # =====================================================
-    # PREVIEW
+    # STEP 3 STATE (NEW)
     # =====================================================
-    output$obs_preview <- DT::renderDT({
+    
+    selected_site <- reactiveVal(NULL)
+    
+    xylo_obs <- reactive({
       req(ctx$data$obs_truth)
-      DT::datatable(head(ctx$data$obs_truth, 50))
+      ctx$data$obs_truth
     })
+    
+    site_info <- reactive({
+      req(ctx$data$site_info)
+      ctx$data$site_info
+    })
+    
+    df_site <- reactive({
+      req(xylo_obs(), selected_site())
+      xylo_obs() %>%
+        dplyr::filter(site_label == selected_site())
+    })
+    
+    observe({
+      req(site_info())
+      
+      sites <- unique(trimws(as.character(site_info()$site_label)))
+      
+      updateSelectInput(session, "site_filter", choices = sites)
+      
+      # initialize only once
+      if (is.null(selected_site())) {
+        selected_site(sites[1])
+      }
+    })
+    
+    observeEvent(input$site_filter, {
+      selected_site(input$site_filter)
+    }, ignoreInit = TRUE)
+    
+    # =========================================================
+    # KEY INFO TABLE
+    # =========================================================
+    output$key_info_table <- DT::renderDataTable({
+      
+      df <- df_site()
+      req(nrow(df) > 0)
+      
+      si <- site_info() %>%
+        dplyr::filter(site_label == selected_site())
+      
+      file <- obs_file_path()
+      
+      owner_lastname   <- read_xylo_cell(file, "obs_data_info", 2, 4)
+      owner_firstname  <- read_xylo_cell(file, "obs_data_info", 1, 4)
+      owner_email      <- read_xylo_cell(file, "obs_data_info", 3, 4)
+      
+      contact_lastname  <- read_xylo_cell(file, "obs_data_info", 2, 2)
+      contact_firstname <- read_xylo_cell(file, "obs_data_info", 1, 2)
+      contact_email     <- read_xylo_cell(file, "obs_data_info", 3, 2)
+      
+      key_info <- tibble::tibble(
+        "PI" = paste(owner_lastname, owner_firstname),
+        "PI Email" = owner_email,
+        "Contact" = paste(contact_lastname, contact_firstname),
+        "Contact Email" = contact_email,
+        "Network" = paste(unique(df$network_label), collapse = ", "),
+        "Site" = si$site_label,
+        "Coordinates" = paste(
+          "Lat =", round(as.numeric(si$latitude), 4),
+          "Long =", round(as.numeric(si$longitude), 4)
+        ),
+        "Elevation" = as.numeric(si$elevation),
+        "Date From" = format(min(df$sample_date), "%Y-%m-%d"),
+        "Date To"   = format(max(df$sample_date), "%Y-%m-%d"),
+        "n_Trees"   = length(unique(df$tree_label)),
+        "n_Dates"   = length(unique(df$sample_date)),
+        "n_Samples" = length(unique(paste(df$sample_label, df$sample_id)))
+      ) %>%
+        t() %>%
+        setNames("Key Info")
+      
+      DT::datatable(key_info, options = list(dom = "t"), class = "table-dark")
+    })
+    
+    # =========================================================
+    # COVERAGE TABLE
+    # =========================================================
+    output$obs_table <- DT::renderDataTable({
+      
+      df <- df_site()
+      
+      excluded <- c(
+        "sample_date","sample_id","tree_species","tree_label",
+        "plot_label","site_label","network_label",
+        "sample_label","measure_type","measure_repetition",
+        "sample_comment"
+      )
+      
+      cols <- setdiff(names(df), excluded)
+      
+      summary <- df %>%
+        dplyr::filter(dplyr::if_any(dplyr::all_of(cols), ~ !is.na(.))) %>%
+        tidyr::pivot_longer(cols = dplyr::all_of(cols)) %>%
+        dplyr::filter(!is.na(value)) %>%
+        dplyr::group_by(measure_type, sample_label, sample_id, name) %>%
+        dplyr::summarise(n = n(), .groups = "drop") %>%
+        dplyr::group_by(measure_type, name) %>%
+        dplyr::summarise(avg = mean(n), .groups = "drop") %>%
+        tidyr::pivot_wider(names_from = name, values_from = avg)
+      
+      DT::datatable(summary, options = list(dom = "t"), class = "table-dark")
+    })
+    
+    # =========================================================
+    # MAP LEAFLET
+    # =========================================================
+    output$mymap <- leaflet::renderLeaflet({
+      
+      si <- site_info() %>%
+        dplyr::filter(site_label == selected_site())
+      
+      leaflet::leaflet() %>%
+        leaflet::addTiles() %>%
+        leaflet::addMarkers(
+          lng = as.numeric(si$longitude),
+          lat = as.numeric(si$latitude),
+          popup = si$site_label
+        )
+    })
+    
+    # =========================================================
+    # AVERAGE OBS PLOT
+    # =========================================================
+    output$data_coverage_plot <- plotly::renderPlotly({
+      
+      df <- df_site()
+      req(input$color)
+      
+      plotly::plot_ly(
+        df,
+        x = ~sample_date,
+        y = ~tree_label,
+        color = ~.data[[input$color]],
+        type = "scatter",
+        mode = "markers",
+        text = ~paste(
+          "Tree:", tree_label,
+          "<br>Date:", sample_date,
+          "<br>", input$color, ":", .data[[input$color]]
+        ),
+        hoverinfo = "text"
+      ) %>%
+        plotly::layout(
+          plot_bgcolor = "#2e2e2e",
+          paper_bgcolor = "#2e2e2e",
+          font = list(color = "white")
+        )
+    })
+    
+    # =========================================================
+    # SANITY TABLE
+    # =========================================================
+    
+    # output$sanity_table <- DT::renderDT({
+    #   
+    #   req(ctx$data$obs_truth)
+    #   
+    #   df <- ctx$data$obs_truth
+    #   
+    #   DT::datatable(
+    #     data.frame(
+    #       check = c("rows", "site_label", "no NA site_label"),
+    #       status = c(
+    #         nrow(df) > 0,
+    #         "site_label" %in% names(df),
+    #         !any(is.na(df$site_label))
+    #       )
+    #     ),
+    #     rownames = FALSE
+    #   )
+    # })
+    
+    # =========================================================
+    # DATA PREVIEW
+    # =========================================================
+    # output$obs_preview <- DT::renderDT({
+    # 
+    #   req(ctx$data$obs_truth)
+    # 
+    #   DT::datatable(head(ctx$data$obs_truth, 50))
+    # })
     
     # =====================================================
     # STEP 2 + 3 (UNCHANGED WORKING LOGIC)
@@ -466,24 +726,47 @@ mod_tab1_server <- function(id, ctx, session_global) {
       
       req(input$obs_file)
       
-      df <- tryCatch(
-        openxlsx::readWorkbook(
-          input$obs_file$datapath,
-          sheet = "Xylo_obs_data",
-          startRow = 1
-        )[-(1:6), ] |> tibble::as_tibble(),
+      # -------------------------------------------------
+      # LOAD DATA
+      # -------------------------------------------------
+      obs <- tryCatch(
+        load_xylo_obs_clean_contract(input$obs_file$datapath),
         error = function(e) {
           showNotification(e$message, type = "error")
           NULL
         }
       )
       
-      req(!is.null(df))
+      req(!is.null(obs))
       
-      ctx$data$obs_raw   <- df
-      ctx$data$obs_truth <- df
-      ctx$data$draft_obs <- df
+      site_info <- tryCatch(
+        extract_site_info(input$obs_file$datapath),
+        error = function(e) {
+          showNotification(e$message, type = "error")
+          NULL
+        }
+      )
       
+      # =====================================================
+      # FIX 1: SET THE MISSING OBJECT (CRITICAL)
+      # =====================================================
+      ctx$data$obs_truth <- obs
+      
+      # -------------------------------------------------
+      # UPDATE CTX
+      # -------------------------------------------------
+      ctx$files$obs_file   <- input$obs_file
+      ctx$data$obs         <- obs
+      ctx$data$site_info   <- site_info
+      
+      ctx$data$dataset_name <- ctx$form$dataset_name
+      ctx$data$version      <- ctx$form$version
+      ctx$data$embargo      <- ctx$form$embargo
+      ctx$data$description  <- ctx$form$description
+      
+      # -------------------------------------------------
+      # FSM TRANSITION
+      # -------------------------------------------------
       step(3)
     })
     
