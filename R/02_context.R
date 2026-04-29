@@ -13,20 +13,6 @@ create_app_context <- function() {
   
   ctx <- new.env(parent = emptyenv())
   
-  ctx$fsm <- shiny::reactiveValues(
-    state = "tab1",
-    focus_tab = NULL,
-    focus_field = NULL,
-    focus_row = NULL,
-    focus_id = NULL
-  )
-  
-  ctx$signals <- shiny::reactiveValues(
-    tab1_done = FALSE,
-    tab2_done = FALSE,
-    tab3_done = FALSE
-  )
-  
   ctx$data <- shiny::reactiveValues(
     obs_raw = NULL,        # ADD
     obs_truth = NULL,
@@ -83,22 +69,6 @@ create_app_context <- function() {
     
     metadata = NULL
   )
-  
-  # ctx$ui <- shiny::reactiveValues(
-  #   
-  #   tab1 = list(
-  #     header_valid = FALSE,
-  #     submit_valid = FALSE
-  #   ),
-  #   
-  #   tab2 = list(
-  #     header_valid = FALSE
-  #   ),
-  #   
-  #   tab3 = list(
-  #     header_valid = FALSE
-  #   )
-  # )
   
   ctx
 }

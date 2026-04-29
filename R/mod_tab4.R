@@ -18,52 +18,65 @@
 #' @importFrom bslib nav_panel card card_header card_body
 #' @importFrom htmltools tagList div
 #' @importFrom bsicons bs_icon
-#' @importFrom rhandsontable rHandsontableOutput
 #' 
 mod_tab4_ui <- function(id) {
   ns <- shiny::NS(id)
   
   bslib::nav_panel(
-    title = "Metadata",
+    title = "Export",
     value = "tab4",
     
     fluidRow(
       
+      # =====================================================
+      # LEFT PANEL (CONTROL)
+      # =====================================================
       column(
-        3,
+        4,
         
         bslib::card(
-          bslib::card_header("Metadata mode"),
+          bslib::card_header("4.1 Final validation"),
+          
           bslib::card_body(
-            radioButtons(
-              ns("mode"),
-              "Choose mode",
-              choices = c("Upload file" = "upload",
-                          "In-app editor" = "in_app")
-            ),
             
-            br(),
+            uiOutput(ns("final_status")),
             
-            fileInput(ns("meta_file"), "Upload metadata (optional)")
+            tags$hr(),
+            
+            actionButton(
+              ns("run_final_check"),
+              "Run final check",
+              class = "btn btn-primary w-100"
+            )
           )
         ),
         
         bslib::card(
-          bslib::card_header("Validation"),
+          bslib::card_header("4.2 Export"),
+          
           bslib::card_body(
-            uiOutput(ns("validation_message")),
-            actionButton(ns("continue"), "Continue →", class = "btn btn-primary")
+            
+            uiOutput(ns("export_state")),
+            
+            downloadButton(
+              ns("download_zip"),
+              "Download package",
+              class = "btn btn-success w-100"
+            )
           )
         )
       ),
       
+      # =====================================================
+      # RIGHT PANEL (SUMMARY)
+      # =====================================================
       column(
-        9,
+        8,
         
         bslib::card(
-          bslib::card_header("Metadata preview"),
+          bslib::card_header("Dataset summary"),
           bslib::card_body(
-            DT::DTOutput(ns("meta_table"))
+            DT::DTOutput(ns("summary_table"))
           )
         )
       )
@@ -92,79 +105,99 @@ mod_tab4_server <- function(id, ctx) {
     ns <- session$ns
     
     # =====================================================
-    # MODE SELECTION (V2 ONLY)
+    # 🧠 SINGLE SOURCE OF TRUTH (EXPORT GATE)
     # =====================================================
-    observeEvent(input$mode, {
-      ctx$v2$meta_mode <- input$mode
+    export_ready <- reactive({
+      
+      isTRUE(ctx$v2$dataset_valid) &&
+        isTRUE(ctx$v2$obs_uploaded) &&
+        isTRUE(ctx$v2$qa_ready) &&
+        isTRUE(ctx$v2$meta_ready)
     })
     
     # =====================================================
-    # METADATA INGESTION (ONLY IF UPLOAD MODE)
+    # 🧠 SYNC V2 EXPORT FLAG (ONLY HERE)
     # =====================================================
-    observeEvent(input$meta_file, {
-      
-      req(input$meta_file)
-      
-      meta <- tryCatch(
-        read_xylo_meta_raw(input$meta_file$datapath) |>
-          build_xylo_meta_clean(),
-        error = function(e) {
-          shiny::showNotification(e$message, type = "error")
-          NULL
-        }
-      )
-      
-      req(!is.null(meta))
-      
-      ctx$data$meta <- meta
-      ctx$v2$meta_ready <- TRUE
-    })
-    
-    # =====================================================
-    # SIMPLE VALIDATION (V2 ONLY)
-    # =====================================================
-    meta_valid <- reactive({
-      !is.null(ctx$data$meta) && nrow(ctx$data$meta) > 0
-    })
-    
     observe({
-      ctx$v2$meta_valid <- meta_valid()
+      ctx$v2$export_ready <- export_ready()
     })
     
     # =====================================================
-    # TABLE
+    # 📊 FINAL STATUS UI
     # =====================================================
-    output$meta_table <- DT::renderDT({
+    output$final_status <- renderUI({
       
-      req(ctx$data$meta)
-      
-      DT::datatable(ctx$data$meta)
-    })
-    
-    # =====================================================
-    # MESSAGE
-    # =====================================================
-    output$validation_message <- renderUI({
-      
-      if (isTRUE(meta_valid())) {
-        tags$div("✔ Metadata OK", style="color:green")
+      if (export_ready()) {
+        tags$div(class = "alert alert-success", "✔ Dataset ready for export")
       } else {
-        tags$div("✖ Missing metadata", style="color:red")
+        tags$div(class = "alert alert-danger", "✖ Dataset incomplete")
       }
     })
     
     # =====================================================
-    # CONTINUE → NEXT STATE
+    # 📦 EXPORT STATE UI
     # =====================================================
-    observeEvent(input$continue, {
+    output$export_state <- renderUI({
       
-      if (!meta_valid()) {
-        showNotification("Fix metadata first", type = "error")
-        return()
+      if (export_ready()) {
+        tags$div(class = "alert alert-success", "Export unlocked")
+      } else {
+        tags$div(class = "alert alert-secondary", "Export locked")
       }
+    })
+    
+    # =====================================================
+    # 📋 SUMMARY (READ ONLY V2)
+    # =====================================================
+    output$summary_table <- DT::renderDT({
       
-      ctx$v2$meta_ready <- TRUE
-      ctx$v2$stage <- "DONE"
+      data.frame(
+        step = c("Dataset", "Observation", "QA", "Metadata", "Export"),
+        status = c(
+          ctx$v2$dataset_valid,
+          ctx$v2$obs_uploaded,
+          ctx$v2$qa_ready,
+          ctx$v2$meta_ready,
+          ctx$v2$export_ready
+        )
+      )
+    })
+    
+    # =====================================================
+    # 📦 DOWNLOAD HANDLER (GUARDED)
+    # =====================================================
+    output$download_zip <- downloadHandler(
+      
+      filename = function() {
+        paste0("xylo_export_", Sys.Date(), ".zip")
+      },
+      
+      content = function(file) {
+        
+        req(export_ready())
+        
+        tmp <- tempdir()
+        
+        saveRDS(ctx$data$obs_truth, file.path(tmp, "obs.rds"))
+        saveRDS(ctx$data$meta, file.path(tmp, "meta.rds"))
+        
+        zip::zipr(file, files = c(
+          file.path(tmp, "obs.rds"),
+          file.path(tmp, "meta.rds")
+        ))
+      }
+    )
+    
+    # =====================================================
+    # 🧪 FINAL CHECK (OPTIONAL DEBUG ONLY)
+    # =====================================================
+    observeEvent(input$run_final_check, {
+      
+      if (export_ready()) {
+        showNotification("All checks passed", type = "message")
+      } else {
+        showNotification("Missing required steps", type = "error")
+      }
     })
     
   })

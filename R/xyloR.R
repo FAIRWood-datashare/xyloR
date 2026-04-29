@@ -35,43 +35,32 @@ xyloR <- function() {
       bslib::nav_panel("Tab4", value = "tab4", mod_tab4_ui("tab4")),
       
       bslib::nav_panel(
-        "FSM Debug",
+        "Debug",
         value = "debug",
         
         shiny::fluidRow(
           
           shiny::column(
             4,
-            
             shiny::tags$div(
               style = "padding:10px; border:1px solid #444; border-radius:6px;",
               
-              shiny::tags$h4("FSM Runtime Inspector"),
+              shiny::tags$h4("V2 Runtime"),
               shiny::tags$hr(),
               
-              shiny::tags$b("State: "),
-              shiny::textOutput("fsm_state"),
+              shiny::tags$b("Stage: "),
+              shiny::textOutput("v2_state"),
               
               shiny::br(),
-              shiny::tags$b("Last Transition Table:"),
-              DT::dataTableOutput("fsm_history_table")
+              shiny::tags$b("Transitions:"),
+              DT::dataTableOutput("history_table")
             )
           ),
           
           shiny::column(
             8,
-            visNetwork::visNetworkOutput("fsm_graph", height = "450px")
+            visNetwork::visNetworkOutput("graph", height = "450px")
           )
-        ),
-        
-        shiny::tags$hr(),
-        
-        shiny::tags$h5("Signals"),
-        
-        shiny::tags$ul(
-          shiny::tags$li(shiny::textOutput("sig_tab1")),
-          shiny::tags$li(shiny::textOutput("sig_tab2")),
-          shiny::tags$li(shiny::textOutput("sig_tab3"))
         )
       )
     )
@@ -79,54 +68,73 @@ xyloR <- function() {
   
   server <- function(input, output, session) {
     
+    # =====================================================
+    # CONTEXT
+    # =====================================================
     ctx <- create_app_context()
     ctx$v2 <- create_minimal_state()
     
+    # =====================================================
+    # SAFE DERIVED STATE STORE (IMPORTANT FIX)
+    # =====================================================
+    v2_state <- reactiveVal(NULL)
+    
+    # =====================================================
+    # V2 REACTOR (FIXED: NO SELF-WRITE LOOP)
+    # =====================================================
     observe({
       
-      req(ctx$v2$stage)
+      req(ctx$v2)
       
-      stage <- isolate(ctx$v2$stage)
+      state <- compute_v2_state(ctx)
       
-      switch(stage,
-             
-             "tab1" = nav_select("tab1"),
-             "tab2" = nav_select("tab2"),
-             "tab3" = nav_select("tab3"),
-             "tab4" = nav_select("tab4"),
-             "tab5" = nav_select("tab5"),
-             "tab6" = nav_select("tab6"),
-             "tab7" = nav_select("tab7"),
-             "tab8" = nav_select("tab8"),
-             "tab9" = nav_select("tab9")
-             
-      )
-    })
-    
-    last_stage <- reactiveVal(NULL)
-    
-    observe({
-      
-      req(ctx$v2$stage)
-      
-      if (identical(ctx$v2$stage, last_stage()))
-        return()
-      
-      last_stage(ctx$v2$stage)
-      
+      v2_state(state)
     })
     
     # =====================================================
-    # INIT DEBUG HISTORY (CRITICAL FIX)
+    # APPLY DERIVED STATE (ONE DIRECTION ONLY)
+    # =====================================================
+    observe({
+      
+      state <- v2_state()
+      req(state)
+      
+      isolate({
+        ctx$v2$dataset_ready   <- state$dataset_valid
+        ctx$v2$ingestion_ready <- state$ingestion_ready
+        ctx$v2$qa_ready        <- state$qa_ready
+        ctx$v2$meta_ready      <- state$meta_ready
+        ctx$v2$export_ready    <- state$export_ready
+      })
+    })
+    
+    # =====================================================
+    # SAFE HISTORY STORE
     # =====================================================
     ctx$debug$history <- shiny::reactiveVal(
       data.frame(
         from = character(),
         to = character(),
         trigger = character(),
-        timestamp = as.POSIXct(character())
+        timestamp = as.POSIXct(character()),
+        stringsAsFactors = FALSE
       )
     )
+    
+    log_transition <- function(from, to, trigger) {
+      
+      old <- ctx$debug$history()
+      
+      new_row <- data.frame(
+        from = ifelse(is.null(from), "START", from),
+        to = ifelse(is.null(to), NA_character_, to),
+        trigger = trigger,
+        timestamp = Sys.time(),
+        stringsAsFactors = FALSE
+      )
+      
+      ctx$debug$history(rbind(old, new_row))
+    }
     
     # =====================================================
     # MODULES
@@ -137,121 +145,66 @@ xyloR <- function() {
     mod_tab4_server("tab4", ctx)
     
     # =====================================================
-    # FSM ENGINE
+    # NAVIGATION (SAFE)
     # =====================================================
     observe({
-      
-      req(ctx$fsm$state)
-      
-      current <- ctx$fsm$state
-      next_state <- current
-      
-      tab1_ok <- isTRUE(ctx$signals$tab1_done)
-      tab2_ok <- isTRUE(ctx$signals$tab2_done)
-      tab3_ok <- isTRUE(ctx$signals$tab3_done)
-      
-      trigger <- NULL
-      
-      if (current == "tab1" && tab1_ok) {
-        next_state <- "tab2"
-        trigger <- "tab1_done"
-      }
-      
-      if (current == "tab2" && tab2_ok) {
-        next_state <- "tab3"
-        trigger <- "tab2_done"
-      }
-      
-      if (current == "tab3" && tab3_ok) {
-        next_state <- "DONE"
-        trigger <- "tab3_done"
-      }
-      
-      if (!identical(current, next_state)) {
-        
-        ctx$fsm$state <- next_state
-        
-        # =====================================================
-        # SAFE HISTORY APPEND (NO rbind growth issues later)
-        # =====================================================
-        hist <- ctx$debug$history()
-        
-        new_row <- data.frame(
-          from = current,
-          to = next_state,
-          trigger = trigger,
-          timestamp = Sys.time()
-        )
-        
-        ctx$debug$history(rbind(hist, new_row))
-      }
-    })
-    
-    # =====================================================
-    # NAVIGATION
-    # =====================================================
-    observe({
-      
-      stage <- ctx$v2$stage
-      req(stage)
-      
-      cat("NAV TARGET:", stage, "\n")
+      req(ctx$v2$stage)
       
       bslib::nav_select(
         id = "tabs",
-        selected = stage,
+        selected = ctx$v2$stage,
         session = session
       )
     })
     
     # =====================================================
-    # FSM STATE OUTPUT
+    # TRANSITION TRACKING
     # =====================================================
-    output$fsm_state <- shiny::renderText({
-      ctx$fsm$state
+    last_stage <- reactiveVal(NULL)
+    
+    observe({
+      
+      req(ctx$v2$stage)
+      
+      if (!identical(ctx$v2$stage, last_stage())) {
+        
+        log_transition(
+          from = last_stage(),
+          to = ctx$v2$stage,
+          trigger = "stage_change"
+        )
+        
+        last_stage(ctx$v2$stage)
+      }
     })
     
     # =====================================================
-    # HISTORY TABLE
+    # DEBUG UI
     # =====================================================
-    output$fsm_history_table <- DT::renderDataTable({
+    output$v2_state <- renderText({
+      paste0("V2 stage: ", ctx$v2$stage)
+    })
+    
+    output$history_table <- DT::renderDataTable({
       DT::datatable(ctx$debug$history(), options = list(pageLength = 5))
     })
     
     # =====================================================
-    # SIGNALS
+    # GRAPH
     # =====================================================
-    output$sig_tab1 <- shiny::renderText({
-      paste("tab1_done:", ctx$signals$tab1_done)
-    })
-    
-    output$sig_tab2 <- shiny::renderText({
-      paste("tab2_done:", ctx$signals$tab2_done)
-    })
-    
-    output$sig_tab3 <- shiny::renderText({
-      paste("tab3_done:", ctx$signals$tab3_done)
-    })
-    
-    # =====================================================
-    # FSM GRAPH (SAFE VERSION)
-    # =====================================================
-    output$fsm_graph <- visNetwork::renderVisNetwork({
+    output$graph <- visNetwork::renderVisNetwork({
       
       nodes <- data.frame(
-        id = c("tab1", "tab2", "tab3", "DONE"),
-        label = c("Tab 1", "Tab 2", "Tab 3", "DONE"),
-        color = ifelse(
-          c("tab1","tab2","tab3","DONE") == ctx$fsm$state,
-          "#00C853",
-          "#2C3E50"
-        ),
+        id = c("tab1","tab2","tab3","tab4"),
+        label = c("Tab 1","Tab 2","Tab 3","Tab 4"),
+        color = ifelse(c("tab1","tab2","tab3","tab4") == ctx$v2$stage,
+                       "#00C853", "#2C3E50"),
         shape = "box"
       )
       
       edges <- data.frame(
-        from = c("tab1", "tab2", "tab3"),
-        to   = c("tab2", "tab3", "DONE"),
+        from = c("tab1","tab2","tab3"),
+        to   = c("tab2","tab3","tab4"),
         arrows = "to"
       )
       

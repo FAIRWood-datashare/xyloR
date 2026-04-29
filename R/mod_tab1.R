@@ -112,59 +112,38 @@ mod_tab1_server <- function(id, ctx, session_global) {
     
     ns <- session$ns
     
-    observe({
-      
-      ctx$form$dataset_name <- isolate(input$dataset_name)
-      ctx$form$version      <- isolate(input$version)
-      ctx$form$description  <- isolate(input$description)
-      ctx$form$embargo      <- isolate(input$embargo)
-      
-    })
-    
     # =====================================================
-    # 🧠 FORM → CTX SYNC
-    # =====================================================
-    observeEvent(input$dataset_name, {
-      ctx$form$dataset_name <- input$dataset_name
-    }, ignoreInit = TRUE)
-    
-    observeEvent(input$version, {
-      ctx$form$version <- input$version
-    }, ignoreInit = TRUE)
-    
-    observeEvent(input$description, {
-      ctx$form$description <- input$description
-    }, ignoreInit = TRUE)
-    
-    observeEvent(input$embargo, {
-      ctx$form$embargo <- input$embargo
-    }, ignoreInit = TRUE)
-    
-    # =====================================================
-    # 🧠 VALIDATION
+    # 🧠 VALIDATION (SINGLE SOURCE OF TRUTH)
     # =====================================================
     dataset_valid <- reactive({
       
-      name    <- ctx$form$dataset_name
-      version <- ctx$form$version
-      desc    <- ctx$form$description
-      embargo <- ctx$form$embargo
+      name    <- input$dataset_name
+      version <- input$version
+      desc    <- input$description
+      embargo <- input$embargo
       
       if (is.null(name) || is.null(version) || is.null(desc) || is.null(embargo))
         return(FALSE)
       
-      nchar(name) >= 3 &&
+      valid_name <-
+        nchar(name) >= 3 &&
         nchar(name) <= 8 &&
-        grepl("^[A-Z0-9]+$", name) &&
-        version >= 1 && version <= 99 &&
-        nchar(trimws(desc)) >= 50 &&
-        as.Date(embargo) >= Sys.Date()
+        grepl("^[A-Z0-9]+$", name)
+      
+      valid_version <- version >= 1 && version <= 99
+      
+      valid_desc <- nchar(trimws(desc)) >= 50
+      
+      valid_date <- as.Date(embargo) >= Sys.Date()
+      
+      valid_name && valid_version && valid_desc && valid_date
     })
     
     # =====================================================
-    # 🧭 V2 STATE SYNC
+    # 🧭 V2 STATE WRITE (ONLY PLACE THAT MATTERS)
     # =====================================================
     observe({
+      
       valid <- dataset_valid()
       
       ctx$v2$dataset_valid <- valid
@@ -172,38 +151,32 @@ mod_tab1_server <- function(id, ctx, session_global) {
     })
     
     # =====================================================
-    # 🎨 UI FEEDBACK
+    # 🎨 UI STATE (BUTTON + HEADER ONLY)
     # =====================================================
     observe({
       
       valid <- dataset_valid()
       
-      if (valid) {
-        shinyjs::enable("submit")
-      } else {
-        shinyjs::disable("submit")
-      }
+      # enable/disable button
+      if (valid) shinyjs::enable("submit")
+      else shinyjs::disable("submit")
       
+      # color logic
       color <- if (valid) "#198754" else "#dc3545"
       
       shinyjs::runjs(sprintf("
-  var header = document.getElementById('%s');
-  if (header) {
-    header.style.backgroundColor = '%s';
-    header.style.color = '#fff';
-  }
+        var header = document.getElementById('%s');
+        if (header) {
+          header.style.backgroundColor = '%s';
+          header.style.color = '#fff';
+        }
 
-  var btn = document.getElementById('%s');
-  if (btn) {
-    if (%s) {
-      btn.classList.remove('btn-secondary');
-      btn.classList.add('btn-success');
-    } else {
-      btn.classList.remove('btn-success');
-      btn.classList.add('btn-secondary');
-    }
-  }
-",
+        var btn = document.getElementById('%s');
+        if (btn) {
+          btn.classList.remove('btn-success','btn-secondary');
+          btn.classList.add(%s ? 'btn-success' : 'btn-secondary');
+        }
+      ",
                              ns("card_header1"),
                              color,
                              ns("submit"),
@@ -212,7 +185,7 @@ mod_tab1_server <- function(id, ctx, session_global) {
     })
     
     # =====================================================
-    # 🚀 NAVIGATION → TAB2
+    # 🚀 NAVIGATION
     # =====================================================
     observeEvent(input$submit, {
       
@@ -222,37 +195,46 @@ mod_tab1_server <- function(id, ctx, session_global) {
     })
     
     # =====================================================
-    # 🧾 VALIDATION LABELS (UNCHANGED)
+    # 🧾 VALIDATION UI (CLEAN + INPUT-BASED ONLY)
     # =====================================================
     output$v_name <- renderUI({
-      ok <- !is.null(ctx$form$dataset_name) &&
-        nchar(ctx$form$dataset_name) >= 3 &&
-        nchar(ctx$form$dataset_name) <= 8 &&
-        grepl("^[A-Z0-9]*$", ctx$form$dataset_name)
+      
+      name <- input$dataset_name
+      
+      ok <- !is.null(name) &&
+        nchar(name) >= 3 &&
+        nchar(name) <= 8 &&
+        grepl("^[A-Z0-9]*$", name)
       
       if (ok) tags$span("✔ valid", style="color:green;font-size:14px;")
       else tags$span("✖ 3–8 uppercase letters/numbers", style="color:red;font-size:14px;")
     })
     
     output$v_version <- renderUI({
-      ok <- !is.null(ctx$form$version) &&
-        ctx$form$version >= 1 && ctx$form$version <= 99
+      
+      v <- input$version
+      
+      ok <- !is.null(v) && v >= 1 && v <= 99
       
       if (ok) tags$span("✔ valid", style="color:green;font-size:14px;")
       else tags$span("✖ must be 1–99", style="color:red;font-size:14px;")
     })
     
     output$v_description <- renderUI({
-      ok <- !is.null(ctx$form$description) &&
-        nchar(trimws(ctx$form$description)) >= 50
+      
+      d <- input$description
+      
+      ok <- !is.null(d) && nchar(trimws(d)) >= 50
       
       if (ok) tags$span("✔ valid", style="color:green;font-size:14px;")
       else tags$span("✖ at least 50 characters", style="color:red;font-size:14px;")
     })
     
     output$v_embargo <- renderUI({
-      ok <- !is.null(ctx$form$embargo) &&
-        as.Date(ctx$form$embargo) >= Sys.Date()
+      
+      e <- input$embargo
+      
+      ok <- !is.null(e) && as.Date(e) >= Sys.Date()
       
       if (ok) tags$span("✔ valid", style="color:green;font-size:14px;")
       else tags$span("✖ invalid date", style="color:red;font-size:14px;")

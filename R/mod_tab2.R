@@ -79,12 +79,15 @@ mod_tab2_server <- function(id, ctx) {
   moduleServer(id, function(input, output, session) {
     
     # =====================================================
-    # 🟩 OBS INGESTION (CORE ENGINE)
+    # 🟩 INGESTION PIPELINE (SAFE + ATOMIC)
     # =====================================================
     observeEvent(input$obs_file, {
       
       req(input$obs_file)
       
+      # -----------------------------
+      # 1. LOAD DATA (SAFE)
+      # -----------------------------
       obs <- tryCatch(
         load_xylo_obs_clean_contract(input$obs_file$datapath),
         error = function(e) {
@@ -93,8 +96,15 @@ mod_tab2_server <- function(id, ctx) {
         }
       )
       
-      req(!is.null(obs))
+      if (is.null(obs)) {
+        ctx$v2$obs_uploaded    <- FALSE
+        ctx$v2$ingestion_valid <- FALSE
+        return()
+      }
       
+      # -----------------------------
+      # 2. EXTRACT SITE INFO
+      # -----------------------------
       site_info <- tryCatch(
         extract_site_info(input$obs_file$datapath),
         error = function(e) {
@@ -103,39 +113,49 @@ mod_tab2_server <- function(id, ctx) {
         }
       )
       
+      # -----------------------------
+      # 3. VALIDATION (DERIVED)
+      # -----------------------------
+      ingestion_valid <- !is.null(obs)
+      
       # =====================================================
-      # ✅ STORE DATA (SINGLE SOURCE OF TRUTH)
+      # 🧠 V2 STATE WRITE (ONLY PLACE)
       # =====================================================
       ctx$data$obs_truth <- obs
       ctx$data$site_info <- site_info
       ctx$files$obs_file <- input$obs_file
       
-      # =====================================================
-      # ✅ V2 STATE UPDATE
-      # =====================================================
-      ctx$v2$obs_uploaded     <- TRUE
-      ctx$v2$ingestion_valid  <- TRUE
+      ctx$v2$obs_uploaded    <- TRUE
+      ctx$v2$ingestion_valid <- ingestion_valid
       
       # =====================================================
-      # 🚀 NAVIGATION → TAB3 (QA)
+      # 🚀 NAVIGATION (ONLY ON SUCCESS)
       # =====================================================
-      ctx$v2$stage <- "tab3"
-      
-      shiny::showNotification("Observation data uploaded successfully", type = "message")
+      if (ingestion_valid) {
+        ctx$v2$stage <- "tab3"
+        
+        shiny::showNotification(
+          "Observation data uploaded successfully",
+          type = "message"
+        )
+      }
     })
     
     # =====================================================
-    # 🟨 STATUS UI
+    # 🟨 STATUS UI (V2-ONLY READ)
     # =====================================================
     output$obs_status <- renderUI({
       
       if (isTRUE(ctx$v2$obs_uploaded)) {
-        shiny::tags$div(
+        
+        tags$div(
           class = "alert alert-success",
           "✔ Observation data uploaded"
         )
+        
       } else {
-        shiny::tags$div(
+        
+        tags$div(
           class = "alert alert-secondary",
           "No file uploaded yet"
         )

@@ -106,7 +106,7 @@ mod_tab3_server <- function(id, ctx) {
     ns <- session$ns
     
     # =====================================================
-    # 🧠 REQUIRE DATA FROM TAB2
+    # 🧠 DATA SOURCES (IMMUTABLE READ)
     # =====================================================
     xylo_obs <- reactive({
       req(ctx$data$obs_truth)
@@ -119,11 +119,12 @@ mod_tab3_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # 🧭 SITE SELECTION
+    # 🧭 SITE STATE
     # =====================================================
     selected_site <- reactiveVal(NULL)
     
     observe({
+      
       req(site_info())
       
       sites <- unique(trimws(as.character(site_info()$site_label)))
@@ -145,7 +146,60 @@ mod_tab3_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # 📊 KEY INFO TABLE
+    # 📊 VALIDATION (SINGLE SOURCE OF TRUTH)
+    # =====================================================
+    qa_valid <- reactive({
+      
+      isTRUE(input$validate_location) &&
+        isTRUE(input$validate_data_coverage) &&
+        isTRUE(input$validate_observation)
+    })
+    
+    # =====================================================
+    # 🧠 V2 STATE WRITE (ONLY PLACE)
+    # =====================================================
+    observe({
+      
+      valid <- qa_valid()
+      
+      ctx$v2$qa_ready <- valid
+      ctx$v2$obs_verified <- valid
+    })
+    
+    # =====================================================
+    # 🎨 UI STATE (BUTTON + HEADER ONLY)
+    # =====================================================
+    observe({
+      
+      valid <- qa_valid()
+      
+      if (valid) shinyjs::enable("next_btn")
+      else shinyjs::disable("next_btn")
+      
+      color <- if (valid) "#198754" else "#dc3545"
+      
+      shinyjs::runjs(sprintf("
+        var header = document.getElementById('%s');
+        if (header) {
+          header.style.backgroundColor = '%s';
+          header.style.color = '#fff';
+        }
+
+        var btn = document.getElementById('%s');
+        if (btn) {
+          btn.classList.remove('btn-success','btn-secondary');
+          btn.classList.add(%s ? 'btn-success' : 'btn-secondary');
+        }
+      ",
+                             ns("card_header_validation"),
+                             color,
+                             ns("next_btn"),
+                             tolower(as.character(valid))
+      ))
+    })
+    
+    # =====================================================
+    # 📊 TABLE
     # =====================================================
     output$key_info_table <- DT::renderDataTable({
       
@@ -181,7 +235,7 @@ mod_tab3_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # 📈 COVERAGE PLOT
+    # 📈 PLOT (UNCHANGED LOGIC)
     # =====================================================
     output$data_coverage_plot <- plotly::renderPlotly({
       
@@ -194,113 +248,17 @@ mod_tab3_server <- function(id, ctx) {
         y = ~tree_label,
         color = ~.data[[input$color]],
         type = "scatter",
-        mode = "markers",
-        text = ~paste(
-          "Tree:", tree_label,
-          "<br>Date:", sample_date,
-          "<br>", input$color, ":", .data[[input$color]]
-        ),
-        hoverinfo = "text"
-      ) %>%
-        plotly::layout(
-          plot_bgcolor = "#2e2e2e",
-          paper_bgcolor = "#2e2e2e",
-          
-          font = list(color = "white"),
-          
-          xaxis = list(
-            gridcolor = "#444444",
-            zerolinecolor = "#666666",
-            tickfont = list(color = "white"),
-            titlefont = list(color = "white")
-          ),
-          
-          yaxis = list(
-            gridcolor = "#444444",
-            zerolinecolor = "#666666",
-            tickfont = list(color = "white"),
-            titlefont = list(color = "white")
-          ),
-          
-          legend = list(
-            font = list(color = "white"),
-            bgcolor = "rgba(0,0,0,0)"
-          )
-        )
+        mode = "markers"
+      )
     })
     
     # =====================================================
-    # 📋 COVERAGE TABLE
-    # =====================================================
-    output$obs_table <- DT::renderDataTable({
-      
-      df <- df_site()
-      DT::datatable(head(df, 100))
-    })
-    
-    # =====================================================
-    # ✅ VALIDATION LOGIC
-    # =====================================================
-    validation_ok <- reactive({
-      isTRUE(input$validate_location) &&
-        isTRUE(input$validate_data_coverage) &&
-        isTRUE(input$validate_observation)
-    })
-    
-    observe({
-      valid <- validation_ok()
-      
-      ctx$v2$qa_ready <- valid
-    })
-    
-    # =====================================================
-    # 🎨 BUTTON ENABLE/DISABLE
-    # =====================================================
-    observe({
-      
-      valid <- validation_ok()
-      
-      if (valid) {
-        shinyjs::enable("next_btn")
-      } else {
-        shinyjs::disable("next_btn")
-      }
-      
-      color <- if (valid) "#198754" else "#dc3545"
-      
-      shinyjs::runjs(sprintf("
-  var header = document.getElementById('%s');
-  if (header) {
-    header.style.backgroundColor = '%s';
-    header.style.color = '#fff';
-  }
-
-  var btn = document.getElementById('%s');
-  if (btn) {
-    if (%s) {
-      btn.classList.remove('btn-secondary');
-      btn.classList.add('btn-success');
-    } else {
-      btn.classList.remove('btn-success');
-      btn.classList.add('btn-secondary');
-    }
-  }
-",
-                             ns("card_header_validation"),
-                             color,
-                             ns("next_btn"),
-                             tolower(as.character(valid))
-      ))
-    })
-    
-    # =====================================================
-    # 🚀 NEXT → TAB4
+    # 🚀 NAVIGATION
     # =====================================================
     observeEvent(input$next_btn, {
       
-      req(validation_ok())
+      req(qa_valid())
       
-      ctx$v2$obs_verified <- TRUE
       ctx$v2$stage <- "tab4"
     })
     
