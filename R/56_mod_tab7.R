@@ -11,7 +11,7 @@
 #' @importFrom DT DTOutput
 #' @importFrom rhandsontable rHandsontableOutput
 #' @export
-mod_tab7_ui <- function(id) {
+Zmod_tab7_ui <- function(id) {
   ns <- shiny::NS(id)
   
   bslib::nav_panel(
@@ -211,7 +211,7 @@ mod_tab7_ui <- function(id) {
 #' 
 #' # ---- ORCID HELPERS -------------------------------------------------
 
-mod_tab7_server <- function(id, ctx, session) {
+Zmod_tab7_server <- function(id, ctx, session) {
   moduleServer(id, function(input, output, session) {
     
     # =====================================================
@@ -220,6 +220,8 @@ mod_tab7_server <- function(id, ctx, session) {
     form_visible <- shiny::reactiveVal(FALSE)
     edit_mode    <- shiny::reactiveVal(FALSE)
     selected_row <- shiny::reactiveVal(NULL)
+    
+    orcid_data <- shiny::reactiveVal(NULL)
     
     # =====================================================
     # CLEAR FORM
@@ -236,9 +238,7 @@ mod_tab7_server <- function(id, ctx, session) {
       )
       
       lapply(fields, function(f) {
-        if (!is.null(input[[f]])) {
-          shiny::updateTextInput(session, f, value = "")
-        }
+        shiny::updateTextInput(session, f, value = "")
       })
       
       shiny::updateSelectInput(session, "person_role", selected = "")
@@ -246,12 +246,12 @@ mod_tab7_server <- function(id, ctx, session) {
     }
     
     # =====================================================
-    # 1. DATA INIT
+    # DATA INIT
     # =====================================================
     dperson <- shiny::reactiveVal()
     
-    shiny::observe({
-      shiny::req(ctx$files$wb_meta)
+    observe({
+      req(ctx$files$wb_meta)
       
       df <- openxlsx::readWorkbook(
         ctx$files$wb_meta,
@@ -259,35 +259,30 @@ mod_tab7_server <- function(id, ctx, session) {
         startRow = 1,
         colNames = TRUE
       )[-(1:6), ] |>
-        tibble::tibble()
+        tibble::as_tibble()
       
       dperson(df)
     })
     
-    shiny::observe({
-      shiny::req(dperson())
+    observe({
+      req(dperson())
       ctx$data$tbl6 <- dperson()
     })
     
     # =====================================================
-    # 2. FORM VISIBILITY
+    # FORM VISIBILITY
     # =====================================================
-    shiny::observeEvent(input$show_add_person, {
+    observeEvent(input$show_add_person, {
       form_visible(TRUE)
       edit_mode(FALSE)
       clear_person_fields(session)
     })
     
-    output$form_visible <- shiny::renderText(as.character(form_visible()))
-    shiny::outputOptions(output, "form_visible", suspendWhenHidden = FALSE)
-    
     # =====================================================
-    # 3. TABLE RENDER
+    # TABLE
     # =====================================================
     output$tbl6 <- rhandsontable::renderRHandsontable({
-      shiny::req(ctx$data$tbl6)
-      
-      col_cfg <- ctx$data$column_configs
+      req(ctx$data$tbl6)
       
       rhandsontable::rhandsontable(
         ctx$data$tbl6,
@@ -296,27 +291,13 @@ mod_tab7_server <- function(id, ctx, session) {
         stretchH = "all",
         selectCallback = TRUE,
         height = 150
-      ) |>
-        hot_col_wrapper("person_role", col_cfg$tbl6$person_role) |>
-        hot_col_wrapper("person_order", col_cfg$tbl6$person_order) |>
-        hot_col_wrapper("last_name", col_cfg$tbl6$last_name) |>
-        hot_col_wrapper("first_name", col_cfg$tbl6$first_name) |>
-        hot_col_wrapper("email", col_cfg$tbl6$email) |>
-        hot_col_wrapper("orcid", col_cfg$tbl6$orcid) |>
-        hot_col_wrapper("main_organization_name", col_cfg$tbl6$main_organization_name) |>
-        hot_col_wrapper("main_organization_registry", col_cfg$tbl6$main_organization_registry) |>
-        hot_col_wrapper("department", col_cfg$tbl6$department) |>
-        hot_col_wrapper("street", col_cfg$tbl6$street) |>
-        hot_col_wrapper("postal_code", col_cfg$tbl6$postal_code) |>
-        hot_col_wrapper("city", col_cfg$tbl6$city) |>
-        hot_col_wrapper("organization_country", col_cfg$tbl6$organization_country) |>
-        hot_col_wrapper("organization_country_code", col_cfg$tbl6$organization_country_code)
+      )
     })
     
     # =====================================================
-    # 4. ROW SELECTION
+    # ROW SELECT
     # =====================================================
-    shiny::observeEvent(input$tbl6_select$select$r, {
+    observeEvent(input$tbl6_select$select$r, {
       
       selected_row(input$tbl6_select$select$r)
       
@@ -327,25 +308,27 @@ mod_tab7_server <- function(id, ctx, session) {
     })
     
     # =====================================================
-    # 5. ADD / EDIT
+    # ADD / EDIT
     # =====================================================
-    shiny::observeEvent(input$add_person, {
+    observeEvent(input$add_person, {
+      
+      req(input$last_name, input$first_name)
       
       new_entry <- data.frame(
-        person_role                = input$person_role,
-        person_order               = input$person_order,
-        last_name                  = input$last_name,
-        first_name                 = input$first_name,
-        email                      = input$email,
-        orcid                      = input$orcid,
-        main_organization_name     = input$main_organization_name,
+        person_role = input$person_role,
+        person_order = input$person_order,
+        last_name = input$last_name,
+        first_name = input$first_name,
+        email = input$email,
+        orcid = input$orcid,
+        main_organization_name = input$main_organization_name,
         main_organization_registry = input$main_organization_registry,
-        department                 = input$department,
-        street                     = input$street,
-        postal_code                = input$postal_code,
-        city                       = input$city,
-        organization_country       = input$organization_country,
-        organization_country_code  = input$organization_country_code,
+        department = input$department,
+        street = input$street,
+        postal_code = input$postal_code,
+        city = input$city,
+        organization_country = input$organization_country,
+        organization_country_code = input$organization_country_code,
         stringsAsFactors = FALSE
       )
       
@@ -362,9 +345,9 @@ mod_tab7_server <- function(id, ctx, session) {
     })
     
     # =====================================================
-    # 6. UPDATE FORM
+    # UPDATE FORM
     # =====================================================
-    shiny::observeEvent(input$update_person, {
+    observeEvent(input$update_person, {
       
       req(selected_row())
       row <- selected_row()
@@ -372,39 +355,30 @@ mod_tab7_server <- function(id, ctx, session) {
       form_visible(TRUE)
       edit_mode(TRUE)
       
-      fields <- c(
-        "person_role", "person_order",
-        "last_name", "first_name", "email", "orcid",
-        "main_organization_name", "main_organization_registry",
-        "department", "street", "postal_code", "city",
-        "organization_country", "organization_country_code"
-      )
-      
-      for (f in fields) {
+      for (f in names(ctx$data$tbl6)) {
         val <- ctx$data$tbl6[[f]][row]
-        if (is.null(val) || is.na(val)) val <- ""
+        if (is.na(val)) val <- ""
         
-        if (f == "person_role") {
-          shiny::updateSelectInput(session, f, selected = val)
+        if (f %in% c("person_role")) {
+          updateSelectInput(session, f, selected = val)
         } else if (f == "person_order") {
-          shiny::updateNumericInput(session, f, value = val)
+          updateNumericInput(session, f, value = val)
         } else {
-          shiny::updateTextInput(session, f, value = val)
+          updateTextInput(session, f, value = val)
         }
       }
     })
     
     # =====================================================
-    # 7. DELETE
+    # DELETE
     # =====================================================
-    shiny::observeEvent(input$delete_person, {
+    observeEvent(input$delete_person, {
       
       row <- selected_row()
       
       if (!is.null(row) && row <= nrow(ctx$data$tbl6)) {
         ctx$data$tbl6 <- ctx$data$tbl6[-row, ]
         selected_row(NULL)
-        shiny::showNotification("Person deleted.", type = "message")
       }
       
       clear_person_fields(session)
@@ -413,30 +387,7 @@ mod_tab7_server <- function(id, ctx, session) {
     })
     
     # =====================================================
-    # 8. APPLY ORDER
-    # =====================================================
-    shiny::observeEvent(input$apply_order, {
-      
-      shiny::req(input$tbl6)
-      
-      ordered <- rhandsontable::hot_to_r(input$tbl6)
-      
-      ordered$person_order <- as.integer(ordered$person_order)
-      ordered <- ordered[order(ordered$person_order), ]
-      ordered$person_order <- seq_len(nrow(ordered))
-      
-      ctx$data$tbl6 <- ordered
-    })
-    
-    # =====================================================
-    # 9. TABLE SYNC
-    # =====================================================
-    shiny::observeEvent(input$tbl6, {
-      ctx$data$tbl6 <- rhandsontable::hot_to_r(input$tbl6)
-    })
-    
-    # =====================================================
-    # 10. ORCID SEARCH (CLEAN + SINGLE SOURCE OF TRUTH)
+    # ORCID SEARCH (CTX CLEAN)
     # =====================================================
     observeEvent(input$search_orcid, {
       
@@ -453,51 +404,41 @@ mod_tab7_server <- function(id, ctx, session) {
       )
     })
     
-    # ✅ SINGLE SOURCE ONLY (NO DUPLICATION)
-    observeEvent(ctx$external_api$orcid$results, {
-      req(ctx$external_api$orcid$results)
+    observe({
+      orcid_data(ctx$external_api$orcid$results)
     })
     
     # =====================================================
-    # 11. ORCID TABLE
+    # ORCID TABLE
     # =====================================================
     output$orcid_results_table <- DT::renderDT({
       
-      req(ctx$external_api$orcid$results)
+      req(orcid_data())
       
-      df <- ctx$external_api$orcid$results |>
-        dplyr::select(
-          ORCID = orcid_link,
-          `First Name` = first_name,
-          `Last Name` = last_name,
-          Email = email,
-          Organization = org_name
-        )
-      
-      DT::datatable(df, escape = FALSE, selection = "single")
+      DT::datatable(orcid_data(), escape = FALSE)
     })
     
     # =====================================================
-    # 12. ORCID ROW PICK
+    # APPLY ORCID ROW
     # =====================================================
     observeEvent(input$orcid_results_table_rows_selected, {
       
       sel <- input$orcid_results_table_rows_selected
       req(sel)
       
-      row <- ctx$external_api$orcid$results[sel, ]
+      row <- orcid_data()[sel, ]
       
-      shiny::updateTextInput(session, "orcid", value = row$orcid)
-      shiny::updateTextInput(session, "first_name", value = row$first_name)
-      shiny::updateTextInput(session, "last_name", value = row$last_name)
-      shiny::updateTextInput(session, "email", value = row$email)
-      shiny::updateTextInput(session, "main_organization_name", value = row$org_name)
+      updateTextInput(session, "orcid", value = row$orcid_id)
+      updateTextInput(session, "first_name", value = row$first_name)
+      updateTextInput(session, "last_name", value = row$last_name)
+      updateTextInput(session, "email", value = row$email)
+      updateTextInput(session, "main_organization_name", value = row$org_name)
     })
     
     # =====================================================
-    # 13. SAVE
+    # SAVE
     # =====================================================
-    shiny::observeEvent(input$save_person, {
+    observeEvent(input$save_person, {
       
       save_and_validate(
         data_reactive = ctx$data$tbl6,
@@ -506,6 +447,5 @@ mod_tab7_server <- function(id, ctx, session) {
         temp_folder = ctx$files$temp_folder
       )
     })
-    
   })
 }

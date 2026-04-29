@@ -28,46 +28,45 @@ mod_tab4_ui <- function(id) {
     
     fluidRow(
       
-      # LEFT: metadata editor
       column(
         6,
         
         bslib::card(
-          bslib::card_header("4.1 Site Metadata Editor"),
+          bslib::card_header("Metadata Editor"),
           
           bslib::card_body(
-            
             fileInput(ns("meta_upload"), "Upload metadata Excel (optional)"),
-            
             tags$hr(),
-            
             uiOutput(ns("meta_editor_ui")),
-            
             tags$hr(),
-            
-            actionButton(
-              ns("save_meta"),
-              "Save metadata working copy",
-              class = "btn btn-primary w-100"
-            )
+            actionButton(ns("save_meta"), "Save metadata", class = "btn btn-primary w-100")
           )
         )
       ),
       
-      # RIGHT: validation + preview
       column(
         6,
         
         bslib::card(
-          bslib::card_header("4.2 Metadata validation"),
+          bslib::card_header("System Validation Dashboard"),
           
           bslib::card_body(
             
             uiOutput(ns("meta_status")),
+            tags$hr(),
+            
+            DT::dataTableOutput(ns("engine_debug")),
+            tags$hr(),
+            
+            DT::dataTableOutput(ns("validation_obs_preview")),
+            tags$hr(),
+            
+            verbatimTextOutput(ns("engine_probe")),
             
             tags$hr(),
             
-            DT::DTOutput(ns("meta_preview"))
+            DT::dataTableOutput(ns("validation_table")),
+            textOutput(ns("engine_status"))
           )
         )
       )
@@ -93,35 +92,22 @@ mod_tab4_server <- function(id, ctx) {
   
   moduleServer(id, function(input, output, session) {
     
-    ns <- session$ns
-    
     # =====================================================
-    # 📦 METADATA SOURCE (prefill from obs if available)
+    # METADATA SOURCE
     # =====================================================
     meta_base <- reactive({
-      
       req(ctx$data$site_info)
-      
       ctx$data$site_info
     })
     
-    # =====================================================
-    # 📥 UPLOAD OVERRIDE (optional external Excel)
-    # =====================================================
     uploaded_meta <- reactive({
-      
       req(input$meta_upload)
-      
       readxl::read_excel(input$meta_upload$datapath)
     })
     
-    # =====================================================
-    # 🧠 WORKING COPY (CORE STATE FOR TAB 4)
-    # =====================================================
     meta_working <- reactiveVal()
     
     observe({
-      
       if (!is.null(input$meta_upload)) {
         meta_working(uploaded_meta())
       } else {
@@ -129,72 +115,103 @@ mod_tab4_server <- function(id, ctx) {
       }
     })
     
-    # =====================================================
-    # 💾 SAVE ACTION (locks into ctx)
-    # =====================================================
     observeEvent(input$save_meta, {
-      
       req(meta_working())
-      
       ctx$data$meta$working_copy <- meta_working()
-      
       ctx$state$meta_ready <- TRUE
     })
     
     # =====================================================
-    # 🧪 METADATA VALIDATION (LOCAL ONLY)
+    # SAFE ENGINE ACCESS
     # =====================================================
-    meta_validation <- reactive({
-      
-      req(meta_working())
-      
-      df <- meta_working()
-      
-      list(
-        complete = !any(is.na(df)),
-        n_sites = nrow(df)
-      )
+    safe_engine <- reactive({
+      req(ctx$engine_cache())
+      ctx$engine()
     })
     
-    # push into global validation layer
-    observe({
-      
-      ctx$validation$meta_initial_report <- meta_validation()
-    })
-    
-    # =====================================================
-    # 📊 STATUS UI
-    # =====================================================
-    output$meta_status <- renderUI({
-      
-      v <- meta_validation()
-      
-      if (isTRUE(v$complete)) {
-        tags$div(class = "alert alert-success", "✔ Metadata complete")
+    output$engine_status <- renderText({
+      if (is.null(ctx$engine_cache())) {
+        "❌ Engine not ready (missing obs data)"
       } else {
-        tags$div(class = "alert alert-warning", "⚠ Missing metadata fields")
+        "✅ Engine ready"
       }
     })
     
     # =====================================================
-    # 📋 PREVIEW TABLE
+    # 🔥 NORMALIZED VALIDATION TABLE (CORE FIX)
     # =====================================================
-    output$meta_preview <- DT::renderDT({
+    output$validation_table <- DT::renderDataTable({
       
-      req(meta_working())
+      eng <- safe_engine()
       
-      meta_working()
+      df <- dplyr::bind_rows(
+        normalize_validation(eng$validation$obs, "obs"),
+        normalize_validation(eng$validation$site, "site"),
+        normalize_validation(eng$validation$tree, "tree"),
+        normalize_validation(eng$validation$sample, "sample")
+      )
+      
+      if (nrow(df) == 0) {
+        return(data.frame(message = "No validation issues"))
+      }
+      
+      df
     })
     
     # =====================================================
-    # 🧩 EDITOR SLOT (future handsontable plug-in)
+    # ENGINE DEBUG VIEW
+    # =====================================================
+    output$engine_debug <- DT::renderDataTable({
+      
+      eng <- safe_engine()
+      
+      head(normalize_validation(eng$validation$obs, "obs"), 20)
+    })
+    
+    # =====================================================
+    # VALIDATION PREVIEW
+    # =====================================================
+    output$validation_obs_preview <- DT::renderDataTable({
+      
+      eng <- safe_engine()
+      
+      head(normalize_validation(eng$validation$obs, "obs"), 20)
+    })
+    
+    # =====================================================
+    # ENGINE PROBE (STRUCTURE CHECK)
+    # =====================================================
+    output$engine_probe <- renderPrint({
+      
+      eng <- safe_engine()
+      
+      list(
+        obs = class(eng$validation$obs),
+        site = class(eng$validation$site),
+        tree = class(eng$validation$tree),
+        sample = class(eng$validation$sample)
+      )
+    })
+    
+    # =====================================================
+    # STATUS
+    # =====================================================
+    output$meta_status <- renderUI({
+      
+      v <- meta_working()
+      
+      if (is.null(v)) {
+        return(tags$div(class = "alert alert-warning", "No metadata loaded"))
+      }
+      
+      tags$div(class = "alert alert-success", "Metadata loaded")
+    })
+    
+    # =====================================================
+    # EDITOR PLACEHOLDER
     # =====================================================
     output$meta_editor_ui <- renderUI({
-      
-      tags$div(
-        class = "text-muted",
-        "Metadata editor will be inserted here (Handsontable or form UI)"
-      )
+      tags$div("Metadata editor placeholder")
     })
   })
 }

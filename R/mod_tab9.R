@@ -61,63 +61,33 @@ mod_tab9_server <- function(id, ctx) {
   
   moduleServer(id, function(input, output, session) {
     
-    ns <- session$ns
+    author_data <- shiny::reactiveVal()
     
-    # =====================================================
-    # 🧠 LOCAL BUFFER
-    # =====================================================
-    author_data <- reactiveVal()
-    
-    # =====================================================
-    # INIT FROM GLOBAL STATE (NOT DIRECT ENGINE WRITE)
-    # =====================================================
     observe({
-      
       req(ctx$engine())
       
       author_data(ctx$data$authors$enriched)
     })
     
-    # =====================================================
-    # 📊 RENDER TABLE
-    # =====================================================
     output$author_hot <- rhandsontable::renderRHandsontable({
-      
       req(author_data())
-      
       rhandsontable::rhandsontable(author_data())
     })
     
-    # =====================================================
-    # ✍️ LOCAL EDIT BUFFER
-    # =====================================================
     observeEvent(input$author_hot, {
       
-      updated <- isolate(
-        rhandsontable::hot_to_r(input$author_hot)
-      )
-      
+      updated <- rhandsontable::hot_to_r(input$author_hot)
       author_data(updated)
     })
     
-    # =====================================================
-    # 🌐 APPLY → GLOBAL ENRICHMENT STORE
-    # =====================================================
     observeEvent(input$apply_authors, {
       
       req(author_data())
-      
       ctx$data$authors$enriched <- author_data()
       
-      showNotification(
-        "Author enrichment updated",
-        type = "message"
-      )
+      showNotification("Author enrichment updated", type = "message")
     })
     
-    # =====================================================
-    # 🧠 ENGINE-DRIVEN STATUS
-    # =====================================================
     output$author_status <- shiny::renderUI({
       
       req(ctx$engine())
@@ -125,27 +95,15 @@ mod_tab9_server <- function(id, ctx) {
       v <- ctx$engine()$validation$authors
       
       if (v$valid) {
-        
-        tags$div(
-          class = "alert alert-success",
-          "✔ Author enrichment complete"
-        )
-        
+        tags$div(class = "alert alert-success", "✔ Author enrichment complete")
       } else {
-        
         tags$div(
           class = "alert alert-warning",
-          paste(
-            "Missing ORCID:",
-            paste(v$missing_orcid, collapse = ", ")
-          )
+          paste("Missing ORCID:", paste(v$missing_orcid, collapse = ", "))
         )
       }
     })
     
-    # =====================================================
-    # 📋 ISSUES TABLE
-    # =====================================================
     output$author_issues <- DT::renderDT({
       
       req(ctx$engine())
@@ -153,7 +111,7 @@ mod_tab9_server <- function(id, ctx) {
       v <- ctx$engine()$validation$authors
       
       data.frame(
-        issue = if (!v$valid) v$issues else "No issues detected",
+        issue = if (!v$valid) v$issues else "No issues",
         unresolved = v$n_unresolved
       )
     })

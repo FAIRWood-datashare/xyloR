@@ -67,16 +67,17 @@ mod_tab8_server <- function(id, ctx) {
     # =====================================================
     # 🧠 LOCAL BUFFER
     # =====================================================
-    sample_data <- reactiveVal()
+    sample_data <- reactiveVal(NULL)
     
     # =====================================================
-    # INIT FROM ENGINE (TREE DEPENDENCY)
+    # INIT FROM ENGINE (SAFE + SINGLE ACCESS)
     # =====================================================
     observe({
       
-      req(ctx$engine())
+      eng <- ctx$engine()
+      req(eng)
       
-      sample_data(ctx$engine()$derived$sample)
+      sample_data(eng$derived$sample)
     })
     
     # =====================================================
@@ -100,7 +101,6 @@ mod_tab8_server <- function(id, ctx) {
     observeEvent(input$sample_hot, {
       
       updated <- rhandsontable::hot_to_r(input$sample_hot)
-      
       sample_data(updated)
     })
     
@@ -120,15 +120,16 @@ mod_tab8_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # 🧠 ENGINE-DRIVEN STATUS
+    # 🧠 ENGINE-DRIVEN STATUS (SAFE ACCESS)
     # =====================================================
     output$sample_status <- shiny::renderUI({
       
-      req(ctx$engine())
+      eng <- ctx$engine()
+      req(eng)
       
-      v <- ctx$engine()$validation$sample
+      v <- eng$validation$sample
       
-      if (v$valid) {
+      if (isTRUE(v$valid)) {
         
         tags$div(
           class = "alert alert-success",
@@ -148,13 +149,14 @@ mod_tab8_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # 📋 FINAL VALIDATION TABLE
+    # 📋 FINAL VALIDATION TABLE (SAFE ACCESS)
     # =====================================================
     output$sample_issues <- DT::renderDT({
       
-      req(ctx$engine())
+      eng <- ctx$engine()
+      req(eng)
       
-      v <- ctx$engine()$validation$sample
+      v <- eng$validation$sample
       
       data.frame(
         issue = if (!v$valid) v$issues else "No issues detected",

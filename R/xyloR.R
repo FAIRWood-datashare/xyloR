@@ -78,25 +78,48 @@ xyloR <- function() {
   server <- function(input, output, session) {
     
     # =====================================================
-    # CONTEXT (SINGLE SOURCE OF TRUTH)
+    # CONTEXT
     # =====================================================
     ctx <- create_app_context()
     
     # =====================================================
-    # STRUCTURE INITIALIZATION (LOCKED SHAPE)
+    # ENGINE CACHE INITIALIZATION (🔥 CRITICAL FIX)
     # =====================================================
+    ctx$engine_cache <- shiny::reactiveVal(NULL)
+    
     ctx$v2 <- create_minimal_state()
     
-    ctx$engine_cache <- shiny::reactiveVal(NULL)
-    ctx$external <- NULL
+    # =====================================================
+    # ENGINE REBUILD OBSERVER
+    # =====================================================
+    observe({
+      
+      obs    <- ctx$data$obs_raw %||% NULL
+      site   <- ctx$data$site_info %||% NULL
+      tree   <- ctx$data$tree_info %||% NULL
+      sample <- ctx$data$sample_info %||% NULL
+      
+      ctx$engine_cache(
+        update_state_engine(obs, site, tree, sample)
+      )
+    })
     
     # =====================================================
-    # EXTERNAL SERVICE LAYER (ONLY ONCE)
+    # DERIVED ENGINE (SAFE WRAPPER)
+    # =====================================================
+    ctx$engine <- reactive({
+      eng <- ctx$engine_cache()
+      req(!is.null(eng))
+      eng
+    })
+    
+    # =====================================================
+    # EXTERNAL API
     # =====================================================
     ctx$external_api <- external_metadata_module(ctx)
     
     # =====================================================
-    # 🔒 CTX CONTRACT LOCK
+    # CONTRACT CHECK
     # =====================================================
     ctx_contract_lock <- function(ctx) {
       
@@ -117,34 +140,13 @@ xyloR <- function() {
     
     ctx_contract_lock(ctx)
     
-    # runtime safety (optional but recommended)
     observe({
       invalidateLater(30000, session)
       ctx_contract_lock(ctx)
     })
     
     # =====================================================
-    # ENGINE
-    # =====================================================
-    observe({
-      
-      req(ctx$data$obs$working_copy)
-      
-      ctx$engine_cache(update_state_engine(
-        obs    = ctx$data$obs$working_copy,
-        site   = ctx$data$site$working_copy,
-        tree   = ctx$data$tree$working_copy,
-        sample = ctx$data$sample$working_copy
-      ))
-    })
-    
-    ctx$engine <- shiny::reactive({
-      req(ctx$engine_cache())
-      ctx$engine_cache()
-    })
-    
-    # =====================================================
-    # DERIVED STATE
+    # V2 STATE
     # =====================================================
     v2_state <- shiny::reactiveVal(NULL)
     
