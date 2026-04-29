@@ -7,28 +7,28 @@ mod_tab7_ui <- function(id) {
   ns <- shiny::NS(id)
   
   bslib::nav_panel(
-    title = "Tree",
-    value = "tab7",
+    title = "Site",
+    value = "tab6",
     
     fluidRow(
       
       # =====================================================
-      # LEFT: TREE TABLE
+      # LEFT: SITE TABLE
       # =====================================================
       column(
         8,
         
         bslib::card(
-          bslib::card_header("7.1 Tree layer (derived from SITE)"),
+          bslib::card_header("6.1 Site layer (derived from engine)"),
           
           bslib::card_body(
             
-            rhandsontable::rHandsontableOutput(ns("tree_hot")),
+            rhandsontable::rHandsontableOutput(ns("site_hot")),
             
             tags$hr(),
             
             actionButton(
-              ns("apply_tree"),
+              ns("apply_site"),
               "Apply changes",
               class = "btn btn-primary w-100"
             )
@@ -43,13 +43,13 @@ mod_tab7_ui <- function(id) {
         4,
         
         bslib::card(
-          bslib::card_header("7.2 Tree validation (engine)"),
+          bslib::card_header("6.2 Site validation (engine)"),
           
           bslib::card_body(
             
-            uiOutput(ns("tree_status")),
+            uiOutput(ns("site_status")),
             tags$hr(),
-            DT::DTOutput(ns("tree_issues"))
+            DT::DTOutput(ns("site_issues"))
           )
         )
       )
@@ -67,27 +67,27 @@ mod_tab7_server <- function(id, ctx) {
     # =====================================================
     # 🧠 LOCAL BUFFER
     # =====================================================
-    tree_data <- reactiveVal()
+    site_data <- reactiveVal()
     
     # =====================================================
-    # INIT FROM GLOBAL STATE (NOT ENGINE)
+    # INIT FROM GLOBAL STATE (SAFE + STABLE)
     # =====================================================
     observe({
       
-      req(ctx$data$tree$working_copy)
+      req(ctx$data$site$working_copy)
       
-      tree_data(ctx$data$tree$working_copy)
+      site_data(ctx$data$site$working_copy)
     })
     
     # =====================================================
     # 📊 RENDER HANDSONTABLE
     # =====================================================
-    output$tree_hot <- rhandsontable::renderRHandsontable({
+    output$site_hot <- rhandsontable::renderRHandsontable({
       
-      req(tree_data())
+      req(site_data())
       
       rhandsontable::rhandsontable(
-        tree_data(),
+        site_data(),
         stretchH = "all",
         rowHeaders = TRUE,
         useTypes = TRUE
@@ -97,26 +97,26 @@ mod_tab7_server <- function(id, ctx) {
     # =====================================================
     # ✍️ LOCAL EDIT BUFFER
     # =====================================================
-    observeEvent(input$tree_hot, {
+    observeEvent(input$site_hot, {
       
       updated <- isolate(
-        rhandsontable::hot_to_r(input$tree_hot)
+        rhandsontable::hot_to_r(input$site_hot)
       )
       
-      tree_data(updated)
+      site_data(updated)
     })
     
     # =====================================================
     # 💾 APPLY → GLOBAL STATE
     # =====================================================
-    observeEvent(input$apply_tree, {
+    observeEvent(input$apply_site, {
       
-      req(tree_data())
+      req(site_data())
       
-      ctx$data$tree$working_copy <- tree_data()
+      ctx$data$site$working_copy <- site_data()
       
       showNotification(
-        "Tree layer updated",
+        "Site layer updated",
         type = "message"
       )
     })
@@ -124,24 +124,24 @@ mod_tab7_server <- function(id, ctx) {
     # =====================================================
     # 🧠 ENGINE STATUS (READ ONLY)
     # =====================================================
-    output$tree_status <- shiny::renderUI({
+    output$site_status <- shiny::renderUI({
       
       req(ctx$engine())
       
-      v <- ctx$engine()$validation$tree
+      v <- ctx$engine()$validation$site
       
       if (v$valid) {
         
         tags$div(
           class = "alert alert-success",
-          "✔ Tree structure valid"
+          "✔ Site layer valid"
         )
         
       } else {
         
         tags$div(
           class = "alert alert-danger",
-          paste("Tree issues:", paste(v$issues, collapse = ", "))
+          paste("Site issues:", paste(v$issues, collapse = ", "))
         )
       }
     })
@@ -149,15 +149,15 @@ mod_tab7_server <- function(id, ctx) {
     # =====================================================
     # 📋 ISSUE TABLE
     # =====================================================
-    output$tree_issues <- DT::renderDT({
+    output$site_issues <- DT::renderDT({
       
       req(ctx$engine())
       
-      v <- ctx$engine()$validation$tree
+      v <- ctx$engine()$validation$site
       
       data.frame(
         issue = if (!v$valid) v$issues else "No issues detected",
-        n_edges = v$n_edges
+        n_sites = v$n_sites
       )
     })
   })

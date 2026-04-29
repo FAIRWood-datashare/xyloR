@@ -114,15 +114,18 @@ mod_tab2_server <- function(id, ctx) {
       )
       
       # -----------------------------
-      # 3. VALIDATION (DERIVED)
+      # 3. VALIDATION FLAG
       # -----------------------------
       ingestion_valid <- !is.null(obs)
       
       # =====================================================
       # 🧠 V2 STATE WRITE (ONLY PLACE)
       # =====================================================
-      ctx$data$obs_truth <- obs
+      
+      # 🔥 CRITICAL FIX: restore engine-compatible data contract
+      ctx$data$obs_raw  <- obs
       ctx$data$site_info <- site_info
+      
       ctx$files$obs_file <- input$obs_file
       
       ctx$v2$obs_uploaded    <- TRUE
@@ -132,7 +135,7 @@ mod_tab2_server <- function(id, ctx) {
       # 🚀 NAVIGATION (ONLY ON SUCCESS)
       # =====================================================
       if (ingestion_valid) {
-        ctx$v2$stage <- "tab3"
+        ctx$nav$stage <- "tab3"
         
         shiny::showNotification(
           "Observation data uploaded successfully",

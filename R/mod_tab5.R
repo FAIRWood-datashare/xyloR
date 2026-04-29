@@ -3,158 +3,153 @@
 #' @export
 #' 
 mod_tab5_ui <- function(id) {
-  
   ns <- shiny::NS(id)
   
-  bslib::nav_panel(
-    title = "Observations",
-    value = "tab5",
+  shiny::fluidPage(
     
-    fluidRow(
+    shiny::h3("Engine Control Center"),
+    
+    shiny::fluidRow(
       
-      # =====================================================
-      # LEFT: OBSERVATION GRID
-      # =====================================================
-      column(
-        8,
-        
-        bslib::card(
-          bslib::card_header("5.1 Observation data"),
+      shiny::column(
+        4,
+        shiny::tags$div(
+          style = "padding:10px; border:1px solid #444; border-radius:6px;",
           
-          bslib::card_body(
-            
-            rhandsontable::rHandsontableOutput(ns("obs_hot")),
-            
-            tags$hr(),
-            
-            actionButton(
-              ns("apply_obs"),
-              "Apply changes",
-              class = "btn btn-primary w-100"
-            )
-          )
+          shiny::h4("System Status"),
+          
+          shiny::uiOutput(ns("system_status")),
+          
+          shiny::hr(),
+          
+          shiny::h5("Readiness"),
+          shiny::verbatimTextOutput(ns("ready_state"))
         )
       ),
       
-      # =====================================================
-      # RIGHT: VALIDATION PANEL
-      # =====================================================
-      column(
-        4,
+      shiny::column(
+        8,
         
-        bslib::card(
-          bslib::card_header("5.2 Schema validation"),
+        shiny::tags$div(
+          style = "padding:10px; border:1px solid #444; border-radius:6px;",
           
-          bslib::card_body(
-            
-            uiOutput(ns("obs_status")),
-            
-            tags$hr(),
-            
-            DT::DTOutput(ns("obs_issues"))
-          )
+          shiny::h4("Active Issues"),
+          
+          DT::dataTableOutput(ns("issue_table")),
+          
+          shiny::hr(),
+          
+          shiny::h4("Engine Summary"),
+          
+          DT::dataTableOutput(ns("engine_summary"))
         )
       )
     )
   )
 }
 
-
 mod_tab5_server <- function(id, ctx) {
   
   moduleServer(id, function(input, output, session) {
     
-    ns <- session$ns
-    
     # =====================================================
-    # 🧠 LOCAL BUFFER
+    # 🧠 READINESS STATE
     # =====================================================
-    obs_data <- reactiveVal()
-    
-    # INIT FROM GLOBAL (SAFE)
-    observe({
-      
-      if (is.null(ctx$data$obs$working_copy)) return()
-      
-      obs_data(ctx$data$obs$working_copy)
+    output$ready_state <- renderPrint({
+      ctx$ready()
     })
     
     # =====================================================
-    # 📊 TABLE RENDER
+    # 🟢 SYSTEM STATUS
     # =====================================================
-    output$obs_hot <- rhandsontable::renderRHandsontable({
+    output$system_status <- renderUI({
       
-      req(obs_data())
+      r <- ctx$ready()
       
-      rhandsontable::rhandsontable(
-        obs_data(),
-        stretchH = "all",
-        rowHeaders = TRUE,
-        useTypes = TRUE
+      tagList(
+        tags$div(paste("Data:", r$data)),
+        tags$div(paste("Metadata:", r$metadata)),
+        tags$div(paste("Engine:", r$engine))
       )
     })
     
     # =====================================================
-    # ✍️ EDIT BUFFER (LOCAL ONLY)
+    # ⚙️ ENGINE ACCESS (SAFE)
     # =====================================================
-    observeEvent(input$obs_hot, {
-      
-      updated <- isolate(
-        rhandsontable::hot_to_r(input$obs_hot)
-      )
-      
-      obs_data(updated)
+    engine <- reactive({
+      req(ctx$snapshot())
+      ctx$snapshot()
     })
     
     # =====================================================
-    # 💾 APPLY → GLOBAL STATE
+    # 📊 ENGINE SUMMARY
     # =====================================================
-    observeEvent(input$apply_obs, {
+    output$engine_summary <- DT::renderDataTable({
       
-      req(obs_data())
-      
-      ctx$data$obs$working_copy <- obs_data()
-      
-      showNotification("Observation updated", type = "message")
-    })
-    
-    # =====================================================
-    # 🟢 ENGINE STATUS (READ ONLY)
-    # =====================================================
-    output$obs_status <- renderUI({
-      
-      req(ctx$engine())
-      
-      v <- ctx$engine()$validation$obs
-      
-      if (v$valid) {
-        tags$div(class = "alert alert-success",
-                 "✔ Observation schema valid")
-      } else {
-        tags$div(
-          class = "alert alert-danger",
-          paste("Missing:", paste(v$missing_cols, collapse = ", "))
-        )
-      }
-    })
-    
-    # =====================================================
-    # 📋 ISSUE TABLE
-    # =====================================================
-    output$obs_issues <- DT::renderDT({
-      
-      req(ctx$engine())
-      
-      v <- ctx$engine()$validation$obs
+      eng <- engine()
       
       data.frame(
-        issue = if (!v$valid) {
-          paste("Missing column:", v$missing_cols)
-        } else {
-          "No issues detected"
-        },
-        rows = v$n_rows
+        component = c("obs", "site", "tree", "sample"),
+        status = c(
+          !is.null(eng$validation$obs),
+          !is.null(eng$validation$site),
+          !is.null(eng$validation$tree),
+          !is.null(eng$validation$sample)
+        )
       )
     })
+    
+    # =====================================================
+    # 🚨 ISSUE TABLE (CORE FEATURE)
+    # =====================================================
+    output$issue_table <- DT::renderDataTable({
+      
+      eng <- engine()
+      
+      issues <- dplyr::bind_rows(
+        normalize_validation(eng$validation$obs, "obs"),
+        normalize_validation(eng$validation$site, "site"),
+        normalize_validation(eng$validation$tree, "tree"),
+        normalize_validation(eng$validation$sample, "sample")
+      )
+      
+      issues
+    }, selection = "single")
+    
+    # =====================================================
+    # 🧭 CLICK → NAVIGATION (KEY FEATURE)
+    # =====================================================
+    observeEvent(input$issue_table_rows_selected, {
+      
+      eng <- engine()
+      
+      issues <- dplyr::bind_rows(
+        normalize_validation(eng$validation$obs, "obs"),
+        normalize_validation(eng$validation$site, "site"),
+        normalize_validation(eng$validation$tree, "tree"),
+        normalize_validation(eng$validation$sample, "sample")
+      )
+      
+      row <- input$issue_table_rows_selected
+      
+      req(row)
+      
+      selected <- issues[row, ]
+      
+      # =================================================
+      # ROUTING LOGIC (CLICK → TAB)
+      # =================================================
+      target_tab <- switch(
+        selected$domain,
+        obs = "tab3",
+        site = "tab3",
+        tree = "tab3",
+        sample = "tab3",
+        "tab3"
+      )
+      
+      ctx$v2$stage <- target_tab
+    })
+    
   })
 }

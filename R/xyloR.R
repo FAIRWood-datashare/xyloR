@@ -83,33 +83,59 @@ xyloR <- function() {
     ctx <- create_app_context()
     
     # =====================================================
-    # ENGINE CACHE INITIALIZATION (🔥 CRITICAL FIX)
+    # NAV STATE (MISSING BEFORE — CRITICAL FIX)
     # =====================================================
-    ctx$engine_cache <- shiny::reactiveVal(NULL)
-    
-    ctx$v2 <- create_minimal_state()
+    ctx$nav <- shiny::reactiveValues(
+      stage = "tab1"
+    )
     
     # =====================================================
-    # ENGINE REBUILD OBSERVER
+    # ENGINE READY FUNCTION (WAS MISSING — CRITICAL FIX)
+    # =====================================================
+    ctx$update_ready <- function() {
+      
+      obs  <- ctx$data$obs_raw
+      site <- ctx$data$site_info
+      meta <- ctx$data$meta
+      
+      !is.null(obs) && !is.null(site)
+    }
+    
+    # =====================================================
+    # ENGINE + SNAPSHOT (SINGLE SOURCE OF TRUTH)
     # =====================================================
     observe({
       
-      obs    <- ctx$data$obs_raw %||% NULL
-      site   <- ctx$data$site_info %||% NULL
-      tree   <- ctx$data$tree_info %||% NULL
-      sample <- ctx$data$sample_info %||% NULL
+      obs    <- ctx$data$obs_raw
+      site   <- ctx$data$site_info
+      tree   <- ctx$data$tree_info
+      sample <- ctx$data$sample_info
       
-      ctx$engine_cache(
-        update_state_engine(obs, site, tree, sample)
-      )
+      candidate <- update_state_engine(obs, site, tree, sample)
+      
+      if (!validate_engine_structure(candidate)) {
+        message("⚠ Engine update rejected (invalid structure)")
+        return(invisible(NULL))
+      }
+      
+      ctx$engine_cache(candidate)
+      ctx$snapshot(candidate)
     })
     
     # =====================================================
-    # DERIVED ENGINE (SAFE WRAPPER)
+    # GLOBAL READY STATE (SINGLE OBSERVER ONLY)
+    # =====================================================
+    observe({
+      ctx$state$ready <- ctx$update_ready()
+    })
+    
+    # =====================================================
+    # ENGINE ACCESSOR
     # =====================================================
     ctx$engine <- reactive({
-      eng <- ctx$engine_cache()
+      eng <- ctx$snapshot()
       req(!is.null(eng))
+      validate_engine_structure(eng)
       eng
     })
     
@@ -208,16 +234,16 @@ xyloR <- function() {
     mod_debug_server("debug", ctx)
     
     # =====================================================
-    # NAVIGATION
+    # NAVIGATION (FIXED: ctx$nav instead of ctx$v2)
     # =====================================================
     observe({
       
-      req(ctx$v2$stage)
+      req(ctx$nav$stage)
       
       isolate({
         bslib::nav_select(
           id = "tabs",
-          selected = ctx$v2$stage,
+          selected = ctx$nav$stage,
           session = session
         )
       })
@@ -230,12 +256,12 @@ xyloR <- function() {
     
     observe({
       
-      req(ctx$v2$stage)
+      req(ctx$nav$stage)
       
-      if (!identical(ctx$v2$stage, last_stage())) {
+      if (!identical(ctx$nav$stage, last_stage())) {
         
-        log_transition(last_stage(), ctx$v2$stage, "stage_change")
-        last_stage(ctx$v2$stage)
+        log_transition(last_stage(), ctx$nav$stage, "stage_change")
+        last_stage(ctx$nav$stage)
       }
     })
     
@@ -243,7 +269,7 @@ xyloR <- function() {
     # DEBUG OUTPUT
     # =====================================================
     output$v2_state <- renderText({
-      paste0("V2 stage: ", ctx$v2$stage)
+      paste0("V2 stage: ", ctx$nav$stage)
     })
     
     output$history_table <- DT::renderDataTable({
@@ -258,7 +284,7 @@ xyloR <- function() {
       nodes <- data.frame(
         id = c("tab1","tab2","tab3","tab4"),
         label = c("Tab 1","Tab 2","Tab 3","Tab 4"),
-        color = ifelse(c("tab1","tab2","tab3","tab4") == ctx$v2$stage,
+        color = ifelse(c("tab1","tab2","tab3","tab4") == ctx$nav$stage,
                        "#00C853", "#2C3E50"),
         shape = "box"
       )
@@ -273,6 +299,11 @@ xyloR <- function() {
         visNetwork::visNodes(font = list(color = "white")) |>
         visNetwork::visEdges(color = "#888")
     })
+    
+    # =====================================================
+    # APP
+    # =====================================================
+    shiny::shinyApp(ui, server)
   }
   
   shiny::shinyApp(ui, server)

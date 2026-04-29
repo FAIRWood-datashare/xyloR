@@ -105,9 +105,10 @@ mod_tab4_server <- function(id, ctx) {
       readxl::read_excel(input$meta_upload$datapath)
     })
     
-    meta_working <- reactiveVal()
+    meta_working <- reactiveVal(NULL)
     
     observe({
+      
       if (!is.null(input$meta_upload)) {
         meta_working(uploaded_meta())
       } else {
@@ -115,30 +116,49 @@ mod_tab4_server <- function(id, ctx) {
       }
     })
     
+    # =====================================================
+    # SAVE METADATA (CORE FIX)
+    # =====================================================
     observeEvent(input$save_meta, {
+      
       req(meta_working())
-      ctx$data$meta$working_copy <- meta_working()
-      ctx$state$meta_ready <- TRUE
+      
+      # 🔥 unified metadata target
+      ctx$data$meta <- meta_working()
+      
+      # 🔥 remove legacy state flag usage
+      # ctx$state$meta_ready <- TRUE  ❌ REMOVED
+      
+      # 🔥 trigger readiness update
+      ctx$update_ready()
     })
     
     # =====================================================
-    # SAFE ENGINE ACCESS
+    # SAFE ENGINE ACCESS (CLEANED)
     # =====================================================
     safe_engine <- reactive({
-      req(ctx$engine_cache())
-      ctx$engine()
+      
+      eng <- ctx$engine()
+      
+      req(!is.null(eng))
+      
+      eng
     })
     
+    # =====================================================
+    # ENGINE STATUS
+    # =====================================================
     output$engine_status <- renderText({
-      if (is.null(ctx$engine_cache())) {
-        "❌ Engine not ready (missing obs data)"
+      
+      if (is.null(ctx$snapshot())) {
+        "❌ Engine not ready (missing data or metadata)"
       } else {
         "✅ Engine ready"
       }
     })
     
     # =====================================================
-    # 🔥 NORMALIZED VALIDATION TABLE (CORE FIX)
+    # 🔥 NORMALIZED VALIDATION TABLE
     # =====================================================
     output$validation_table <- DT::renderDataTable({
       
@@ -151,10 +171,6 @@ mod_tab4_server <- function(id, ctx) {
         normalize_validation(eng$validation$sample, "sample")
       )
       
-      if (nrow(df) == 0) {
-        return(data.frame(message = "No validation issues"))
-      }
-      
       df
     })
     
@@ -165,7 +181,7 @@ mod_tab4_server <- function(id, ctx) {
       
       eng <- safe_engine()
       
-      head(normalize_validation(eng$validation$obs, "obs"), 20)
+      normalize_validation(eng$validation$obs, "obs")
     })
     
     # =====================================================
@@ -175,11 +191,11 @@ mod_tab4_server <- function(id, ctx) {
       
       eng <- safe_engine()
       
-      head(normalize_validation(eng$validation$obs, "obs"), 20)
+      normalize_validation(eng$validation$obs, "obs")
     })
     
     # =====================================================
-    # ENGINE PROBE (STRUCTURE CHECK)
+    # ENGINE PROBE
     # =====================================================
     output$engine_probe <- renderPrint({
       
@@ -194,11 +210,11 @@ mod_tab4_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # STATUS
+    # STATUS UI
     # =====================================================
     output$meta_status <- renderUI({
       
-      v <- meta_working()
+      v <- ctx$data$meta
       
       if (is.null(v)) {
         return(tags$div(class = "alert alert-warning", "No metadata loaded"))

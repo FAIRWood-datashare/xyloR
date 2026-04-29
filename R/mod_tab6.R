@@ -7,28 +7,28 @@ mod_tab6_ui <- function(id) {
   ns <- shiny::NS(id)
   
   bslib::nav_panel(
-    title = "Site",
-    value = "tab6",
+    title = "Observations",
+    value = "tab5",
     
     fluidRow(
       
       # =====================================================
-      # LEFT: SITE TABLE
+      # LEFT: OBSERVATION GRID
       # =====================================================
       column(
         8,
         
         bslib::card(
-          bslib::card_header("6.1 Site layer (derived from engine)"),
+          bslib::card_header("5.1 Observation data"),
           
           bslib::card_body(
             
-            rhandsontable::rHandsontableOutput(ns("site_hot")),
+            rhandsontable::rHandsontableOutput(ns("obs_hot")),
             
             tags$hr(),
             
             actionButton(
-              ns("apply_site"),
+              ns("apply_obs"),
               "Apply changes",
               class = "btn btn-primary w-100"
             )
@@ -43,13 +43,15 @@ mod_tab6_ui <- function(id) {
         4,
         
         bslib::card(
-          bslib::card_header("6.2 Site validation (engine)"),
+          bslib::card_header("5.2 Schema validation"),
           
           bslib::card_body(
             
-            uiOutput(ns("site_status")),
+            uiOutput(ns("obs_status")),
+            
             tags$hr(),
-            DT::DTOutput(ns("site_issues"))
+            
+            DT::DTOutput(ns("obs_issues"))
           )
         )
       )
@@ -67,27 +69,25 @@ mod_tab6_server <- function(id, ctx) {
     # =====================================================
     # 🧠 LOCAL BUFFER
     # =====================================================
-    site_data <- reactiveVal()
+    obs_data <- reactiveVal()
     
-    # =====================================================
-    # INIT FROM GLOBAL STATE (SAFE + STABLE)
-    # =====================================================
+    # INIT FROM GLOBAL (SAFE)
     observe({
       
-      req(ctx$data$site$working_copy)
+      if (is.null(ctx$data$obs$working_copy)) return()
       
-      site_data(ctx$data$site$working_copy)
+      obs_data(ctx$data$obs$working_copy)
     })
     
     # =====================================================
-    # 📊 RENDER HANDSONTABLE
+    # 📊 TABLE RENDER
     # =====================================================
-    output$site_hot <- rhandsontable::renderRHandsontable({
+    output$obs_hot <- rhandsontable::renderRHandsontable({
       
-      req(site_data())
+      req(obs_data())
       
       rhandsontable::rhandsontable(
-        site_data(),
+        obs_data(),
         stretchH = "all",
         rowHeaders = TRUE,
         useTypes = TRUE
@@ -95,53 +95,45 @@ mod_tab6_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # ✍️ LOCAL EDIT BUFFER
+    # ✍️ EDIT BUFFER (LOCAL ONLY)
     # =====================================================
-    observeEvent(input$site_hot, {
+    observeEvent(input$obs_hot, {
       
       updated <- isolate(
-        rhandsontable::hot_to_r(input$site_hot)
+        rhandsontable::hot_to_r(input$obs_hot)
       )
       
-      site_data(updated)
+      obs_data(updated)
     })
     
     # =====================================================
     # 💾 APPLY → GLOBAL STATE
     # =====================================================
-    observeEvent(input$apply_site, {
+    observeEvent(input$apply_obs, {
       
-      req(site_data())
+      req(obs_data())
       
-      ctx$data$site$working_copy <- site_data()
+      ctx$data$obs$working_copy <- obs_data()
       
-      showNotification(
-        "Site layer updated",
-        type = "message"
-      )
+      showNotification("Observation updated", type = "message")
     })
     
     # =====================================================
-    # 🧠 ENGINE STATUS (READ ONLY)
+    # 🟢 ENGINE STATUS (READ ONLY)
     # =====================================================
-    output$site_status <- shiny::renderUI({
+    output$obs_status <- renderUI({
       
       req(ctx$engine())
       
-      v <- ctx$engine()$validation$site
+      v <- ctx$engine()$validation$obs
       
       if (v$valid) {
-        
-        tags$div(
-          class = "alert alert-success",
-          "✔ Site layer valid"
-        )
-        
+        tags$div(class = "alert alert-success",
+                 "✔ Observation schema valid")
       } else {
-        
         tags$div(
           class = "alert alert-danger",
-          paste("Site issues:", paste(v$issues, collapse = ", "))
+          paste("Missing:", paste(v$missing_cols, collapse = ", "))
         )
       }
     })
@@ -149,15 +141,19 @@ mod_tab6_server <- function(id, ctx) {
     # =====================================================
     # 📋 ISSUE TABLE
     # =====================================================
-    output$site_issues <- DT::renderDT({
+    output$obs_issues <- DT::renderDT({
       
       req(ctx$engine())
       
-      v <- ctx$engine()$validation$site
+      v <- ctx$engine()$validation$obs
       
       data.frame(
-        issue = if (!v$valid) v$issues else "No issues detected",
-        n_sites = v$n_sites
+        issue = if (!v$valid) {
+          paste("Missing column:", v$missing_cols)
+        } else {
+          "No issues detected"
+        },
+        rows = v$n_rows
       )
     })
   })

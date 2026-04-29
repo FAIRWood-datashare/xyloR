@@ -1,68 +1,60 @@
 
 
 #' @export
-#'
+#' 
 mod_tab11_ui <- function(id) {
-
-ns <- shiny::NS(id)
-
-bslib::nav_panel(
-  title = "Export",
-  value = "tab11",
   
-  fluidRow(
+  ns <- shiny::NS(id)
+  
+  bslib::nav_panel(
+    title = "Publications",
+    value = "tab10",
     
-    # =====================================================
-    # LEFT: EXPORT ACTIONS
-    # =====================================================
-    column(
-      4,
+    fluidRow(
       
-      bslib::card(
-        bslib::card_header("11.1 Final export"),
+      # =====================================================
+      # LEFT: PUBLICATION TABLE
+      # =====================================================
+      column(
+        8,
         
-        bslib::card_body(
+        bslib::card(
+          bslib::card_header("10.1 Publication enrichment (DOI layer)"),
           
-          uiOutput(ns("export_status")),
-          
-          tags$hr(),
-          
-          downloadButton(
-            ns("download_package"),
-            "Download ZIP",
-            class = "btn btn-success w-100"
-          ),
-          
-          tags$hr(),
-          
-          actionButton(
-            ns("freeze_state"),
-            "Freeze dataset",
-            class = "btn btn-warning w-100"
+          bslib::card_body(
+            
+            rhandsontable::rHandsontableOutput(ns("pub_hot")),
+            
+            tags$hr(),
+            
+            actionButton(
+              ns("apply_pub"),
+              "Apply enrichment",
+              class = "btn btn-primary w-100"
+            )
           )
         )
-      )
-    ),
-    
-    # =====================================================
-    # RIGHT: EXPORT SUMMARY
-    # =====================================================
-    column(
-      8,
+      ),
       
-      bslib::card(
-        bslib::card_header("11.2 Final summary"),
+      # =====================================================
+      # RIGHT: VALIDATION PANEL
+      # =====================================================
+      column(
+        4,
         
-        bslib::card_body(
+        bslib::card(
+          bslib::card_header("10.2 DOI validation"),
           
-          DT::DTOutput(ns("export_summary")),
-          tags$hr(),
-          DT::DTOutput(ns("lineage_log"))
+          bslib::card_body(
+            
+            uiOutput(ns("pub_status")),
+            tags$hr(),
+            DT::DTOutput(ns("pub_issues"))
+          )
         )
       )
     )
   )
-)
 }
 
 mod_tab11_server <- function(id, ctx) {
@@ -72,214 +64,98 @@ mod_tab11_server <- function(id, ctx) {
     ns <- session$ns
     
     # =====================================================
-    # 🧠 FREEZE STATE
+    # 🧠 LOCAL BUFFER
     # =====================================================
-    frozen <- reactiveVal(FALSE)
+    pub_data <- reactiveVal()
     
     # =====================================================
-    # 📦 EXPORT REGISTRY (NEW)
+    # INIT FROM GLOBAL ENRICHMENT STORE (NOT ENGINE)
     # =====================================================
-    if (is.null(ctx$registry)) {
-      ctx$registry <- list()
-    }
+    observe({
+      
+      req(ctx$data$publications$enriched)
+      
+      pub_data(ctx$data$publications$enriched)
+    })
     
-    if (is.null(ctx$registry$exports)) {
-      ctx$registry$exports <- list()
-    }
+    # =====================================================
+    # 📊 RENDER TABLE
+    # =====================================================
+    output$pub_hot <- rhandsontable::renderRHandsontable({
+      
+      req(pub_data())
+      
+      rhandsontable::rhandsontable(pub_data())
+    })
     
     # =====================================================
-    # 🧊 FREEZE ACTION (SNAPSHOT + VERSIONING)
+    # ✍️ LOCAL EDIT BUFFER
     # =====================================================
-    observeEvent(input$freeze_state, {
+    observeEvent(input$pub_hot, {
       
-      frozen(TRUE)
-      
-      # 🧠 CAPTURE SNAPSHOT
-      snap <- ctx$engine()
-      
-      ctx$snapshot(snap)
-      
-      # 🧾 CREATE SNAPSHOT METADATA (NEW)
-      snapshot_id <- paste0(
-        "snap_",
-        format(Sys.time(), "%Y%m%d_%H%M%S")
+      updated <- isolate(
+        rhandsontable::hot_to_r(input$pub_hot)
       )
       
-      ctx$snapshot_meta <- list(
-        id = snapshot_id,
-        timestamp = Sys.time(),
-        dataset_name = ctx$form$dataset_name,
-        dataset_version = ctx$form$dataset_version
-      )
+      pub_data(updated)
+    })
+    
+    # =====================================================
+    # 🌐 APPLY → GLOBAL STORE
+    # =====================================================
+    observeEvent(input$apply_pub, {
       
-      # 🔒 LOCK EDITING
-      ctx$edit$lock <- TRUE
+      req(pub_data())
+      
+      ctx$data$publications$enriched <- pub_data()
       
       showNotification(
-        "Dataset frozen. Snapshot captured for export.",
+        "Publication enrichment updated",
         type = "message"
       )
     })
     
     # =====================================================
-    # 📦 EXPORT STATUS
+    # 🧠 ENGINE-DRIVEN STATUS
     # =====================================================
-    output$export_status <- shiny::renderUI({
+    output$pub_status <- shiny::renderUI({
       
       req(ctx$engine())
       
-      if (frozen()) {
+      v <- ctx$engine()$validation$publications
+      
+      if (v$valid) {
         
         tags$div(
           class = "alert alert-success",
-          "✔ Dataset frozen and export-ready"
+          "✔ Publication metadata complete"
         )
         
       } else {
         
         tags$div(
           class = "alert alert-warning",
-          "⚠ Please freeze dataset before export"
+          paste(
+            "Missing DOI:",
+            paste(v$missing_doi, collapse = ", ")
+          )
         )
       }
     })
     
     # =====================================================
-    # 📋 EXPORT SUMMARY
+    # 📋 ISSUE TABLE
     # =====================================================
-    output$export_summary <- DT::renderDT({
+    output$pub_issues <- DT::renderDT({
       
       req(ctx$engine())
       
-      e <- ctx$engine()
+      v <- ctx$engine()$validation$publications
       
       data.frame(
-        layer = c(
-          "OBS",
-          "SITE",
-          "TREE",
-          "SAMPLE",
-          "AUTHORS",
-          "PUBLICATIONS"
-        ),
-        status = c(
-          TRUE,
-          TRUE,
-          TRUE,
-          TRUE,
-          !is.null(e$enrichment$authors),
-          !is.null(e$enrichment$publications)
-        )
+        issue = if (!v$valid) v$issues else "No issues detected",
+        unresolved = v$n_unresolved
       )
     })
-    
-    # =====================================================
-    # 🧬 LINEAGE LOG
-    # =====================================================
-    output$lineage_log <- DT::renderDT({
-      
-      data.frame(
-        step = c(
-          "OBS",
-          "SITE",
-          "TREE",
-          "SAMPLE",
-          "AUTHOR",
-          "PUBLICATION"
-        ),
-        source = c(
-          "raw",
-          "obs",
-          "site",
-          "tree",
-          "sample",
-          "sample"
-        ),
-        transformed_by = c(
-          "ingestion",
-          "site_engine",
-          "tree_engine",
-          "sample_engine",
-          "orcid_resolver",
-          "doi_resolver"
-        )
-      )
-    })
-    
-    # =====================================================
-    # 📦 DOWNLOAD PACKAGE (VERSIONED + SNAPSHOT SAFE)
-    # =====================================================
-    output$download_package <- downloadHandler(
-      
-      filename = function() {
-        
-        paste0(
-          "xylo_",
-          ctx$form$dataset_name, "_",
-          ctx$form$dataset_version, "_",
-          Sys.Date(),
-          ".zip"
-        )
-      },
-      
-      content = function(file) {
-        
-        req(frozen())
-        req(ctx$snapshot())
-        
-        tmp <- tempdir()
-        
-        # =================================================
-        # 📦 EXPORT DATA
-        # =================================================
-        saveRDS(ctx$data, file.path(tmp, "dataset.rds"))
-        
-        saveRDS(
-          ctx$snapshot(),
-          file.path(tmp, "engine_snapshot.rds")
-        )
-        
-        # =================================================
-        # 🧾 SNAPSHOT METADATA
-        # =================================================
-        write.csv(
-          data.frame(
-            snapshot_id = ctx$snapshot_meta$id,
-            timestamp = ctx$snapshot_meta$timestamp,
-            dataset_name = ctx$snapshot_meta$dataset_name,
-            dataset_version = ctx$snapshot_meta$dataset_version
-          ),
-          file.path(tmp, "snapshot_meta.csv"),
-          row.names = FALSE
-        )
-        
-        # =================================================
-        # 📊 VALIDATION LOG
-        # =================================================
-        write.csv(
-          ctx$validation,
-          file.path(tmp, "validation_log.csv"),
-          row.names = FALSE
-        )
-        
-        # =================================================
-        # 📦 ZIP PACKAGE
-        # =================================================
-        zip::zipr(
-          zipfile = file,
-          files = list.files(tmp, full.names = TRUE)
-        )
-        
-        # =================================================
-        # 🧠 REGISTER EXPORT EVENT
-        # =================================================
-        ctx$registry$exports[[length(ctx$registry$exports) + 1]] <- list(
-          dataset = ctx$form$dataset_name,
-          version = ctx$form$dataset_version,
-          snapshot = ctx$snapshot_meta$id,
-          timestamp = Sys.time()
-        )
-      }
-    )
   })
 }

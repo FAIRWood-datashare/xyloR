@@ -58,7 +58,7 @@ create_app_context <- function() {
   )
   
   # =====================================================
-  # 🧭 APP STATE FLAGS
+  # 🧭 APP STATE FLAGS (legacy - will be phased out)
   # =====================================================
   ctx$state <- shiny::reactiveValues(
     export_ready = FALSE,
@@ -89,19 +89,16 @@ create_app_context <- function() {
   # 🧾 FORM INPUTS
   # =====================================================
   ctx$form <- shiny::reactiveValues(
-    
     dataset_name = NULL,
     version = NULL,
     description = NULL,
     embargo = NULL,
-    
     obs_file = NULL,
-    
     metadata = NULL
   )
   
   # =====================================================
-  # 🧠 ENRICHMENT CACHE (ORCID / DOI)  ← NEW
+  # 🧠 ENRICHMENT CACHE
   # =====================================================
   ctx$cache <- shiny::reactiveValues(
     orcid = list(),
@@ -109,14 +106,41 @@ create_app_context <- function() {
   )
   
   # =====================================================
-  # ⚙️ ENGINE CACHE (CORE STATE)
+  # ⚙️ ENGINE CACHE
   # =====================================================
   ctx$engine_cache <- shiny::reactiveVal(NULL)
   
   # =====================================================
-  # 📸 STATE SNAPSHOT (EXPORT FREEZE) ← NEW
+  # 📸 SNAPSHOT (SOURCE OF TRUTH STATE)
   # =====================================================
   ctx$snapshot <- shiny::reactiveVal(NULL)
+  
+  # =====================================================
+  # 🧭 CENTRAL READINESS CONTROLLER (NEW CORE)
+  # =====================================================
+  ctx$ready <- shiny::reactiveValues(
+    dataset_valid = FALSE,
+    dataset_ready = FALSE,
+    site_ready = FALSE,
+    meta_ready = FALSE,
+    system_ready = FALSE
+  )
+  
+  # =====================================================
+  # 🔄 READINESS UPDATE FUNCTION
+  # =====================================================
+  ctx$update_ready <- reactive({
+    
+    obs  <- ctx$data$obs_raw
+    site <- ctx$data$site_info
+    meta <- ctx$data$meta
+    
+    !is.null(obs) && !is.null(site)
+  })
+  
+  ctx$nav <- shiny::reactiveValues(
+    stage = "tab1"
+  )
   
   return(ctx)
 }

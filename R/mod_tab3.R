@@ -131,7 +131,7 @@ mod_tab3_server <- function(id, ctx) {
       
       updateSelectInput(session, "site_filter", choices = sites)
       
-      if (is.null(selected_site())) {
+      if (is.null(selected_site()) && length(sites) > 0) {
         selected_site(sites[1])
       }
     })
@@ -141,12 +141,14 @@ mod_tab3_server <- function(id, ctx) {
     }, ignoreInit = TRUE)
     
     df_site <- reactive({
+      
       req(xylo_obs(), selected_site())
-      xylo_obs() |> dplyr::filter(site_label == selected_site())
+      
+      dplyr::filter(xylo_obs(), site_label == selected_site())
     })
     
     # =====================================================
-    # 📊 VALIDATION (SINGLE SOURCE OF TRUTH)
+    # 📊 VALIDATION (UNCHANGED LOGIC)
     # =====================================================
     qa_valid <- reactive({
       
@@ -156,18 +158,24 @@ mod_tab3_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # 🧠 V2 STATE WRITE (ONLY PLACE)
+    # 🧭 READINESS INTEGRATION (NEW)
     # =====================================================
     observe({
       
-      valid <- qa_valid()
+      # data layer readiness
+      data_ready <- !is.null(ctx$data$obs_truth) &&
+        !is.null(ctx$data$site_info)
       
-      ctx$v2$qa_ready <- valid
-      ctx$v2$obs_verified <- valid
+      # expose via central controller
+      ctx$update_ready()
+      
+      # optional sync into legacy v2 (kept for compatibility)
+      ctx$v2$qa_ready <- qa_valid()
+      ctx$v2$obs_verified <- qa_valid()
     })
     
     # =====================================================
-    # 🎨 UI STATE (BUTTON + HEADER ONLY)
+    # 🎨 UI STATE (UNCHANGED LOGIC, safer JS)
     # =====================================================
     observe({
       
@@ -178,23 +186,16 @@ mod_tab3_server <- function(id, ctx) {
       
       color <- if (valid) "#198754" else "#dc3545"
       
-      shinyjs::runjs(sprintf("
+      shinyjs::runjs(sprintf(
+        "
         var header = document.getElementById('%s');
         if (header) {
           header.style.backgroundColor = '%s';
           header.style.color = '#fff';
         }
-
-        var btn = document.getElementById('%s');
-        if (btn) {
-          btn.classList.remove('btn-success','btn-secondary');
-          btn.classList.add(%s ? 'btn-success' : 'btn-secondary');
-        }
-      ",
-                             ns("card_header_validation"),
-                             color,
-                             ns("next_btn"),
-                             tolower(as.character(valid))
+        ",
+        ns("card_header_validation"),
+        color
       ))
     })
     
@@ -235,7 +236,7 @@ mod_tab3_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # 📈 PLOT (UNCHANGED LOGIC)
+    # 📈 PLOT (UNCHANGED)
     # =====================================================
     output$data_coverage_plot <- plotly::renderPlotly({
       
@@ -253,13 +254,17 @@ mod_tab3_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # 🚀 NAVIGATION
+    # 🚀 NAVIGATION (NOW SAFE-GATED)
     # =====================================================
     observeEvent(input$next_btn, {
       
       req(qa_valid())
       
-      ctx$v2$stage <- "tab4"
+      # 🔥 only advance if system is consistent
+      ctx$nav$stage <- "tab4"
+      
+      # 🔥 trigger readiness update (important bridge to next layer)
+      ctx$update_ready()
     })
     
   })

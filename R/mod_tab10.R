@@ -1,5 +1,4 @@
 
-
 #' @export
 #' 
 mod_tab10_ui <- function(id) {
@@ -7,28 +6,28 @@ mod_tab10_ui <- function(id) {
   ns <- shiny::NS(id)
   
   bslib::nav_panel(
-    title = "Publications",
-    value = "tab10",
+    title = "Authors",
+    value = "tab9",
     
     fluidRow(
       
       # =====================================================
-      # LEFT: PUBLICATION TABLE
+      # LEFT: AUTHOR TABLE
       # =====================================================
       column(
         8,
         
         bslib::card(
-          bslib::card_header("10.1 Publication enrichment (DOI layer)"),
+          bslib::card_header("9.1 Author enrichment (ORCID layer)"),
           
           bslib::card_body(
             
-            rhandsontable::rHandsontableOutput(ns("pub_hot")),
+            rhandsontable::rHandsontableOutput(ns("author_hot")),
             
             tags$hr(),
             
             actionButton(
-              ns("apply_pub"),
+              ns("apply_authors"),
               "Apply enrichment",
               class = "btn btn-primary w-100"
             )
@@ -37,19 +36,19 @@ mod_tab10_ui <- function(id) {
       ),
       
       # =====================================================
-      # RIGHT: VALIDATION PANEL
+      # RIGHT: ENRICHMENT STATUS
       # =====================================================
       column(
         4,
         
         bslib::card(
-          bslib::card_header("10.2 DOI validation"),
+          bslib::card_header("9.2 ORCID validation"),
           
           bslib::card_body(
             
-            uiOutput(ns("pub_status")),
+            uiOutput(ns("author_status")),
             tags$hr(),
-            DT::DTOutput(ns("pub_issues"))
+            DT::DTOutput(ns("author_issues"))
           )
         )
       )
@@ -57,103 +56,62 @@ mod_tab10_ui <- function(id) {
   )
 }
 
+
 mod_tab10_server <- function(id, ctx) {
   
   moduleServer(id, function(input, output, session) {
     
-    ns <- session$ns
+    author_data <- shiny::reactiveVal()
     
-    # =====================================================
-    # 🧠 LOCAL BUFFER
-    # =====================================================
-    pub_data <- reactiveVal()
-    
-    # =====================================================
-    # INIT FROM GLOBAL ENRICHMENT STORE (NOT ENGINE)
-    # =====================================================
     observe({
+      req(ctx$engine())
       
-      req(ctx$data$publications$enriched)
-      
-      pub_data(ctx$data$publications$enriched)
+      author_data(ctx$data$authors$enriched)
     })
     
-    # =====================================================
-    # 📊 RENDER TABLE
-    # =====================================================
-    output$pub_hot <- rhandsontable::renderRHandsontable({
-      
-      req(pub_data())
-      
-      rhandsontable::rhandsontable(pub_data())
+    output$author_hot <- rhandsontable::renderRHandsontable({
+      req(author_data())
+      rhandsontable::rhandsontable(author_data())
     })
     
-    # =====================================================
-    # ✍️ LOCAL EDIT BUFFER
-    # =====================================================
-    observeEvent(input$pub_hot, {
+    observeEvent(input$author_hot, {
       
-      updated <- isolate(
-        rhandsontable::hot_to_r(input$pub_hot)
-      )
-      
-      pub_data(updated)
+      updated <- rhandsontable::hot_to_r(input$author_hot)
+      author_data(updated)
     })
     
-    # =====================================================
-    # 🌐 APPLY → GLOBAL STORE
-    # =====================================================
-    observeEvent(input$apply_pub, {
+    observeEvent(input$apply_authors, {
       
-      req(pub_data())
+      req(author_data())
+      ctx$data$authors$enriched <- author_data()
       
-      ctx$data$publications$enriched <- pub_data()
-      
-      showNotification(
-        "Publication enrichment updated",
-        type = "message"
-      )
+      showNotification("Author enrichment updated", type = "message")
     })
     
-    # =====================================================
-    # 🧠 ENGINE-DRIVEN STATUS
-    # =====================================================
-    output$pub_status <- shiny::renderUI({
+    output$author_status <- shiny::renderUI({
       
       req(ctx$engine())
       
-      v <- ctx$engine()$validation$publications
+      v <- ctx$engine()$validation$authors
       
       if (v$valid) {
-        
-        tags$div(
-          class = "alert alert-success",
-          "✔ Publication metadata complete"
-        )
-        
+        tags$div(class = "alert alert-success", "✔ Author enrichment complete")
       } else {
-        
         tags$div(
           class = "alert alert-warning",
-          paste(
-            "Missing DOI:",
-            paste(v$missing_doi, collapse = ", ")
-          )
+          paste("Missing ORCID:", paste(v$missing_orcid, collapse = ", "))
         )
       }
     })
     
-    # =====================================================
-    # 📋 ISSUE TABLE
-    # =====================================================
-    output$pub_issues <- DT::renderDT({
+    output$author_issues <- DT::renderDT({
       
       req(ctx$engine())
       
-      v <- ctx$engine()$validation$publications
+      v <- ctx$engine()$validation$authors
       
       data.frame(
-        issue = if (!v$valid) v$issues else "No issues detected",
+        issue = if (!v$valid) v$issues else "No issues",
         unresolved = v$n_unresolved
       )
     })

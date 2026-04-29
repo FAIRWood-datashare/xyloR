@@ -1,4 +1,5 @@
 
+
 #' @export
 #' 
 mod_tab9_ui <- function(id) {
@@ -6,29 +7,29 @@ mod_tab9_ui <- function(id) {
   ns <- shiny::NS(id)
   
   bslib::nav_panel(
-    title = "Authors",
-    value = "tab9",
+    title = "Sample",
+    value = "tab8",
     
     fluidRow(
       
       # =====================================================
-      # LEFT: AUTHOR TABLE
+      # LEFT: SAMPLE TABLE
       # =====================================================
       column(
         8,
         
         bslib::card(
-          bslib::card_header("9.1 Author enrichment (ORCID layer)"),
+          bslib::card_header("8.1 Sample layer (derived from TREE)"),
           
           bslib::card_body(
             
-            rhandsontable::rHandsontableOutput(ns("author_hot")),
+            rhandsontable::rHandsontableOutput(ns("sample_hot")),
             
             tags$hr(),
             
             actionButton(
-              ns("apply_authors"),
-              "Apply enrichment",
+              ns("apply_sample"),
+              "Apply changes",
               class = "btn btn-primary w-100"
             )
           )
@@ -36,19 +37,19 @@ mod_tab9_ui <- function(id) {
       ),
       
       # =====================================================
-      # RIGHT: ENRICHMENT STATUS
+      # RIGHT: FINAL VALIDATION
       # =====================================================
       column(
         4,
         
         bslib::card(
-          bslib::card_header("9.2 ORCID validation"),
+          bslib::card_header("8.2 Final validation (engine)"),
           
           bslib::card_body(
             
-            uiOutput(ns("author_status")),
+            uiOutput(ns("sample_status")),
             tags$hr(),
-            DT::DTOutput(ns("author_issues"))
+            DT::DTOutput(ns("sample_issues"))
           )
         )
       )
@@ -61,58 +62,105 @@ mod_tab9_server <- function(id, ctx) {
   
   moduleServer(id, function(input, output, session) {
     
-    author_data <- shiny::reactiveVal()
+    ns <- session$ns
     
+    # =====================================================
+    # 🧠 LOCAL BUFFER
+    # =====================================================
+    sample_data <- reactiveVal(NULL)
+    
+    # =====================================================
+    # INIT FROM ENGINE (SAFE + SINGLE ACCESS)
+    # =====================================================
     observe({
-      req(ctx$engine())
       
-      author_data(ctx$data$authors$enriched)
+      eng <- ctx$engine()
+      req(eng)
+      
+      sample_data(eng$derived$sample)
     })
     
-    output$author_hot <- rhandsontable::renderRHandsontable({
-      req(author_data())
-      rhandsontable::rhandsontable(author_data())
+    # =====================================================
+    # 📊 RENDER TABLE
+    # =====================================================
+    output$sample_hot <- rhandsontable::renderRHandsontable({
+      
+      req(sample_data())
+      
+      rhandsontable::rhandsontable(
+        sample_data(),
+        stretchH = "all",
+        rowHeaders = TRUE,
+        useTypes = TRUE
+      )
     })
     
-    observeEvent(input$author_hot, {
+    # =====================================================
+    # ✍️ CAPTURE EDITS
+    # =====================================================
+    observeEvent(input$sample_hot, {
       
-      updated <- rhandsontable::hot_to_r(input$author_hot)
-      author_data(updated)
+      updated <- rhandsontable::hot_to_r(input$sample_hot)
+      sample_data(updated)
     })
     
-    observeEvent(input$apply_authors, {
+    # =====================================================
+    # 💾 APPLY → GLOBAL STATE
+    # =====================================================
+    observeEvent(input$apply_sample, {
       
-      req(author_data())
-      ctx$data$authors$enriched <- author_data()
+      req(sample_data())
       
-      showNotification("Author enrichment updated", type = "message")
+      ctx$data$sample$working_copy <- sample_data()
+      
+      showNotification(
+        "Sample layer updated",
+        type = "message"
+      )
     })
     
-    output$author_status <- shiny::renderUI({
+    # =====================================================
+    # 🧠 ENGINE-DRIVEN STATUS (SAFE ACCESS)
+    # =====================================================
+    output$sample_status <- shiny::renderUI({
       
-      req(ctx$engine())
+      eng <- ctx$engine()
+      req(eng)
       
-      v <- ctx$engine()$validation$authors
+      v <- eng$validation$sample
       
-      if (v$valid) {
-        tags$div(class = "alert alert-success", "✔ Author enrichment complete")
-      } else {
+      if (isTRUE(v$valid)) {
+        
         tags$div(
-          class = "alert alert-warning",
-          paste("Missing ORCID:", paste(v$missing_orcid, collapse = ", "))
+          class = "alert alert-success",
+          "✔ Sample valid (export-ready)"
+        )
+        
+      } else {
+        
+        tags$div(
+          class = "alert alert-danger",
+          paste(
+            "Sample issues:",
+            paste(v$issues, collapse = ", ")
+          )
         )
       }
     })
     
-    output$author_issues <- DT::renderDT({
+    # =====================================================
+    # 📋 FINAL VALIDATION TABLE (SAFE ACCESS)
+    # =====================================================
+    output$sample_issues <- DT::renderDT({
       
-      req(ctx$engine())
+      eng <- ctx$engine()
+      req(eng)
       
-      v <- ctx$engine()$validation$authors
+      v <- eng$validation$sample
       
       data.frame(
-        issue = if (!v$valid) v$issues else "No issues",
-        unresolved = v$n_unresolved
+        issue = if (!v$valid) v$issues else "No issues detected",
+        status = v$valid
       )
     })
   })

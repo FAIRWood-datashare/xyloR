@@ -7,28 +7,28 @@ mod_tab8_ui <- function(id) {
   ns <- shiny::NS(id)
   
   bslib::nav_panel(
-    title = "Sample",
-    value = "tab8",
+    title = "Tree",
+    value = "tab7",
     
     fluidRow(
       
       # =====================================================
-      # LEFT: SAMPLE TABLE
+      # LEFT: TREE TABLE
       # =====================================================
       column(
         8,
         
         bslib::card(
-          bslib::card_header("8.1 Sample layer (derived from TREE)"),
+          bslib::card_header("7.1 Tree layer (derived from SITE)"),
           
           bslib::card_body(
             
-            rhandsontable::rHandsontableOutput(ns("sample_hot")),
+            rhandsontable::rHandsontableOutput(ns("tree_hot")),
             
             tags$hr(),
             
             actionButton(
-              ns("apply_sample"),
+              ns("apply_tree"),
               "Apply changes",
               class = "btn btn-primary w-100"
             )
@@ -37,19 +37,19 @@ mod_tab8_ui <- function(id) {
       ),
       
       # =====================================================
-      # RIGHT: FINAL VALIDATION
+      # RIGHT: VALIDATION PANEL
       # =====================================================
       column(
         4,
         
         bslib::card(
-          bslib::card_header("8.2 Final validation (engine)"),
+          bslib::card_header("7.2 Tree validation (engine)"),
           
           bslib::card_body(
             
-            uiOutput(ns("sample_status")),
+            uiOutput(ns("tree_status")),
             tags$hr(),
-            DT::DTOutput(ns("sample_issues"))
+            DT::DTOutput(ns("tree_issues"))
           )
         )
       )
@@ -67,28 +67,27 @@ mod_tab8_server <- function(id, ctx) {
     # =====================================================
     # 🧠 LOCAL BUFFER
     # =====================================================
-    sample_data <- reactiveVal(NULL)
+    tree_data <- reactiveVal()
     
     # =====================================================
-    # INIT FROM ENGINE (SAFE + SINGLE ACCESS)
+    # INIT FROM GLOBAL STATE (NOT ENGINE)
     # =====================================================
     observe({
       
-      eng <- ctx$engine()
-      req(eng)
+      req(ctx$data$tree$working_copy)
       
-      sample_data(eng$derived$sample)
+      tree_data(ctx$data$tree$working_copy)
     })
     
     # =====================================================
-    # 📊 RENDER TABLE
+    # 📊 RENDER HANDSONTABLE
     # =====================================================
-    output$sample_hot <- rhandsontable::renderRHandsontable({
+    output$tree_hot <- rhandsontable::renderRHandsontable({
       
-      req(sample_data())
+      req(tree_data())
       
       rhandsontable::rhandsontable(
-        sample_data(),
+        tree_data(),
         stretchH = "all",
         rowHeaders = TRUE,
         useTypes = TRUE
@@ -96,71 +95,69 @@ mod_tab8_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # ✍️ CAPTURE EDITS
+    # ✍️ LOCAL EDIT BUFFER
     # =====================================================
-    observeEvent(input$sample_hot, {
+    observeEvent(input$tree_hot, {
       
-      updated <- rhandsontable::hot_to_r(input$sample_hot)
-      sample_data(updated)
+      updated <- isolate(
+        rhandsontable::hot_to_r(input$tree_hot)
+      )
+      
+      tree_data(updated)
     })
     
     # =====================================================
     # 💾 APPLY → GLOBAL STATE
     # =====================================================
-    observeEvent(input$apply_sample, {
+    observeEvent(input$apply_tree, {
       
-      req(sample_data())
+      req(tree_data())
       
-      ctx$data$sample$working_copy <- sample_data()
+      ctx$data$tree$working_copy <- tree_data()
       
       showNotification(
-        "Sample layer updated",
+        "Tree layer updated",
         type = "message"
       )
     })
     
     # =====================================================
-    # 🧠 ENGINE-DRIVEN STATUS (SAFE ACCESS)
+    # 🧠 ENGINE STATUS (READ ONLY)
     # =====================================================
-    output$sample_status <- shiny::renderUI({
+    output$tree_status <- shiny::renderUI({
       
-      eng <- ctx$engine()
-      req(eng)
+      req(ctx$engine())
       
-      v <- eng$validation$sample
+      v <- ctx$engine()$validation$tree
       
-      if (isTRUE(v$valid)) {
+      if (v$valid) {
         
         tags$div(
           class = "alert alert-success",
-          "✔ Sample valid (export-ready)"
+          "✔ Tree structure valid"
         )
         
       } else {
         
         tags$div(
           class = "alert alert-danger",
-          paste(
-            "Sample issues:",
-            paste(v$issues, collapse = ", ")
-          )
+          paste("Tree issues:", paste(v$issues, collapse = ", "))
         )
       }
     })
     
     # =====================================================
-    # 📋 FINAL VALIDATION TABLE (SAFE ACCESS)
+    # 📋 ISSUE TABLE
     # =====================================================
-    output$sample_issues <- DT::renderDT({
+    output$tree_issues <- DT::renderDT({
       
-      eng <- ctx$engine()
-      req(eng)
+      req(ctx$engine())
       
-      v <- eng$validation$sample
+      v <- ctx$engine()$validation$tree
       
       data.frame(
         issue = if (!v$valid) v$issues else "No issues detected",
-        status = v$valid
+        n_edges = v$n_edges
       )
     })
   })

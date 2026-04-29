@@ -113,7 +113,7 @@ mod_tab1_server <- function(id, ctx, session_global) {
     ns <- session$ns
     
     # =====================================================
-    # 🧠 VALIDATION (SINGLE SOURCE OF TRUTH)
+    # 🧠 VALIDATION (UNCHANGED LOGIC)
     # =====================================================
     dataset_valid <- reactive({
       
@@ -140,28 +140,27 @@ mod_tab1_server <- function(id, ctx, session_global) {
     })
     
     # =====================================================
-    # 🧭 V2 STATE WRITE (ONLY PLACE THAT MATTERS)
+    # 🧭 READINESS UPDATE (NO NAVIGATION HERE)
     # =====================================================
     observe({
       
       valid <- dataset_valid()
       
-      ctx$v2$dataset_valid <- valid
-      ctx$v2$dataset_ready <- valid
+      # ONLY readiness state (safe separation)
+      ctx$ready$dataset_valid <- valid
+      ctx$ready$dataset_ready <- valid
     })
     
     # =====================================================
-    # 🎨 UI STATE (BUTTON + HEADER ONLY)
+    # 🎨 UI STATE (UNCHANGED LOGIC)
     # =====================================================
     observe({
       
       valid <- dataset_valid()
       
-      # enable/disable button
       if (valid) shinyjs::enable("submit")
       else shinyjs::disable("submit")
       
-      # color logic
       color <- if (valid) "#198754" else "#dc3545"
       
       shinyjs::runjs(sprintf("
@@ -185,17 +184,18 @@ mod_tab1_server <- function(id, ctx, session_global) {
     })
     
     # =====================================================
-    # 🚀 NAVIGATION
+    # 🚀 NAVIGATION (FIXED)
     # =====================================================
     observeEvent(input$submit, {
       
       req(dataset_valid())
       
-      ctx$v2$stage <- "tab2"
+      # 🔥 NOW USING NAV CONTROLLER (NOT v2)
+      ctx$nav$stage <- "tab2"
     })
     
     # =====================================================
-    # 🧾 VALIDATION UI (CLEAN + INPUT-BASED ONLY)
+    # 🧾 VALIDATION UI (UNCHANGED)
     # =====================================================
     output$v_name <- renderUI({
       
