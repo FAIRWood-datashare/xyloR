@@ -10,9 +10,7 @@ xyloR()
 A Shiny app object
 }
 \description{
-This is the main UI and server definition for the GloboXylo data collector
-Shiny application. The app provides tools to upload, validate, and export
-xylogenesis-related datasets using a structured, tab-based interface.
+GloboXylo Shiny App
 }
 \examples{
 if (interactive()) {

@@ -146,7 +146,10 @@ mod_tab1_server <- function(id, ctx, session_global) {
       
       valid <- dataset_valid()
       
-      # ONLY readiness state (safe separation)
+      # Write to SSOT state only
+      ctx$state$dataset_ready <- valid
+
+      # Keep ctx$ready in sync for legacy consumers
       ctx$ready$dataset_valid <- valid
       ctx$ready$dataset_ready <- valid
     })
@@ -191,7 +194,7 @@ mod_tab1_server <- function(id, ctx, session_global) {
       req(dataset_valid())
       
       # 🔥 NOW USING NAV CONTROLLER (NOT v2)
-      ctx$nav$stage <- "tab2"
+      ctx$state$stage <- "tab2"
     })
     
     # =====================================================

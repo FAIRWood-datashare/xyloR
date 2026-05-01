@@ -1,65 +1,40 @@
 
+# state_v2.R
+# =========================================================
+# DEPRECATED — compute_v2_state() is no longer called.
+# create_minimal_state() is retained for reference only.
+# All state is now managed via ctx$state (see 02_context.R).
+# =========================================================
+
 #' @export
-#' 
+#'
 create_minimal_state <- function() {
   
+
   shiny::reactiveValues(
-    
-    # =====================================================
-    # NAVIGATION STATE (ONLY CONTROL FLOW)
-    # =====================================================
+
+    # Navigation (now ctx$state$stage)
     stage = "tab1",
-    
-    # =====================================================
-    # INPUT STATE (raw form inputs only)
-    # =====================================================
+
+    # Form inputs
     dataset_name = NULL,
-    version = NULL,
-    description = NULL,
-    embargo = NULL,
-    
+    version      = NULL,
+    description  = NULL,
+    embargo      = NULL,
+
     obs_uploaded = FALSE,
-    qa_checked = FALSE,
+    qa_checked   = FALSE,
     meta_uploaded = FALSE,
-    
-    # =====================================================
-    # DERIVED FLAGS (written ONLY by reactor)
-    # =====================================================
-    dataset_valid = FALSE,
+
+    # Derived flags (now ctx$state$*_ready)
+    dataset_valid   = FALSE,
     ingestion_ready = FALSE,
-    qa_ready = FALSE,
-    meta_ready = FALSE,
-    export_ready = FALSE
+    qa_ready        = FALSE,
+    meta_ready      = FALSE,
+    export_ready    = FALSE
   )
 }
 
-# =====================================================
-# V2 STATE ENGINE (single source of truth helper)
-# =====================================================
-
-compute_v2_state <- function(ctx) {
-  
-  dataset_valid <-
-    !is.null(ctx$v2$dataset_name) &&
-    nchar(ctx$v2$dataset_name) >= 3 &&
-    nchar(ctx$v2$dataset_name) <= 8 &&
-    grepl("^[A-Z0-9]+$", ctx$v2$dataset_name) &&
-    !is.null(ctx$v2$version) &&
-    ctx$v2$version >= 1 && ctx$v2$version <= 99 &&
-    !is.null(ctx$v2$description) &&
-    nchar(trimws(ctx$v2$description)) >= 50 &&
-    !is.null(ctx$v2$embargo) &&
-    as.Date(ctx$v2$embargo) >= Sys.Date()
-  
-  ingestion_ready <- isTRUE(ctx$v2$obs_uploaded)
-  qa_ready        <- isTRUE(ctx$v2$qa_checked)
-  meta_ready      <- isTRUE(ctx$v2$meta_uploaded)
-  
-  list(
-    dataset_valid = dataset_valid,
-    ingestion_ready = ingestion_ready,
-    qa_ready = qa_ready,
-    meta_ready = meta_ready,
-    export_ready = dataset_valid && ingestion_ready && qa_ready && meta_ready
-  )
-}
+# compute_v2_state() removed — was only used to feed ctx$v2,
+# which no longer exists. Logic migrated to individual modules
+# writing directly to ctx$state$*_ready.

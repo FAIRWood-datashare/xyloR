@@ -62,15 +62,13 @@ mod_tab8_server <- function(id, ctx) {
   
   moduleServer(id, function(input, output, session) {
     
-    ns <- session$ns
-    
     # =====================================================
     # 🧠 LOCAL BUFFER
     # =====================================================
     tree_data <- reactiveVal()
     
     # =====================================================
-    # INIT FROM GLOBAL STATE (NOT ENGINE)
+    # 🔄 INIT FROM GLOBAL STATE
     # =====================================================
     observe({
       
@@ -80,7 +78,7 @@ mod_tab8_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # 📊 RENDER HANDSONTABLE
+    # 📊 TABLE RENDER
     # =====================================================
     output$tree_hot <- rhandsontable::renderRHandsontable({
       
@@ -107,7 +105,7 @@ mod_tab8_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # 💾 APPLY → GLOBAL STATE
+    # 💾 APPLY → GLOBAL STATE + ENGINE INVALIDATION
     # =====================================================
     observeEvent(input$apply_tree, {
       
@@ -115,34 +113,56 @@ mod_tab8_server <- function(id, ctx) {
       
       ctx$data$tree$working_copy <- tree_data()
       
+      ctx$invalidate_engine()
+      ctx$update_ready()
+      
       showNotification(
-        "Tree layer updated",
+        "Tree layer updated → engine invalidated",
         type = "message"
       )
     })
     
     # =====================================================
-    # 🧠 ENGINE STATUS (READ ONLY)
+    # 🧠 SINGLE ENGINE RESOLVER (NEW STANDARD)
+    # =====================================================
+    get_engine <- reactive({
+      
+      eng <- ctx$get_engine()
+      req(!is.null(eng))
+      
+      eng
+    })
+    
+    # =====================================================
+    # 🧠 STATUS UI
     # =====================================================
     output$tree_status <- shiny::renderUI({
       
-      req(ctx$engine())
-      
-      v <- ctx$engine()$validation$tree
-      
-      if (v$valid) {
+      if (!ctx$has_engine()) {
         
         tags$div(
-          class = "alert alert-success",
-          "✔ Tree structure valid"
+          class = "alert alert-warning",
+          "⚠ Engine not available (run ingestion/QA)"
         )
         
       } else {
         
-        tags$div(
-          class = "alert alert-danger",
-          paste("Tree issues:", paste(v$issues, collapse = ", "))
-        )
+        v <- get_engine()$validation$tree
+        
+        if (isTRUE(v$valid)) {
+          
+          tags$div(
+            class = "alert alert-success",
+            "✔ Tree structure valid"
+          )
+          
+        } else {
+          
+          tags$div(
+            class = "alert alert-danger",
+            paste("Tree issues:", paste(v$issues, collapse = ", "))
+          )
+        }
       }
     })
     
@@ -151,14 +171,15 @@ mod_tab8_server <- function(id, ctx) {
     # =====================================================
     output$tree_issues <- DT::renderDT({
       
-      req(ctx$engine())
+      req(ctx$get_engine())
       
-      v <- ctx$engine()$validation$tree
+      v <- get_engine()$validation$tree
       
       data.frame(
         issue = if (!v$valid) v$issues else "No issues detected",
         n_edges = v$n_edges
       )
     })
+    
   })
 }

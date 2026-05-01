@@ -61,42 +61,78 @@ mod_tab10_server <- function(id, ctx) {
   
   moduleServer(id, function(input, output, session) {
     
-    author_data <- shiny::reactiveVal()
+    author_data <- reactiveVal(NULL)
     
+    # =====================================================
+    # 🧠 INIT FROM DATA STORE (SOURCE OF TRUTH)
+    # =====================================================
     observe({
-      req(ctx$engine())
+      
+      req(ctx$data$authors$enriched)
       
       author_data(ctx$data$authors$enriched)
     })
     
+    # =====================================================
+    # 📊 EDITABLE TABLE
+    # =====================================================
     output$author_hot <- rhandsontable::renderRHandsontable({
+      
       req(author_data())
+      
       rhandsontable::rhandsontable(author_data())
     })
     
+    # =====================================================
+    # ✍️ CAPTURE EDITS
+    # =====================================================
     observeEvent(input$author_hot, {
       
       updated <- rhandsontable::hot_to_r(input$author_hot)
       author_data(updated)
     })
     
+    # =====================================================
+    # 💾 APPLY TO GLOBAL STATE (NO ENGINE INVALIDATION)
+    # =====================================================
     observeEvent(input$apply_authors, {
       
       req(author_data())
+      
       ctx$data$authors$enriched <- author_data()
       
-      showNotification("Author enrichment updated", type = "message")
+      showNotification(
+        "Author enrichment updated",
+        type = "message"
+      )
     })
     
+    # =====================================================
+    # 🧠 STATUS (SAFE ENGINE READ)
+    # =====================================================
     output$author_status <- shiny::renderUI({
       
-      req(ctx$engine())
+      eng <- ctx$get_engine()
       
-      v <- ctx$engine()$validation$authors
+      if (is.null(eng)) {
+        
+        return(tags$div(
+          class = "alert alert-warning",
+          "⚠ Engine not available yet"
+        ))
+      }
       
-      if (v$valid) {
-        tags$div(class = "alert alert-success", "✔ Author enrichment complete")
+      v <- eng$validation$authors
+      
+      if (isTRUE(v$valid)) {
+        
+        tags$div(
+          class = "alert alert-success",
+          "✔ Author enrichment complete"
+        )
+        
       } else {
+        
         tags$div(
           class = "alert alert-warning",
           paste("Missing ORCID:", paste(v$missing_orcid, collapse = ", "))
@@ -104,11 +140,15 @@ mod_tab10_server <- function(id, ctx) {
       }
     })
     
+    # =====================================================
+    # 📋 ISSUE TABLE (SAFE ACCESS)
+    # =====================================================
     output$author_issues <- DT::renderDT({
       
-      req(ctx$engine())
+      eng <- ctx$get_engine()
+      req(!is.null(eng))
       
-      v <- ctx$engine()$validation$authors
+      v <- eng$validation$authors
       
       data.frame(
         issue = if (!v$valid) v$issues else "No issues",

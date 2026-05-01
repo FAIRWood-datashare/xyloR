@@ -60,101 +60,77 @@ mod_tab6_ui <- function(id) {
 }
 
 
-mod_tab6_server <- function(id, ctx) {
+mod_tab6_server <- function(id, ctx, session) {
   
   moduleServer(id, function(input, output, session) {
-    
-    ns <- session$ns
     
     # =====================================================
     # 🧠 LOCAL BUFFER
     # =====================================================
-    obs_data <- reactiveVal()
+    dsample <- reactiveVal(NULL)
     
-    # INIT FROM GLOBAL (SAFE)
+    # =====================================================
+    # 📥 INIT
+    # =====================================================
     observe({
       
-      if (is.null(ctx$data$obs$working_copy)) return()
+      req(ctx$files$wb_meta)
       
-      obs_data(ctx$data$obs$working_copy)
+      df <- openxlsx::readWorkbook(
+        ctx$files$wb_meta,
+        sheet = "sample",
+        startRow = 1,
+        colNames = TRUE
+      )[-(1:6), ] |>
+        tibble::as_tibble()
+      
+      dsample(df)
     })
     
     # =====================================================
-    # 📊 TABLE RENDER
+    # 📊 RENDER
     # =====================================================
-    output$obs_hot <- rhandsontable::renderRHandsontable({
+    output$tbl5 <- rhandsontable::renderRHandsontable({
       
-      req(obs_data())
+      req(dsample())
       
       rhandsontable::rhandsontable(
-        obs_data(),
-        stretchH = "all",
-        rowHeaders = TRUE,
-        useTypes = TRUE
+        dsample(),
+        rowHeaders = NULL,
+        contextMenu = TRUE,
+        stretchH = "all"
       )
     })
     
     # =====================================================
-    # ✍️ EDIT BUFFER (LOCAL ONLY)
+    # ✍️ EDIT BUFFER ONLY
     # =====================================================
-    observeEvent(input$obs_hot, {
+    observeEvent(input$tbl5, {
       
-      updated <- isolate(
-        rhandsontable::hot_to_r(input$obs_hot)
+      req(input$tbl5)
+      dsample(rhandsontable::hot_to_r(input$tbl5))
+    })
+    
+    # =====================================================
+    # 💾 SAVE (ONLY PLACE THAT TOUCHES GLOBAL STATE)
+    # =====================================================
+    observeEvent(input$save_sample, {
+      
+      req(dsample())
+      
+      ctx$data$sample$working_copy <- dsample()
+      
+      ctx$invalidate_engine()
+      ctx$update_ready()
+      
+      save_and_validate(
+        data_reactive = dsample(),
+        sheet_name    = "sample",
+        wb_reactive   = reactive(ctx$files$wb_meta),
+        temp_folder   = ctx$files$temp_folder
       )
       
-      obs_data(updated)
-    })
-    
-    # =====================================================
-    # 💾 APPLY → GLOBAL STATE
-    # =====================================================
-    observeEvent(input$apply_obs, {
-      
-      req(obs_data())
-      
-      ctx$data$obs$working_copy <- obs_data()
-      
-      showNotification("Observation updated", type = "message")
-    })
-    
-    # =====================================================
-    # 🟢 ENGINE STATUS (READ ONLY)
-    # =====================================================
-    output$obs_status <- renderUI({
-      
-      req(ctx$engine())
-      
-      v <- ctx$engine()$validation$obs
-      
-      if (v$valid) {
-        tags$div(class = "alert alert-success",
-                 "✔ Observation schema valid")
-      } else {
-        tags$div(
-          class = "alert alert-danger",
-          paste("Missing:", paste(v$missing_cols, collapse = ", "))
-        )
-      }
-    })
-    
-    # =====================================================
-    # 📋 ISSUE TABLE
-    # =====================================================
-    output$obs_issues <- DT::renderDT({
-      
-      req(ctx$engine())
-      
-      v <- ctx$engine()$validation$obs
-      
-      data.frame(
-        issue = if (!v$valid) {
-          paste("Missing column:", v$missing_cols)
-        } else {
-          "No issues detected"
-        },
-        rows = v$n_rows
-      )
+      showNotification("Sample saved", type = "message")
     })
   })
 }

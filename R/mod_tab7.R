@@ -62,15 +62,13 @@ mod_tab7_server <- function(id, ctx) {
   
   moduleServer(id, function(input, output, session) {
     
-    ns <- session$ns
-    
     # =====================================================
     # 🧠 LOCAL BUFFER
     # =====================================================
     site_data <- reactiveVal()
     
     # =====================================================
-    # INIT FROM GLOBAL STATE (SAFE + STABLE)
+    # 🔄 INIT FROM GLOBAL STATE
     # =====================================================
     observe({
       
@@ -80,7 +78,7 @@ mod_tab7_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # 📊 RENDER HANDSONTABLE
+    # 📊 TABLE RENDER
     # =====================================================
     output$site_hot <- rhandsontable::renderRHandsontable({
       
@@ -107,7 +105,7 @@ mod_tab7_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # 💾 APPLY → GLOBAL STATE
+    # 💾 APPLY → GLOBAL STATE + ENGINE INVALIDATION
     # =====================================================
     observeEvent(input$apply_site, {
       
@@ -115,50 +113,73 @@ mod_tab7_server <- function(id, ctx) {
       
       ctx$data$site$working_copy <- site_data()
       
+      ctx$invalidate_engine()
+      ctx$update_ready()
+      
       showNotification(
-        "Site layer updated",
+        "Site layer updated → engine invalidated",
         type = "message"
       )
     })
     
     # =====================================================
-    # 🧠 ENGINE STATUS (READ ONLY)
+    # 🧠 SINGLE ENGINE RESOLVER (NEW STANDARD)
+    # =====================================================
+    get_engine <- reactive({
+      
+      eng <- ctx$get_engine()
+      req(!is.null(eng))
+      
+      eng
+    })
+    
+    # =====================================================
+    # 🧠 STATUS UI (SIMPLIFIED + SAFE)
     # =====================================================
     output$site_status <- shiny::renderUI({
       
-      req(ctx$engine())
-      
-      v <- ctx$engine()$validation$site
-      
-      if (v$valid) {
+      if (!ctx$has_engine()) {
         
         tags$div(
-          class = "alert alert-success",
-          "✔ Site layer valid"
+          class = "alert alert-warning",
+          "⚠ Engine not available (run ingestion/QA)"
         )
         
       } else {
         
-        tags$div(
-          class = "alert alert-danger",
-          paste("Site issues:", paste(v$issues, collapse = ", "))
-        )
+        v <- get_engine()$validation$site
+        
+        if (isTRUE(v$valid)) {
+          
+          tags$div(
+            class = "alert alert-success",
+            "✔ Site layer valid"
+          )
+          
+        } else {
+          
+          tags$div(
+            class = "alert alert-danger",
+            paste("Site issues:", paste(v$issues, collapse = ", "))
+          )
+        }
       }
     })
     
     # =====================================================
-    # 📋 ISSUE TABLE
+    # 📋 ISSUE TABLE (CONSISTENT ACCESS)
     # =====================================================
     output$site_issues <- DT::renderDT({
       
-      req(ctx$engine())
+      req(ctx$has_engine())
       
-      v <- ctx$engine()$validation$site
+      v <- get_engine()$validation$site
       
       data.frame(
         issue = if (!v$valid) v$issues else "No issues detected",
         n_sites = v$n_sites
       )
     })
+    
   })
 }

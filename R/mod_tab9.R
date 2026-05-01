@@ -65,19 +65,18 @@ mod_tab9_server <- function(id, ctx) {
     ns <- session$ns
     
     # =====================================================
-    # 🧠 LOCAL BUFFER
+    # 🧠 LOCAL BUFFER (SOURCE OF TRUTH = DATA, NOT ENGINE)
     # =====================================================
     sample_data <- reactiveVal(NULL)
     
     # =====================================================
-    # INIT FROM ENGINE (SAFE + SINGLE ACCESS)
+    # INIT FROM GLOBAL DATA (FIXED)
     # =====================================================
     observe({
       
-      eng <- ctx$engine()
-      req(eng)
+      req(ctx$data$sample$working_copy)
       
-      sample_data(eng$derived$sample)
+      sample_data(ctx$data$sample$working_copy)
     })
     
     # =====================================================
@@ -105,56 +104,69 @@ mod_tab9_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # 💾 APPLY → GLOBAL STATE
+    # 💾 APPLY → GLOBAL STATE + ENGINE INVALIDATION
     # =====================================================
     observeEvent(input$apply_sample, {
       
       req(sample_data())
       
+      # 1. update SSOT data
       ctx$data$sample$working_copy <- sample_data()
       
+      # 2. invalidate engine (CRITICAL FIX)
+      ctx$invalidate_engine()
+      
       showNotification(
-        "Sample layer updated",
+        "Sample layer updated (engine invalidated)",
         type = "message"
       )
     })
     
     # =====================================================
-    # 🧠 ENGINE-DRIVEN STATUS (SAFE ACCESS)
+    # 🧠 ENGINE STATUS (READ ONLY)
     # =====================================================
     output$sample_status <- shiny::renderUI({
       
-      eng <- ctx$engine()
-      req(eng)
+      eng <- ctx$get_engine()
       
-      v <- eng$validation$sample
-      
-      if (isTRUE(v$valid)) {
+      if (is.null(eng)) {
         
         tags$div(
-          class = "alert alert-success",
-          "✔ Sample valid (export-ready)"
+          class = "alert alert-warning",
+          "⚠ Engine not available"
         )
         
       } else {
         
-        tags$div(
-          class = "alert alert-danger",
-          paste(
-            "Sample issues:",
-            paste(v$issues, collapse = ", ")
+        v <- eng$validation$sample
+        
+        if (isTRUE(v$valid)) {
+          
+          tags$div(
+            class = "alert alert-success",
+            "✔ Sample valid (export-ready)"
           )
-        )
+          
+        } else {
+          
+          tags$div(
+            class = "alert alert-danger",
+            paste(
+              "Sample issues:",
+              paste(v$issues, collapse = ", ")
+            )
+          )
+        }
       }
     })
     
     # =====================================================
-    # 📋 FINAL VALIDATION TABLE (SAFE ACCESS)
+    # 📋 ISSUE TABLE
     # =====================================================
     output$sample_issues <- DT::renderDT({
       
-      eng <- ctx$engine()
-      req(eng)
+      eng <- ctx$get_engine()
+      req(!is.null(eng))
       
       v <- eng$validation$sample
       
@@ -163,5 +175,6 @@ mod_tab9_server <- function(id, ctx) {
         status = v$valid
       )
     })
+    
   })
 }

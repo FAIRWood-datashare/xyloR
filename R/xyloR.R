@@ -1,9 +1,6 @@
 #' GloboXylo Shiny App
 #'
-#' This is the main UI and server definition for the GloboXylo data collector
-#' Shiny application. The app provides tools to upload, validate, and export
-#' xylogenesis-related datasets using a structured, tab-based interface.
-#'
+#' 
 #' @import shiny
 #' @import shinyjs
 #' @import bslib
@@ -26,54 +23,34 @@ xyloR <- function() {
       primary = "#375A7F"
     ),
     
+    htmltools::tags$head(
+      htmltools::tags$script(src = "https://unpkg.com/@popperjs/core@2"),
+      htmltools::tags$script(src = "https://unpkg.com/tippy.js@6")
+    ),
+    
+    htmltools::includeCSS("www/custom_styles.css"),
+    htmltools::includeScript("www/custom_scripts.js"),
+    
+    shiny::titlePanel("GloboXylo Data Collector"),
+    
     bslib::navset_card_tab(
       id = "tabs",
       
-      bslib::nav_panel("Tab1", value = "tab1", mod_tab1_ui("tab1")),
-      bslib::nav_panel("Tab2", value = "tab2", mod_tab2_ui("tab2")),
-      bslib::nav_panel("Tab3", value = "tab3", mod_tab3_ui("tab3")),
-      bslib::nav_panel("Tab4", value = "tab4", mod_tab4_ui("tab4")),
-      bslib::nav_panel("Tab5", value = "tab5", mod_tab5_ui("tab5")),
-      bslib::nav_panel("Tab6", value = "tab6", mod_tab6_ui("tab6")),
-      bslib::nav_panel("Tab7", value = "tab7", mod_tab7_ui("tab7")),
-      bslib::nav_panel("Tab8", value = "tab8", mod_tab8_ui("tab8")),
-      bslib::nav_panel("Tab9", value = "tab9", mod_tab9_ui("tab9")),
+      bslib::nav_panel("Tab1",  value = "tab1",  mod_tab1_ui("tab1")),
+      bslib::nav_panel("Tab2",  value = "tab2",  mod_tab2_ui("tab2")),
+      bslib::nav_panel("Tab3",  value = "tab3",  mod_tab3_ui("tab3")),
+      bslib::nav_panel("Tab4",  value = "tab4",  mod_tab4_ui("tab4")),
+      bslib::nav_panel("Tab5",  value = "tab5",  mod_tab5_ui("tab5")),
+      bslib::nav_panel("Tab6",  value = "tab6",  mod_tab6_ui("tab6")),
+      bslib::nav_panel("Tab7",  value = "tab7",  mod_tab7_ui("tab7")),
+      bslib::nav_panel("Tab8",  value = "tab8",  mod_tab8_ui("tab8")),
+      bslib::nav_panel("Tab9",  value = "tab9",  mod_tab9_ui("tab9")),
       bslib::nav_panel("Tab10", value = "tab10", mod_tab10_ui("tab10")),
       bslib::nav_panel("Tab11", value = "tab11", mod_tab11_ui("tab11")),
       
-      bslib::nav_panel(
-        "Debug",
-        value = "debug",
-        mod_debug_ui("debug"),
-        
-        shiny::fluidRow(
-          
-          shiny::column(
-            4,
-            shiny::tags$div(
-              style = "padding:10px; border:1px solid #444; border-radius:6px;",
-              
-              shiny::tags$h4("V2 Runtime"),
-              shiny::tags$hr(),
-              
-              shiny::tags$b("Stage: "),
-              shiny::textOutput("v2_state"),
-              
-              shiny::br(),
-              shiny::tags$b("Transitions:"),
-              DT::dataTableOutput("history_table")
-            )
-          ),
-          
-          shiny::column(
-            8,
-            visNetwork::visNetworkOutput("graph", height = "450px")
-          )
-        )
-      )
+      bslib::nav_panel("Debug", value = "debug", mod_debug_ui("debug"))
     )
   )
-
   
   server <- function(input, output, session) {
     
@@ -83,120 +60,75 @@ xyloR <- function() {
     ctx <- create_app_context()
     
     # =====================================================
-    # NAV STATE (MISSING BEFORE — CRITICAL FIX)
+    # 🧠 ENGINE API LAYER (FINAL FORM — CLEAN)
     # =====================================================
-    ctx$nav <- shiny::reactiveValues(
-      stage = "tab1"
-    )
     
-    # =====================================================
-    # ENGINE READY FUNCTION (WAS MISSING — CRITICAL FIX)
-    # =====================================================
-    ctx$update_ready <- function() {
+    ctx$get_engine <- function() {
+      ctx$state$engine
+    }
+    
+    ctx$has_engine <- function() {
+      !is.null(ctx$state$engine)
+    }
+    
+    ctx$set_engine <- function(engine) {
+      ctx$state$engine <- engine
+    }
+    
+    ctx$invalidate_engine <- function(trigger = NULL) {
       
-      obs  <- ctx$data$obs_raw
-      site <- ctx$data$site_info
-      meta <- ctx$data$meta
+      ctx$state$engine <- NULL
+      ctx$state$engine_tick <- Sys.time()
       
-      !is.null(obs) && !is.null(site)
+      ctx$state$qa_ready <- FALSE
+      ctx$state$export_ready <- FALSE
+      
+      ctx$debug$last_invalidation <- list(
+        time = Sys.time(),
+        trigger = trigger
+      )
+    }
+    
+    ctx$rebuild_engine <- function() {
+      
+      req(ctx$data$obs_raw)
+      req(ctx$data$site_info)
+      
+      candidate <- update_state_engine(
+        ctx$data$obs_raw,
+        ctx$data$site_info,
+        ctx$data$tree_info,
+        ctx$data$sample_info
+      )
+      
+      if (!validate_engine_structure(candidate)) return()
+      
+      ctx$set_engine(candidate)
     }
     
     # =====================================================
-    # ENGINE + SNAPSHOT (SINGLE SOURCE OF TRUTH)
+    # ENGINE AUTO REBUILD OBSERVER
     # =====================================================
-    observe({
-      
-      obs    <- ctx$data$obs_raw
-      site   <- ctx$data$site_info
-      tree   <- ctx$data$tree_info
-      sample <- ctx$data$sample_info
-      
-      candidate <- update_state_engine(obs, site, tree, sample)
-      
-      if (!validate_engine_structure(candidate)) {
-        message("⚠ Engine update rejected (invalid structure)")
-        return(invisible(NULL))
-      }
-      
-      ctx$engine_cache(candidate)
-      ctx$snapshot(candidate)
+    shiny::observe({
+      ctx$rebuild_engine()
     })
     
     # =====================================================
-    # GLOBAL READY STATE (SINGLE OBSERVER ONLY)
+    # NAVIGATION
     # =====================================================
-    observe({
-      ctx$state$ready <- ctx$update_ready()
+    shiny::observe({
+      
+      req(ctx$state$stage)
+      
+      bslib::nav_select(
+        id       = "tabs",
+        selected = ctx$state$stage,
+        session  = session
+      )
     })
     
     # =====================================================
-    # ENGINE ACCESSOR
-    # =====================================================
-    ctx$engine <- reactive({
-      eng <- ctx$snapshot()
-      req(!is.null(eng))
-      validate_engine_structure(eng)
-      eng
-    })
-    
-    # =====================================================
-    # EXTERNAL API
-    # =====================================================
-    ctx$external_api <- external_metadata_module(ctx)
-    
-    # =====================================================
-    # CONTRACT CHECK
-    # =====================================================
-    ctx_contract_lock <- function(ctx) {
-      
-      if (!is.null(ctx$external)) {
-        stop("❌ ctx$external is deprecated. Use ctx$external_api only.")
-      }
-      
-      if (is.null(ctx$external_api)) {
-        stop("❌ ctx$external_api missing")
-      }
-      
-      if (is.null(ctx$data)) {
-        stop("❌ ctx$data missing")
-      }
-      
-      invisible(TRUE)
-    }
-    
-    ctx_contract_lock(ctx)
-    
-    observe({
-      invalidateLater(30000, session)
-      ctx_contract_lock(ctx)
-    })
-    
-    # =====================================================
-    # V2 STATE
-    # =====================================================
-    v2_state <- shiny::reactiveVal(NULL)
-    
-    observe({
-      req(ctx$v2)
-      v2_state(compute_v2_state(ctx))
-    })
-    
-    observe({
-      
-      state <- v2_state()
-      req(state)
-      
-      isolate({
-        ctx$v2$dataset_ready   <- state$dataset_valid
-        ctx$v2$ingestion_ready <- state$ingestion_ready
-        ctx$v2$qa_ready        <- state$qa_ready
-        ctx$v2$meta_ready      <- state$meta_ready
-        ctx$v2$export_ready    <- state$export_ready
-      })
-    })
-    
-    # =====================================================
-    # HISTORY
+    # HISTORY TRACKING
     # =====================================================
     ctx$debug$history <- shiny::reactiveVal(data.frame(
       from = character(),
@@ -217,6 +149,18 @@ xyloR <- function() {
       )))
     }
     
+    last_stage <- shiny::reactiveVal(NULL)
+    
+    shiny::observe({
+      
+      req(ctx$state$stage)
+      
+      if (!identical(ctx$state$stage, last_stage())) {
+        log_transition(last_stage(), ctx$state$stage, "stage_change")
+        last_stage(ctx$state$stage)
+      }
+    })
+    
     # =====================================================
     # MODULES
     # =====================================================
@@ -234,64 +178,30 @@ xyloR <- function() {
     mod_debug_server("debug", ctx)
     
     # =====================================================
-    # NAVIGATION (FIXED: ctx$nav instead of ctx$v2)
+    # DEBUG OUTPUTS
     # =====================================================
-    observe({
-      
-      req(ctx$nav$stage)
-      
-      isolate({
-        bslib::nav_select(
-          id = "tabs",
-          selected = ctx$nav$stage,
-          session = session
-        )
-      })
-    })
-    
-    # =====================================================
-    # TRANSITIONS
-    # =====================================================
-    last_stage <- shiny::reactiveVal(NULL)
-    
-    observe({
-      
-      req(ctx$nav$stage)
-      
-      if (!identical(ctx$nav$stage, last_stage())) {
-        
-        log_transition(last_stage(), ctx$nav$stage, "stage_change")
-        last_stage(ctx$nav$stage)
-      }
-    })
-    
-    # =====================================================
-    # DEBUG OUTPUT
-    # =====================================================
-    output$v2_state <- renderText({
-      paste0("V2 stage: ", ctx$nav$stage)
+    output$debug_stage <- shiny::renderText({
+      paste0("stage: ", ctx$state$stage)
     })
     
     output$history_table <- DT::renderDataTable({
       DT::datatable(ctx$debug$history(), options = list(pageLength = 5))
     })
     
-    # =====================================================
-    # GRAPH
-    # =====================================================
     output$graph <- visNetwork::renderVisNetwork({
       
+      tabs <- paste0("tab", 1:4)
+      
       nodes <- data.frame(
-        id = c("tab1","tab2","tab3","tab4"),
-        label = c("Tab 1","Tab 2","Tab 3","Tab 4"),
-        color = ifelse(c("tab1","tab2","tab3","tab4") == ctx$nav$stage,
-                       "#00C853", "#2C3E50"),
+        id = tabs,
+        label = paste("Tab", 1:4),
+        color = ifelse(tabs == ctx$state$stage, "#00C853", "#2C3E50"),
         shape = "box"
       )
       
       edges <- data.frame(
-        from = c("tab1","tab2","tab3"),
-        to   = c("tab2","tab3","tab4"),
+        from = tabs[1:3],
+        to   = tabs[2:4],
         arrows = "to"
       )
       
@@ -299,11 +209,6 @@ xyloR <- function() {
         visNetwork::visNodes(font = list(color = "white")) |>
         visNetwork::visEdges(color = "#888")
     })
-    
-    # =====================================================
-    # APP
-    # =====================================================
-    shiny::shinyApp(ui, server)
   }
   
   shiny::shinyApp(ui, server)

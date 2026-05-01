@@ -93,7 +93,7 @@ mod_tab4_server <- function(id, ctx) {
   moduleServer(id, function(input, output, session) {
     
     # =====================================================
-    # METADATA SOURCE
+    # 📦 METADATA SOURCE (UNCHANGED LOGIC)
     # =====================================================
     meta_base <- reactive({
       req(ctx$data$site_info)
@@ -108,7 +108,6 @@ mod_tab4_server <- function(id, ctx) {
     meta_working <- reactiveVal(NULL)
     
     observe({
-      
       if (!is.null(input$meta_upload)) {
         meta_working(uploaded_meta())
       } else {
@@ -117,117 +116,65 @@ mod_tab4_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # SAVE METADATA (CORE FIX)
+    # 💾 SAVE METADATA (SSOT SAFE)
     # =====================================================
     observeEvent(input$save_meta, {
       
       req(meta_working())
       
-      # 🔥 unified metadata target
       ctx$data$meta <- meta_working()
       
-      # 🔥 remove legacy state flag usage
-      # ctx$state$meta_ready <- TRUE  ❌ REMOVED
+      ctx$invalidate_engine()
       
-      # 🔥 trigger readiness update
       ctx$update_ready()
     })
     
     # =====================================================
-    # SAFE ENGINE ACCESS (CLEANED)
-    # =====================================================
-    safe_engine <- reactive({
-      
-      eng <- ctx$engine()
-      
-      req(!is.null(eng))
-      
-      eng
-    })
-    
-    # =====================================================
-    # ENGINE STATUS
+    # ⚙️ ENGINE STATUS (SAFE DISPLAY ONLY)
     # =====================================================
     output$engine_status <- renderText({
       
-      if (is.null(ctx$snapshot())) {
-        "❌ Engine not ready (missing data or metadata)"
+      if (!ctx$has_engine()) {
+        "❌ Engine not ready (run update_ready / ingestion)"
       } else {
         "✅ Engine ready"
       }
     })
     
     # =====================================================
-    # 🔥 NORMALIZED VALIDATION TABLE
+    # 🧪 DEBUG (SAFE INSPECTION ONLY)
+    # =====================================================
+    observe({
+      print(str(ctx$data$obs))
+      print(str(ctx$data$meta))
+      print(str(ctx$get_engine()))
+    })
+    
+    # =====================================================
+    # 📊 VALIDATION TABLE (SAFE ENGINE ACCESS)
     # =====================================================
     output$validation_table <- DT::renderDataTable({
       
-      eng <- safe_engine()
+      eng <- ctx$get_engine()
+      req(!is.null(eng))
       
-      df <- dplyr::bind_rows(
+      dplyr::bind_rows(
         normalize_validation(eng$validation$obs, "obs"),
         normalize_validation(eng$validation$site, "site"),
         normalize_validation(eng$validation$tree, "tree"),
         normalize_validation(eng$validation$sample, "sample")
       )
-      
-      df
     })
     
     # =====================================================
-    # ENGINE DEBUG VIEW
+    # 🔍 ENGINE DEBUG VIEW (SAFE)
     # =====================================================
     output$engine_debug <- DT::renderDataTable({
       
-      eng <- safe_engine()
+      eng <- ctx$get_engine()
+      req(!is.null(eng))
       
       normalize_validation(eng$validation$obs, "obs")
-    })
-    
-    # =====================================================
-    # VALIDATION PREVIEW
-    # =====================================================
-    output$validation_obs_preview <- DT::renderDataTable({
-      
-      eng <- safe_engine()
-      
-      normalize_validation(eng$validation$obs, "obs")
-    })
-    
-    # =====================================================
-    # ENGINE PROBE
-    # =====================================================
-    output$engine_probe <- renderPrint({
-      
-      eng <- safe_engine()
-      
-      list(
-        obs = class(eng$validation$obs),
-        site = class(eng$validation$site),
-        tree = class(eng$validation$tree),
-        sample = class(eng$validation$sample)
-      )
-    })
-    
-    # =====================================================
-    # STATUS UI
-    # =====================================================
-    output$meta_status <- renderUI({
-      
-      v <- ctx$data$meta
-      
-      if (is.null(v)) {
-        return(tags$div(class = "alert alert-warning", "No metadata loaded"))
-      }
-      
-      tags$div(class = "alert alert-success", "Metadata loaded")
-    })
-    
-    # =====================================================
-    # EDITOR PLACEHOLDER
-    # =====================================================
-    output$meta_editor_ui <- renderUI({
-      tags$div("Metadata editor placeholder")
     })
   })
 }

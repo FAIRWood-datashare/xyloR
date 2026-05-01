@@ -86,7 +86,7 @@ mod_tab2_server <- function(id, ctx) {
       req(input$obs_file)
       
       # -----------------------------
-      # 1. LOAD DATA (SAFE)
+      # 1. LOAD DATA
       # -----------------------------
       obs <- tryCatch(
         load_xylo_obs_clean_contract(input$obs_file$datapath),
@@ -97,13 +97,12 @@ mod_tab2_server <- function(id, ctx) {
       )
       
       if (is.null(obs)) {
-        ctx$v2$obs_uploaded    <- FALSE
-        ctx$v2$ingestion_valid <- FALSE
+        ctx$state$ingestion_ready <- FALSE
         return()
       }
       
       # -----------------------------
-      # 2. EXTRACT SITE INFO
+      # 2. SITE EXTRACTION
       # -----------------------------
       site_info <- tryCatch(
         extract_site_info(input$obs_file$datapath),
@@ -113,43 +112,53 @@ mod_tab2_server <- function(id, ctx) {
         }
       )
       
-      # -----------------------------
-      # 3. VALIDATION FLAG
-      # -----------------------------
-      ingestion_valid <- !is.null(obs)
+      # =====================================================
+      # 🧠 VALIDATION (STRICTER — FIXES SILENT FAILS)
+      # =====================================================
+      ingestion_valid <- !is.null(obs) && !is.null(site_info)
       
       # =====================================================
-      # 🧠 V2 STATE WRITE (ONLY PLACE)
+      # 🧠 STATE WRITE (SSOT ONLY)
       # =====================================================
-      
-      # 🔥 CRITICAL FIX: restore engine-compatible data contract
-      ctx$data$obs_raw  <- obs
+      ctx$data$obs_raw   <- obs
       ctx$data$site_info <- site_info
       
       ctx$files$obs_file <- input$obs_file
       
-      ctx$v2$obs_uploaded    <- TRUE
-      ctx$v2$ingestion_valid <- ingestion_valid
+      ctx$state$ingestion_ready <- ingestion_valid
       
       # =====================================================
-      # 🚀 NAVIGATION (ONLY ON SUCCESS)
+      # ⚡ ENGINE TRIGGER SIGNAL (CRITICAL FIX)
+      # =====================================================
+      # forces downstream engine observer to recompute immediately
+      ctx$invalidate_engine()
+      
+      # =====================================================
+      # 🚀 NAVIGATION
       # =====================================================
       if (ingestion_valid) {
-        ctx$nav$stage <- "tab3"
+        
+        ctx$state$stage <- "tab3"
         
         shiny::showNotification(
           "Observation data uploaded successfully",
           type = "message"
         )
+      } else {
+        
+        shiny::showNotification(
+          "Upload failed: missing site or observation data",
+          type = "error"
+        )
       }
     })
     
     # =====================================================
-    # 🟨 STATUS UI (V2-ONLY READ)
+    # 🟨 STATUS UI
     # =====================================================
     output$obs_status <- renderUI({
       
-      if (isTRUE(ctx$v2$obs_uploaded)) {
+      if (isTRUE(ctx$state$ingestion_ready)) {
         
         tags$div(
           class = "alert alert-success",

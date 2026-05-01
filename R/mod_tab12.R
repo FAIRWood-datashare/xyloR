@@ -77,7 +77,7 @@ mod_tab12_server <- function(id, ctx) {
     frozen <- reactiveVal(FALSE)
     
     # =====================================================
-    # 📦 EXPORT REGISTRY (NEW)
+    # 📦 EXPORT REGISTRY
     # =====================================================
     if (is.null(ctx$registry)) {
       ctx$registry <- list()
@@ -88,35 +88,33 @@ mod_tab12_server <- function(id, ctx) {
     }
     
     # =====================================================
-    # 🧊 FREEZE ACTION (SNAPSHOT + VERSIONING)
+    # 🧊 FREEZE ACTION (SNAPSHOT ONLY)
     # =====================================================
     observeEvent(input$freeze_state, {
       
+      req(ctx$get_engine())
+      
       frozen(TRUE)
       
-      # 🧠 CAPTURE SNAPSHOT
-      snap <- ctx$engine()
+      # 🧠 snapshot ONLY (no mutation of live engine)
+      ctx$snapshot$engine <- ctx$get_engine()
       
-      ctx$snapshot(snap)
-      
-      # 🧾 CREATE SNAPSHOT METADATA (NEW)
       snapshot_id <- paste0(
         "snap_",
         format(Sys.time(), "%Y%m%d_%H%M%S")
       )
       
       ctx$snapshot_meta <- list(
-        id = snapshot_id,
-        timestamp = Sys.time(),
-        dataset_name = ctx$form$dataset_name,
+        id              = snapshot_id,
+        timestamp       = Sys.time(),
+        dataset_name    = ctx$form$dataset_name,
         dataset_version = ctx$form$dataset_version
       )
       
-      # 🔒 LOCK EDITING
       ctx$edit$lock <- TRUE
       
       showNotification(
-        "Dataset frozen. Snapshot captured for export.",
+        "Dataset frozen. Snapshot captured.",
         type = "message"
       )
     })
@@ -126,21 +124,14 @@ mod_tab12_server <- function(id, ctx) {
     # =====================================================
     output$export_status <- shiny::renderUI({
       
-      req(ctx$engine())
+      if (!ctx$has_engine()) {
+        return(tags$div(class = "alert alert-warning", "⚠ Engine not ready"))
+      }
       
       if (frozen()) {
-        
-        tags$div(
-          class = "alert alert-success",
-          "✔ Dataset frozen and export-ready"
-        )
-        
+        tags$div(class = "alert alert-success", "✔ Ready for export")
       } else {
-        
-        tags$div(
-          class = "alert alert-warning",
-          "⚠ Please freeze dataset before export"
-        )
+        tags$div(class = "alert alert-warning", "⚠ Please freeze dataset first")
       }
     })
     
@@ -149,26 +140,18 @@ mod_tab12_server <- function(id, ctx) {
     # =====================================================
     output$export_summary <- DT::renderDT({
       
-      req(ctx$engine())
-      
-      e <- ctx$engine()
+      eng <- ctx$get_engine()
+      req(eng)
       
       data.frame(
-        layer = c(
-          "OBS",
-          "SITE",
-          "TREE",
-          "SAMPLE",
-          "AUTHORS",
-          "PUBLICATIONS"
-        ),
+        layer = c("OBS", "SITE", "TREE", "SAMPLE", "AUTHORS", "PUBLICATIONS"),
         status = c(
           TRUE,
           TRUE,
           TRUE,
           TRUE,
-          !is.null(e$enrichment$authors),
-          !is.null(e$enrichment$publications)
+          !is.null(eng$enrichment$authors),
+          !is.null(eng$enrichment$publications)
         )
       )
     })
@@ -179,22 +162,8 @@ mod_tab12_server <- function(id, ctx) {
     output$lineage_log <- DT::renderDT({
       
       data.frame(
-        step = c(
-          "OBS",
-          "SITE",
-          "TREE",
-          "SAMPLE",
-          "AUTHOR",
-          "PUBLICATION"
-        ),
-        source = c(
-          "raw",
-          "obs",
-          "site",
-          "tree",
-          "sample",
-          "sample"
-        ),
+        step = c("OBS", "SITE", "TREE", "SAMPLE", "AUTHOR", "PUBLICATION"),
+        source = c("raw", "obs", "site", "tree", "sample", "sample"),
         transformed_by = c(
           "ingestion",
           "site_engine",
@@ -207,12 +176,11 @@ mod_tab12_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # 📦 DOWNLOAD PACKAGE (VERSIONED + SNAPSHOT SAFE)
+    # 📦 DOWNLOAD PACKAGE (CLEAN)
     # =====================================================
     output$download_package <- downloadHandler(
       
       filename = function() {
-        
         paste0(
           "xylo_",
           ctx$form$dataset_name, "_",
@@ -225,61 +193,14 @@ mod_tab12_server <- function(id, ctx) {
       content = function(file) {
         
         req(frozen())
-        req(ctx$snapshot())
+        req(ctx$snapshot$engine)
         
         tmp <- tempdir()
         
-        # =================================================
-        # 📦 EXPORT DATA
-        # =================================================
-        saveRDS(ctx$data, file.path(tmp, "dataset.rds"))
-        
-        saveRDS(
-          ctx$snapshot(),
-          file.path(tmp, "engine_snapshot.rds")
-        )
-        
-        # =================================================
-        # 🧾 SNAPSHOT METADATA
-        # =================================================
-        write.csv(
-          data.frame(
-            snapshot_id = ctx$snapshot_meta$id,
-            timestamp = ctx$snapshot_meta$timestamp,
-            dataset_name = ctx$snapshot_meta$dataset_name,
-            dataset_version = ctx$snapshot_meta$dataset_version
-          ),
-          file.path(tmp, "snapshot_meta.csv"),
-          row.names = FALSE
-        )
-        
-        # =================================================
-        # 📊 VALIDATION LOG
-        # =================================================
-        write.csv(
-          ctx$validation,
-          file.path(tmp, "validation_log.csv"),
-          row.names = FALSE
-        )
-        
-        # =================================================
-        # 📦 ZIP PACKAGE
-        # =================================================
-        zip::zipr(
-          zipfile = file,
-          files = list.files(tmp, full.names = TRUE)
-        )
-        
-        # =================================================
-        # 🧠 REGISTER EXPORT EVENT
-        # =================================================
-        ctx$registry$exports[[length(ctx$registry$exports) + 1]] <- list(
-          dataset = ctx$form$dataset_name,
-          version = ctx$form$dataset_version,
-          snapshot = ctx$snapshot_meta$id,
-          timestamp = Sys.time()
-        )
+        # 👉 use centralized export function
+        export_snapshot(ctx, file)
       }
     )
+    
   })
 }

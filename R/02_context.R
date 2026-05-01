@@ -4,35 +4,32 @@
 # =========================================================
 # APP CONTEXT FACTORY
 # =========================================================
-# This replaces out_tab1/out_tab2/out_tab3/out_tab4
-# with a single unified state object (ctx)
-# =========================================================
-#' @export
-#' 
 create_app_context <- function() {
   
   ctx <- new.env(parent = emptyenv())
   
   # =====================================================
-  # 📚 EXPORT REGISTRY (APPEND-ONLY LOG)
+  # 📚 EXPORT REGISTRY
   # =====================================================
   ctx$registry <- list()
   ctx$registry$exports <- list()
   
   # =====================================================
-  # 📦 DATA LAYERS
+  # 📦 DATA LAYERS (RAW INPUT STATE)
   # =====================================================
   ctx$data <- shiny::reactiveValues(
-    obs_raw = NULL,
-    obs_truth = NULL,
-    meta = NULL,
-    draft_obs = NULL,
-    tbl1 = NULL,
-    site_info = NULL
+    obs_raw     = NULL,
+    obs_truth   = NULL,
+    meta        = NULL,
+    draft_obs   = NULL,
+    tbl1        = NULL,
+    site_info   = NULL,
+    tree_info   = NULL,
+    sample_info = NULL
   )
   
   # =====================================================
-  # 🧭 VIEW STATE
+  # 🧭 VIEW STATE (optional UI state)
   # =====================================================
   ctx$view <- shiny::reactiveValues(
     tab1 = NULL,
@@ -44,8 +41,8 @@ create_app_context <- function() {
   # 📁 FILE HANDLING
   # =====================================================
   ctx$files <- shiny::reactiveValues(
-    obs_file = NULL,
-    meta_file = NULL,
+    obs_file    = NULL,
+    meta_file   = NULL,
     temp_folder = NULL
   )
   
@@ -53,28 +50,40 @@ create_app_context <- function() {
   # 🧪 VALIDATION STATE
   # =====================================================
   ctx$validation <- shiny::reactiveValues(
-    global = NULL,
+    global   = NULL,
     last_run = NULL
   )
   
   # =====================================================
-  # 🧭 APP STATE FLAGS (legacy - will be phased out)
+  # 🎯 SINGLE SOURCE OF TRUTH: APP STATE
   # =====================================================
   ctx$state <- shiny::reactiveValues(
-    export_ready = FALSE,
-    tab1_ready = FALSE,
-    tab2_ready = FALSE,
-    tab3_ready = FALSE
+    stage           = "tab1",
+    dataset_ready   = FALSE,
+    ingestion_ready = FALSE,
+    qa_ready        = FALSE,
+    meta_ready      = FALSE,
+    export_ready    = FALSE,
+    
+    engine          = NULL   # ✅ NEW SSOT
   )
+  
+  ctx$engine_get <- function() {
+    ctx$get_engine()
+  }
+  
+  ctx$engine_ready <- function() {
+    !is.null(ctx$get_engine())
+  }
   
   # =====================================================
   # 🐞 DEBUG / TRACE
   # =====================================================
   ctx$debug <- shiny::reactiveValues(
     last_transition_from = NULL,
-    last_transition_to = NULL,
-    last_trigger = NULL,
-    timestamp = NULL
+    last_transition_to   = NULL,
+    last_trigger         = NULL,
+    timestamp            = NULL
   )
   
   # =====================================================
@@ -82,65 +91,40 @@ create_app_context <- function() {
   # =====================================================
   ctx$edit <- shiny::reactiveValues(
     pending_changes = list(),
-    lock = FALSE
+    lock            = FALSE
   )
   
   # =====================================================
   # 🧾 FORM INPUTS
   # =====================================================
   ctx$form <- shiny::reactiveValues(
-    dataset_name = NULL,
-    version = NULL,
-    description = NULL,
-    embargo = NULL,
-    obs_file = NULL,
-    metadata = NULL
+    dataset_name    = NULL,
+    version         = NULL,
+    description     = NULL,
+    embargo         = NULL,
+    obs_file        = NULL,
+    metadata        = NULL,
+    dataset_version = NULL
   )
   
   # =====================================================
-  # 🧠 ENRICHMENT CACHE
+  # 🧠 CACHE
   # =====================================================
   ctx$cache <- shiny::reactiveValues(
     orcid = list(),
-    doi = list()
+    doi   = list()
   )
   
   # =====================================================
-  # ⚙️ ENGINE CACHE
+  # 🔄 READINESS FUNCTION (SAFE + PURE)
   # =====================================================
-  ctx$engine_cache <- shiny::reactiveVal(NULL)
-  
-  # =====================================================
-  # 📸 SNAPSHOT (SOURCE OF TRUTH STATE)
-  # =====================================================
-  ctx$snapshot <- shiny::reactiveVal(NULL)
-  
-  # =====================================================
-  # 🧭 CENTRAL READINESS CONTROLLER (NEW CORE)
-  # =====================================================
-  ctx$ready <- shiny::reactiveValues(
-    dataset_valid = FALSE,
-    dataset_ready = FALSE,
-    site_ready = FALSE,
-    meta_ready = FALSE,
-    system_ready = FALSE
-  )
-  
-  # =====================================================
-  # 🔄 READINESS UPDATE FUNCTION
-  # =====================================================
-  ctx$update_ready <- reactive({
+  ctx$update_ready <- function() {
     
     obs  <- ctx$data$obs_raw
     site <- ctx$data$site_info
-    meta <- ctx$data$meta
     
-    !is.null(obs) && !is.null(site)
-  })
-  
-  ctx$nav <- shiny::reactiveValues(
-    stage = "tab1"
-  )
+    isTRUE(!is.null(obs) && !is.null(site))
+  }
   
   return(ctx)
 }

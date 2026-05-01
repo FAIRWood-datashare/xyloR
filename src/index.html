@@ -1,0 +1,143 @@
+<!doctype html>
+<html>
+<head>
+  <title>Engine UI Test</title>
+</head>
+
+<body>
+
+<h2>Engine UI Test</h2>
+
+<button onclick="onUserChange()">User Change</button>
+<button onclick="onSettingsChange()">Settings Change</button>
+<button onclick="undo()">Undo</button>
+<button onclick="redo()">Redo</button>
+<button onclick="saveSession()">Save Session</button>
+<button onclick="loadSession()">Load Session</button>
+<button onclick="exportSession()">Export Session</button>
+<input type="file" id="importFile" />
+<button onclick="handleImport()">Import Session</button>
+
+<pre id="output"></pre>
+
+<h3>History</h3>
+<div id="history"></div>
+
+<div id="dropZone">
+  Drop session file here
+</div>
+
+<h3>Session Diff</h3>
+<pre id="diff"></pre>
+
+<style>
+  #dropZone {
+    border: 2px dashed #999;
+    padding: 20px;
+    margin: 10px 0;
+    text-align: center;
+    color: #666;
+  }
+
+  #dropZone.dragover {
+    background: #e6f7ff;
+    border-color: #3399ff;
+    color: #000;
+  }
+</style>
+
+<!-- JS ENGINE -->
+<script src="./app_step5_test.js"></script>
+
+<script>
+  console.log("✅ HTML loaded")
+
+  // =====================================================
+  // STEP 5: UI CONNECTOR (CLEAN VERSION)
+  // =====================================================
+
+  function renderBridge() {
+    if (!window.ctx) {
+      console.log("⏳ ctx not ready yet")
+      return
+    }
+
+    const el = document.getElementById("output")
+    if (!el) return
+
+    el.textContent =
+      "🧠 ENGINE STATE\n\n" +
+      JSON.stringify(window.ctx.getEngine(), null, 2)
+  }
+
+  function renderHistoryBridge() {
+    if (!window.history) return
+
+    const el = document.getElementById("history")
+    if (!el) return
+
+    const items = window.history.getAll()
+    const currentIndex = window.history.getIndex()
+
+    el.innerHTML = ""
+
+    items.forEach((item, i) => {
+      const div = document.createElement("div")
+
+      div.textContent = `${i} → ${item.action}`
+      div.style.cursor = "pointer"
+      div.style.padding = "4px"
+
+      if (i === currentIndex) {
+        div.style.background = "#d0f0ff"
+        div.style.fontWeight = "bold"
+      }
+
+      div.onclick = () => {
+        window.ctx.setEngine(item.state)
+        window.history.goTo(i)
+
+        renderBridge()
+        renderHistoryBridge()
+      }
+
+      el.appendChild(div)
+    })
+  }
+  
+  function handleImport() {
+  const input = document.getElementById("importFile")
+  const file = input.files[0]
+
+  if (!file) {
+    console.log("⚠️ No file selected")
+    return
+  }
+
+  window.importSession(file)
+}
+
+  // =====================================================
+  // AUTO CONNECT (IMPORTANT FIX)
+  // =====================================================
+  window.addEventListener("load", () => {
+    console.log("📦 page fully loaded")
+
+    // wait a tick to ensure JS is ready
+    setTimeout(() => {
+      renderBridge()
+      renderHistoryBridge()
+    }, 10)
+  })
+
+  // =====================================================
+  // OPTIONAL GLOBAL RENDER HOOK (used by engine)
+  // =====================================================
+  window.render = () => {
+    renderBridge()
+    renderHistoryBridge()
+  }
+</script>
+
+</body>
+</html>

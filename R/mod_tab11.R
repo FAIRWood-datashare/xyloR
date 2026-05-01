@@ -61,15 +61,10 @@ mod_tab11_server <- function(id, ctx) {
   
   moduleServer(id, function(input, output, session) {
     
-    ns <- session$ns
-    
-    # =====================================================
-    # 🧠 LOCAL BUFFER
-    # =====================================================
     pub_data <- reactiveVal()
     
     # =====================================================
-    # INIT FROM GLOBAL ENRICHMENT STORE (NOT ENGINE)
+    # INIT FROM DATA STORE
     # =====================================================
     observe({
       
@@ -79,7 +74,7 @@ mod_tab11_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # 📊 RENDER TABLE
+    # TABLE RENDER
     # =====================================================
     output$pub_hot <- rhandsontable::renderRHandsontable({
       
@@ -89,7 +84,7 @@ mod_tab11_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # ✍️ LOCAL EDIT BUFFER
+    # CAPTURE EDITS (SAFE ISOLATED UPDATE)
     # =====================================================
     observeEvent(input$pub_hot, {
       
@@ -101,7 +96,7 @@ mod_tab11_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # 🌐 APPLY → GLOBAL STORE
+    # APPLY → GLOBAL STORE (NO ENGINE INVALIDATION)
     # =====================================================
     observeEvent(input$apply_pub, {
       
@@ -116,15 +111,29 @@ mod_tab11_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # 🧠 ENGINE-DRIVEN STATUS
+    # STATUS UI (SAFE ENGINE READ)
     # =====================================================
     output$pub_status <- shiny::renderUI({
       
-      req(ctx$engine())
+      eng <- ctx$get_engine()
       
-      v <- ctx$engine()$validation$publications
+      if (is.null(eng)) {
+        
+        return(tags$div(
+          class = "alert alert-warning",
+          "⚠ Engine not available (run ingestion/QA)"
+        ))
+      }
       
-      if (v$valid) {
+      v <- eng$validation$publications
+      
+      missing <- if (!is.null(v$missing_doi)) {
+        paste(v$missing_doi, collapse = ", ")
+      } else {
+        "None"
+      }
+      
+      if (isTRUE(v$valid)) {
         
         tags$div(
           class = "alert alert-success",
@@ -135,27 +144,26 @@ mod_tab11_server <- function(id, ctx) {
         
         tags$div(
           class = "alert alert-warning",
-          paste(
-            "Missing DOI:",
-            paste(v$missing_doi, collapse = ", ")
-          )
+          paste("Missing DOI:", missing)
         )
       }
     })
     
     # =====================================================
-    # 📋 ISSUE TABLE
+    # ISSUE TABLE (SAFE)
     # =====================================================
     output$pub_issues <- DT::renderDT({
       
-      req(ctx$engine())
+      eng <- ctx$get_engine()
+      req(!is.null(eng))
       
-      v <- ctx$engine()$validation$publications
+      v <- eng$validation$publications
       
       data.frame(
         issue = if (!v$valid) v$issues else "No issues detected",
         unresolved = v$n_unresolved
       )
     })
+    
   })
 }

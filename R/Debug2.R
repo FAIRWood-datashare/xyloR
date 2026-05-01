@@ -64,20 +64,18 @@ mod_debug_server <- function(id, ctx) {
   
   moduleServer(id, function(input, output, session) {
     
-    ns <- session$ns
-    
     # =====================================================
-    # 🧠 SYSTEM STATE
+    # 🧠 SYSTEM STATE (SAFE)
     # =====================================================
     output$state_view <- renderPrint({
       
       list(
-        stage = ctx$v2$stage,
-        frozen = !is.null(ctx$snapshot()),
-        obs_ready = ctx$state$obs_valid,
-        site_ready = ctx$state$site_valid,
-        tree_ready = ctx$state$tree_valid,
-        export_ready = ctx$v2$export_ready
+        stage           = ctx$state$stage,
+        frozen          = !!ctx$has_engine(),
+        dataset_ready   = ctx$state$dataset_ready,
+        ingestion_ready = ctx$state$ingestion_ready,
+        qa_ready        = ctx$state$qa_ready,
+        export_ready    = ctx$state$export_ready
       )
     })
     
@@ -87,37 +85,65 @@ mod_debug_server <- function(id, ctx) {
     output$dataset_info <- renderPrint({
       
       list(
-        name = ctx$form$dataset_name,
+        name    = ctx$form$dataset_name,
         version = ctx$form$dataset_version,
-        has_obs = !is.null(ctx$data$obs$working_copy),
+        
+        has_obs  = !is.null(ctx$data$obs$working_copy),
         has_site = !is.null(ctx$data$site$working_copy),
         has_tree = !is.null(ctx$data$tree$working_copy)
       )
     })
     
     # =====================================================
-    # ⚙️ ENGINE INSPECTION (CORE)
+    # 🧠 ENGINE RESOLVER (STANDARDIZED)
     # =====================================================
-    output$engine_view <- renderPrint({
+    get_engine <- reactive({
       
-      req(ctx$engine())
+      eng <- ctx$get_engine()
+      req(!is.null(eng))
       
-      str(ctx$engine(), max.level = 2)
+      eng
     })
     
     # =====================================================
-    # 🧪 VALIDATION TABLE
+    # ⚙️ ENGINE INSPECTION (SAFE)
+    # =====================================================
+    output$engine_view <- renderPrint({
+      
+      if (!ctx$has_engine()) {
+        return("ENGINE NOT INITIALIZED")
+      }
+      
+      str(get_engine(), max.level = 2)
+    })
+    
+    # =====================================================
+    # 🧪 VALIDATION TABLE (SAFE + CONSISTENT)
     # =====================================================
     output$validation_table <- DT::renderDT({
       
-      req(ctx$engine())
+      if (!ctx$has_engine()) {
+        
+        return(data.frame(
+          layer = character(),
+          valid = character(),
+          note  = "Engine not available"
+        ))
+      }
       
-      v <- ctx$engine()$validation
+      v <- get_engine()$validation
       
       data.frame(
         layer = names(v),
-        valid = sapply(v, function(x) if (!is.null(x$valid)) x$valid else NA)
+        valid = sapply(v, function(x) {
+          if (is.list(x) && !is.null(x$valid)) {
+            x$valid
+          } else {
+            NA
+          }
+        })
       )
     })
+    
   })
 }

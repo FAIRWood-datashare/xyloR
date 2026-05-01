@@ -56,37 +56,37 @@ mod_tab5_server <- function(id, ctx) {
     # 🧠 READINESS STATE
     # =====================================================
     output$ready_state <- renderPrint({
-      ctx$ready()
-    })
-    
-    # =====================================================
-    # 🟢 SYSTEM STATUS
-    # =====================================================
-    output$system_status <- renderUI({
       
-      r <- ctx$ready()
-      
-      tagList(
-        tags$div(paste("Data:", r$data)),
-        tags$div(paste("Metadata:", r$metadata)),
-        tags$div(paste("Engine:", r$engine))
+      list(
+        dataset   = ctx$state$dataset_ready,
+        ingestion = ctx$state$ingestion_ready,
+        qa        = ctx$state$qa_ready,
+        meta      = ctx$state$meta_ready,
+        export    = ctx$state$export_ready
       )
     })
     
     # =====================================================
-    # ⚙️ ENGINE ACCESS (SAFE)
+    # 🟢 SYSTEM STATUS (ENGINE FIXED)
     # =====================================================
-    engine <- reactive({
-      req(ctx$snapshot())
-      ctx$snapshot()
+    output$system_status <- renderUI({
+      
+      tagList(
+        tags$div(paste("Dataset:",   ctx$state$dataset_ready)),
+        tags$div(paste("Ingestion:", ctx$state$ingestion_ready)),
+        tags$div(paste("QA:",        ctx$state$qa_ready)),
+        tags$div(paste("Meta:",      ctx$state$meta_ready)),
+        tags$div(paste("Engine:",    ctx$has_engine()))
+      )
     })
     
     # =====================================================
-    # 📊 ENGINE SUMMARY
+    # 📊 ENGINE SUMMARY (SAFE SSOT ACCESS)
     # =====================================================
     output$engine_summary <- DT::renderDataTable({
       
-      eng <- engine()
+      eng <- ctx$get_engine()
+      req(!is.null(eng))
       
       data.frame(
         component = c("obs", "site", "tree", "sample"),
@@ -100,11 +100,12 @@ mod_tab5_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # 🚨 ISSUE TABLE (CORE FEATURE)
+    # 🚨 ISSUE TABLE
     # =====================================================
     output$issue_table <- DT::renderDataTable({
       
-      eng <- engine()
+      eng <- ctx$get_engine()
+      req(!is.null(eng))
       
       issues <- dplyr::bind_rows(
         normalize_validation(eng$validation$obs, "obs"),
@@ -113,15 +114,20 @@ mod_tab5_server <- function(id, ctx) {
         normalize_validation(eng$validation$sample, "sample")
       )
       
+      if (nrow(issues) == 0) {
+        return(data.frame(message = "No issues found"))
+      }
+      
       issues
     }, selection = "single")
     
     # =====================================================
-    # 🧭 CLICK → NAVIGATION (KEY FEATURE)
+    # 🧭 NAVIGATION
     # =====================================================
     observeEvent(input$issue_table_rows_selected, {
       
-      eng <- engine()
+      eng <- ctx$get_engine()
+      req(!is.null(eng))
       
       issues <- dplyr::bind_rows(
         normalize_validation(eng$validation$obs, "obs"),
@@ -131,24 +137,20 @@ mod_tab5_server <- function(id, ctx) {
       )
       
       row <- input$issue_table_rows_selected
-      
       req(row)
       
       selected <- issues[row, ]
       
-      # =================================================
-      # ROUTING LOGIC (CLICK → TAB)
-      # =================================================
       target_tab <- switch(
         selected$domain,
-        obs = "tab3",
-        site = "tab3",
-        tree = "tab3",
+        obs    = "tab3",
+        site   = "tab3",
+        tree   = "tab3",
         sample = "tab3",
         "tab3"
       )
       
-      ctx$v2$stage <- target_tab
+      ctx$state$stage <- target_tab
     })
     
   })

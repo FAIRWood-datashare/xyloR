@@ -110,3 +110,29 @@ parse_sample_dates <- function(sample_date) {
   return(out)
 }
 
+export_snapshot <- function(ctx, file) {
+  
+  eng <- ctx$get_engine()
+  
+  tmp <- tempdir()
+  
+  saveRDS(ctx$data, file.path(tmp, "dataset.rds"))
+  
+  saveRDS(eng, file.path(tmp, "engine_snapshot.rds"))
+  
+  write.csv(
+    data.frame(
+      snapshot_id     = ctx$snapshot_meta$id,
+      timestamp       = ctx$snapshot_meta$timestamp,
+      dataset_name    = ctx$snapshot_meta$dataset_name,
+      dataset_version = ctx$snapshot_meta$dataset_version
+    ),
+    file.path(tmp, "snapshot_meta.csv"),
+    row.names = FALSE
+  )
+  
+  zip::zipr(
+    zipfile = file,
+    files = list.files(tmp, full.names = TRUE)
+  )
+}

@@ -9,11 +9,9 @@ compute_export_state <- function(ctx) {
   ctx$state$export_ready <-
     is.null(blockers) || length(blockers) == 0
   
-  ctx$state$tab1_ready <-
-    !is.null(ctx$data$obs_raw)
-  
-  ctx$state$tab2_ready <-
-    !is.null(ctx$data$meta)
+  # Canonical names (replaces tab1_ready / tab2_ready / tab3_ready)
+  ctx$state$dataset_ready   <- !is.null(ctx$data$obs_raw)
+  ctx$state$ingestion_ready <- !is.null(ctx$data$meta)
   
   ctx
 }

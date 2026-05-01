@@ -53,44 +53,55 @@ mod_tab6_ui <- function(id) {
 #' @export
 mod_tab6_server <- function(id, ctx, session) {
   moduleServer(id, function(input, output, session) {
-
+    
     # =====================================================
     # 1. DATA INIT
     # =====================================================
     dsample <- shiny::reactiveVal()
-
+    
     shiny::observe({
-      shiny::req(ctx$files$wb_meta)
-
-      df <- openxlsx::readWorkbook(ctx$files$wb_meta, sheet = "sample",
-                                   startRow = 1, colNames = TRUE)[-(1:6), ] |>
+      
+      req(ctx$files$wb_meta)
+      
+      df <- openxlsx::readWorkbook(
+        ctx$files$wb_meta,
+        sheet = "sample",
+        startRow = 1,
+        colNames = TRUE
+      )[-(1:6), ] |>
         tibble::tibble() |>
         dplyr::mutate(
           sample_date = dplyr::case_when(
-            !is.na(sample_date) & is.numeric(suppressWarnings(as.numeric(sample_date))) ~
+            !is.na(sample_date) &
+              !is.na(suppressWarnings(as.numeric(sample_date))) ~
               as.Date(as.numeric(sample_date), origin = "1899-12-30"),
             TRUE ~ as.Date(NA)
           ),
           sample_date = as.character(sample_date)
         )
-
+      
       dsample(df)
     })
-
+    
     shiny::observe({
       ctx$data$tbl5 <- dsample()
     })
-
+    
     # =====================================================
     # 2. RENDER
     # =====================================================
     output$tbl5 <- rhandsontable::renderRHandsontable({
-      shiny::req(ctx$data$tbl5)
+      
+      req(ctx$data$tbl5)
+      req(ctx$data$column_configs)
+      
       col_cfg <- ctx$data$column_configs
-
+      
       rhandsontable::rhandsontable(
         ctx$data$tbl5,
-        rowHeaders = NULL, contextMenu = TRUE, stretchH = "all"
+        rowHeaders = NULL,
+        contextMenu = TRUE,
+        stretchH = "all"
       ) |>
         hot_col_wrapper("tree_label",              col_cfg$tbl5$tree_label) |>
         hot_col_wrapper("sample_id",               col_cfg$tbl5$sample_id) |>
@@ -115,20 +126,26 @@ mod_tab6_server <- function(id, ctx, session) {
         hot_col_wrapper("reaction_wood",           col_cfg$tbl5$reaction_wood) |>
         hot_col_wrapper("sample_comment",          col_cfg$tbl5$sample_comment)
     })
-
+    
     # =====================================================
     # 3. SYNC
     # =====================================================
     shiny::observeEvent(input$tbl5, {
-      shiny::req(input$tbl5)
+      
+      req(input$tbl5)
+      
       df <- rhandsontable::hot_to_r(input$tbl5)
+      
       ctx$data$tbl5 <- df
     })
-
+    
     # =====================================================
     # 4. SAVE
     # =====================================================
     shiny::observeEvent(input$save_sample, {
+      
+      req(ctx$data$tbl5)
+      
       save_and_validate(
         data_reactive = ctx$data$tbl5,
         sheet_name    = "sample",
@@ -136,6 +153,6 @@ mod_tab6_server <- function(id, ctx, session) {
         temp_folder   = ctx$files$temp_folder
       )
     })
-
+    
   })
 }

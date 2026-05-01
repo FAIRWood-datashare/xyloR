@@ -34,7 +34,11 @@ mod_tab3_ui <- function(id) {
         ),
         
         bslib::card(
-          bslib::card_header(id = ns("card_header_validation"), "Validation"),
+          div(
+            id = ns("card_header_validation"),
+            class = "card-header bg-danger py-1",
+            "Validation"
+          ),
           bslib::card_body(
             checkboxInput(ns("validate_location"), "Validate location"),
             checkboxInput(ns("validate_data_coverage"), "Validate coverage"),
@@ -106,11 +110,11 @@ mod_tab3_server <- function(id, ctx) {
     ns <- session$ns
     
     # =====================================================
-    # 🧠 DATA SOURCES (IMMUTABLE READ)
+    # 🧠 DATA SOURCES
     # =====================================================
     xylo_obs <- reactive({
-      req(ctx$data$obs_truth)
-      ctx$data$obs_truth
+      req(ctx$data$obs_raw)
+      ctx$data$obs_raw
     })
     
     site_info <- reactive({
@@ -119,21 +123,25 @@ mod_tab3_server <- function(id, ctx) {
     })
     
     # =====================================================
-    # 🧭 SITE STATE
+    # 🧠 SITE STATE
     # =====================================================
     selected_site <- reactiveVal(NULL)
     
-    observe({
-      
-      req(site_info())
+    observeEvent(site_info(), {
       
       sites <- unique(trimws(as.character(site_info()$site_label)))
+      if (length(sites) == 0) return()
       
-      updateSelectInput(session, "site_filter", choices = sites)
-      
-      if (is.null(selected_site()) && length(sites) > 0) {
+      if (is.null(selected_site())) {
         selected_site(sites[1])
       }
+      
+      updateSelectInput(
+        session,
+        "site_filter",
+        choices = sites,
+        selected = selected_site()
+      )
     })
     
     observeEvent(input$site_filter, {
@@ -141,81 +149,92 @@ mod_tab3_server <- function(id, ctx) {
     }, ignoreInit = TRUE)
     
     df_site <- reactive({
-      
       req(xylo_obs(), selected_site())
-      
       dplyr::filter(xylo_obs(), site_label == selected_site())
     })
     
     # =====================================================
-    # 📊 VALIDATION (UNCHANGED LOGIC)
+    # 📊 QA (ENGINE-AGNOSTIC — CLEAN SSOT RULE)
     # =====================================================
     qa_valid <- reactive({
+      
+      req(
+        input$validate_location,
+        input$validate_data_coverage,
+        input$validate_observation
+      )
       
       isTRUE(input$validate_location) &&
         isTRUE(input$validate_data_coverage) &&
         isTRUE(input$validate_observation)
     })
     
-    # =====================================================
-    # 🧭 READINESS INTEGRATION (NEW)
-    # =====================================================
     observe({
-      
-      # data layer readiness
-      data_ready <- !is.null(ctx$data$obs_truth) &&
-        !is.null(ctx$data$site_info)
-      
-      # expose via central controller
-      ctx$update_ready()
-      
-      # optional sync into legacy v2 (kept for compatibility)
-      ctx$v2$qa_ready <- qa_valid()
-      ctx$v2$obs_verified <- qa_valid()
+      ctx$state$qa_ready <- qa_valid()
     })
     
     # =====================================================
-    # 🎨 UI STATE (UNCHANGED LOGIC, safer JS)
+    # 🎨 UI STATE
     # =====================================================
     observe({
       
       valid <- qa_valid()
       
-      if (valid) shinyjs::enable("next_btn")
-      else shinyjs::disable("next_btn")
+      shinyjs::toggleState("next_btn", valid)
       
-      color <- if (valid) "#198754" else "#dc3545"
+      btn_class <- if (valid) "btn-success" else "btn-secondary"
       
       shinyjs::runjs(sprintf(
-        "
-        var header = document.getElementById('%s');
-        if (header) {
-          header.style.backgroundColor = '%s';
-          header.style.color = '#fff';
-        }
-        ",
+        "$('#%s').removeClass('btn-success btn-secondary').addClass('%s')",
+        ns("next_btn"),
+        btn_class
+      ))
+      
+      header_class <- if (valid) "bg-success" else "bg-danger"
+      
+      shinyjs::runjs(sprintf(
+        "$('#%s').removeClass('bg-success bg-danger').addClass('%s')",
         ns("card_header_validation"),
-        color
+        header_class
       ))
     })
     
     # =====================================================
-    # 📊 TABLE
+    # 📊 KEY TABLE
     # =====================================================
     output$key_info_table <- DT::renderDataTable({
       
       df <- df_site()
       req(nrow(df) > 0)
       
-      si <- site_info() |> dplyr::filter(site_label == selected_site())
+      si <- site_info() %>%
+        dplyr::filter(site_label == selected_site())
       
-      tibble::tibble(
-        Metric = c("Site", "Trees", "Dates"),
-        Value = c(
-          si$site_label,
-          length(unique(df$tree_label)),
-          length(unique(df$sample_date))
-        )
+      validate(
+        need(nrow(si) > 0, "No site selected"),
+        need(!is.na(si$latitude[1]), "Missing lat"),
+        need(!is.na(si$longitude[1]), "Missing lon")
+      )
+      
+      key_info <- tibble::tibble(
+        "Site" = si$site_label[1],
+        "Coordinates" = paste(
+          "Lat =", round(as.numeric(si$latitude[1]), 4),
+          "Long =", round(as.numeric(si$longitude[1]), 4)
+        ),
+        "Elevation" = si$elevation[1],
+        "Network" = paste(unique(df$network_label), collapse = ", "),
+        "Date From" = format(min(df$sample_date), "%Y-%m-%d"),
+        "Date To"   = format(max(df$sample_date), "%Y-%m-%d"),
+        "n_Trees"   = length(unique(df$tree_label))
+      ) %>%
+        t() %>%
+        setNames("Value")
+      
+      DT::datatable(
+        key_info,
+        options = list(dom = "t", paging = FALSE),
+        class = "table-dark compact stripe hover"
       )
     })
     
@@ -224,48 +243,65 @@ mod_tab3_server <- function(id, ctx) {
     # =====================================================
     output$mymap <- leaflet::renderLeaflet({
       
-      si <- site_info() |> dplyr::filter(site_label == selected_site())
+      req(selected_site())
       
-      leaflet::leaflet() |>
-        leaflet::addTiles() |>
+      si <- site_info() %>%
+        dplyr::filter(site_label == selected_site())
+      
+      validate(
+        need(nrow(si) > 0, "No site found"),
+        need(!is.na(si$latitude[1]), "Missing lat"),
+        need(!is.na(si$longitude[1]), "Missing lon")
+      )
+      
+      leaflet::leaflet() %>%
+        leaflet::addTiles() %>%
+        leaflet::setView(
+          lng = as.numeric(si$longitude[1]),
+          lat = as.numeric(si$latitude[1]),
+          zoom = 10
+        ) %>%
         leaflet::addMarkers(
-          lng = as.numeric(si$longitude),
-          lat = as.numeric(si$latitude),
-          popup = si$site_label
+          lng = as.numeric(si$longitude[1]),
+          lat = as.numeric(si$latitude[1]),
+          popup = si$site_label[1]
         )
     })
     
     # =====================================================
-    # 📈 PLOT (UNCHANGED)
+    # 📈 PLOT
     # =====================================================
     output$data_coverage_plot <- plotly::renderPlotly({
       
       df <- df_site()
       req(input$color)
       
+      validate(
+        need(input$color %in% names(df), "Invalid color column"),
+        need("sample_date" %in% names(df), "Missing sample_date"),
+        need("tree_label" %in% names(df), "Missing tree_label")
+      )
+      
       plotly::plot_ly(
         df,
         x = ~sample_date,
         y = ~tree_label,
-        color = ~.data[[input$color]],
+        color = as.factor(df[[input$color]]),
         type = "scatter",
         mode = "markers"
       )
     })
     
     # =====================================================
-    # 🚀 NAVIGATION (NOW SAFE-GATED)
+    # 🚀 NAVIGATION
     # =====================================================
     observeEvent(input$next_btn, {
       
       req(qa_valid())
       
-      # 🔥 only advance if system is consistent
-      ctx$nav$stage <- "tab4"
-      
-      # 🔥 trigger readiness update (important bridge to next layer)
+      ctx$state$stage <- "tab4"
       ctx$update_ready()
     })
-    
   })
 }
+
