@@ -1,370 +1,281 @@
 // =====================================================
-// 0. SESSION SYSTEM
+// MINI REACT FIBER RUNTIME (FULL CLEAN IMPLEMENTATION)
 // =====================================================
-const SESSION_KEY = "engine_session_v1"
-const CURRENT_SESSION_VERSION = 1
 
-// 🧠 MIGRATION PIPELINE (AUTO RUNNER)
-const SESSION_MIGRATIONS = {
-  1: (data) => data
-}
+const TEXT_ELEMENT = "TEXT_ELEMENT"
 
 // =====================================================
-// AUTO MIGRATION ENGINE
+// 1. VIRTUAL DOM
 // =====================================================
-function runMigrations(data) {
-  let version = data.version ?? 0
 
-  while (version < CURRENT_SESSION_VERSION) {
-    const nextVersion = version + 1
-    const migrateFn = SESSION_MIGRATIONS[nextVersion]
-
-    if (typeof migrateFn === "function") {
-      data = migrateFn(data)
-    }
-
-    version = nextVersion
-    data.version = version
-  }
-
-  return data
-}
-
-// =====================================================
-// SAVE SESSION
-// =====================================================
-function saveSession(ctx, history) {
-  const data = {
-    version: CURRENT_SESSION_VERSION,
-    engine: ctx.getEngine(),
-    history: history.getAll(),
-    index: history.getIndex()
-  }
-
-  localStorage.setItem(SESSION_KEY, JSON.stringify(data))
-}
-
-// =====================================================
-// LOAD SESSION
-// =====================================================
-function loadSession(ctx, history) {
-  const raw = localStorage.getItem(SESSION_KEY)
-  if (!raw) return
-
-  try {
-    let data = JSON.parse(raw)
-
-    data = runMigrations(data)
-
-    if (data.engine) ctx.setEngine(data.engine)
-
-    if (Array.isArray(data.history)) {
-      data.history.forEach(h => history._pushRaw(h))
-    }
-
-    if (typeof data.index === "number") {
-      history._setIndex(data.index)
-    }
-
-  } catch (e) {
-    console.log("SESSION LOAD FAILED", e)
-  }
-}
-
-// =====================================================
-// DEBOUNCE + AUTO SAVE
-// =====================================================
-function debounce(fn, delay = 500) {
-  let t
-  return (...args) => {
-    clearTimeout(t)
-    t = setTimeout(() => fn(...args), delay)
-  }
-}
-
-let autoSaveSession
-
-function setupAutoSave(ctx, history) {
-  autoSaveSession = debounce(() => {
-    saveSession(ctx, history)
-  }, 500)
-}
-
-// =====================================================
-// ENGINE CONTEXT
-// =====================================================
-function createCtx() {
-  const dirtyScopes = new Set()
-  const subscribers = new Set()
-
-  let engine = {}
-  const dependencies = {}
-
+function h(type, props, ...children) {
   return {
-    invalidate(scope) {
-      dirtyScopes.add(scope)
-    },
+    type,
+    props: {
+      ...props,
+      children: children
+        .flat()
+        .map(c =>
+          typeof c === "object" ? c : createTextElement(c)
+        )
+    }
+  }
+}
 
-    registerDependencies(map) {
-      Object.keys(dependencies).forEach(k => delete dependencies[k])
-      Object.assign(dependencies, map)
-    },
-
-    getEngine() {
-      return engine
-    },
-
-    setEngine(next) {
-      engine = next
-      subscribers.forEach(fn => fn())
-    },
-
-    subscribe(fn) {
-      subscribers.add(fn)
-    },
-
-    _dirtyScopes: dirtyScopes,
-    _dependencies: dependencies
+function createTextElement(text) {
+  return {
+    type: TEXT_ELEMENT,
+    props: {
+      nodeValue: text,
+      children: []
+    }
   }
 }
 
 // =====================================================
-// ENGINE REBUILD
+// 2. FIBER STATE
 // =====================================================
-function rebuildEngine(ctx) {
-  const dirty = ctx._dirtyScopes
-  const deps = ctx._dependencies
 
-  const prev = ctx.getEngine()
-  const next = { ...prev }
+let nextUnitOfWork = null
+let wipRoot = null
+let currentRoot = null
 
-  let changed = false
+// =====================================================
+// 3. DOM CREATION
+// =====================================================
 
-  for (const key in deps) {
-    const scopes = Array.isArray(deps[key]) ? deps[key] : []
+function createDom(fiber) {
+  const dom =
+    fiber.type === TEXT_ELEMENT
+      ? document.createTextNode("")
+      : document.createElement(fiber.type)
 
-    const shouldRebuild = scopes.some(s => dirty.has(s))
+  updateDom(dom, {}, fiber.props)
+  return dom
+}
 
-    if (shouldRebuild) {
-      next[key] = {
-        value: (prev[key]?.value ?? 0) + 1,
-        updatedAt: new Date().toISOString()
+// =====================================================
+// 4. DOM DIFF (minimal React-like behavior)
+// =====================================================
+
+function updateDom(dom, prevProps, nextProps) {
+
+  const isEvent = k => k.startsWith("on")
+  const isProp = k => k !== "children" && !isEvent(k)
+
+  // remove old
+  Object.keys(prevProps).forEach(name => {
+    if (isEvent(name)) {
+      const event = name.toLowerCase().substring(2)
+      dom.removeEventListener(event, prevProps[name])
+    }
+
+    if (isProp(name)) {
+      dom[name] = ""
+    }
+  })
+
+  // add new
+  Object.keys(nextProps).forEach(name => {
+    if (isEvent(name)) {
+      const event = name.toLowerCase().substring(2)
+      dom.addEventListener(event, nextProps[name])
+    }
+
+    if (isProp(name)) {
+      dom[name] = nextProps[name]
+    }
+  })
+}
+
+// =====================================================
+// 5. RECONCILIATION ENGINE
+// =====================================================
+
+function reconcileChildren(wipFiber, elements) {
+  let index = 0
+  let oldFiber = wipFiber.alternate?.child
+  let prevSibling = null
+
+  while (index < elements.length || oldFiber) {
+
+    const element = elements[index]
+    let newFiber = null
+
+    const sameType =
+      oldFiber &&
+      element &&
+      oldFiber.type === element.type
+
+    if (sameType) {
+      newFiber = {
+        type: oldFiber.type,
+        props: element.props,
+        dom: oldFiber.dom,
+        parent: wipFiber,
+        alternate: oldFiber
       }
-      changed = true
     }
-  }
 
-  if (changed) ctx.setEngine(next)
+    if (element && !sameType) {
+      newFiber = {
+        type: element.type,
+        props: element.props,
+        dom: null,
+        parent: wipFiber
+      }
+    }
 
-  dirty.clear()
-}
-
-// =====================================================
-// HISTORY
-// =====================================================
-function createHistory() {
-  const snapshots = []
-  let index = -1
-
-  return {
-    save(entry) {
-      snapshots.splice(index + 1)
-      snapshots.push(JSON.parse(JSON.stringify(entry)))
+    if (oldFiber && !sameType) {
+      oldFiber = oldFiber.sibling
       index++
-    },
-
-    undo() {
-      if (index <= 0) return null
-      index--
-      return snapshots[index]
-    },
-
-    redo() {
-      if (index >= snapshots.length - 1) return null
-      index++
-      return snapshots[index]
-    },
-
-    getAll() {
-      return snapshots
-    },
-
-    getIndex() {
-      return index
-    },
-
-    goTo(i) {
-      if (i < 0 || i >= snapshots.length) return null
-      index = i
-      return snapshots[index]
-    },
-
-    _pushRaw(entry) {
-      snapshots.push(entry)
-    },
-
-    _setIndex(i) {
-      index = i
+      continue
     }
+
+    if (index === 0) {
+      wipFiber.child = newFiber
+    } else if (element) {
+      prevSibling.sibling = newFiber
+    }
+
+    prevSibling = newFiber
+    oldFiber = oldFiber?.sibling
+    index++
   }
 }
 
 // =====================================================
-// DIFF ENGINE
+// 6. SCHEDULER (work loop)
 // =====================================================
-function diffStates(prev = {}, next = {}) {
-  const diff = { added: [], removed: [], updated: [] }
 
-  const keys = new Set([...Object.keys(prev), ...Object.keys(next)])
+function workLoop(deadline) {
+  let shouldYield = false
 
-  for (const k of keys) {
-    if (!(k in prev)) diff.added.push(k)
-    else if (!(k in next)) diff.removed.push(k)
-    else if (JSON.stringify(prev[k]) !== JSON.stringify(next[k])) {
-      diff.updated.push(k)
-    }
+  while (nextUnitOfWork && !shouldYield) {
+    nextUnitOfWork = performUnitOfWork(nextUnitOfWork)
+    shouldYield = deadline.timeRemaining() < 1
   }
 
-  return diff
+  if (!nextUnitOfWork && wipRoot) {
+    commitRoot()
+  }
+
+  requestIdleCallback(workLoop)
 }
 
-function getHistoryDiff(history, a, b) {
-  const A = history.getAll()[a]
-  const B = history.getAll()[b]
-
-  if (!A || !B) return null
-
-  return diffStates(A.state, B.state)
-}
-
-function renderDiff(a, b) {
-  const el = document.getElementById("diff")
-  if (!el) return
-
-  const diff = getHistoryDiff(window.history, a, b)
-  if (!diff) return
-
-  el.textContent =
-    "➕ Added: " + diff.added.join(", ") + "\n" +
-    "🔁 Updated: " + diff.updated.join(", ") + "\n" +
-    "❌ Removed: " + diff.removed.join(", ")
-}
+requestIdleCallback(workLoop)
 
 // =====================================================
-// INIT
+// 7. UNIT OF WORK
 // =====================================================
-const ctx = createCtx()
-const history = createHistory()
 
-ctx.registerDependencies({
-  engineA: ["user"],
-  engineB: ["settings"]
-})
+function performUnitOfWork(fiber) {
 
-loadSession(ctx, history)
-setupAutoSave(ctx, history)
+  const isFunctionComponent =
+    typeof fiber.type === "function"
 
-// =====================================================
-// RENDER
-// =====================================================
-function render() {
-  const el = document.getElementById("output")
-  if (!el) return
+  if (isFunctionComponent) {
+    updateFunctionComponent(fiber)
+  } else {
+    updateHostComponent(fiber)
+  }
 
-  el.textContent = JSON.stringify(ctx.getEngine(), null, 2)
+  if (fiber.child) return fiber.child
+
+  let next = fiber
+  while (next) {
+    if (next.sibling) return next.sibling
+    next = next.parent
+  }
+
+  return null
 }
 
 // =====================================================
-// HISTORY RENDER
+// 8. COMPONENT HANDLING
 // =====================================================
-function renderHistory() {
-  const el = document.getElementById("history")
-  if (!el) return
 
-  el.innerHTML = ""
+function updateFunctionComponent(fiber) {
+  const children = [fiber.type(fiber.props)]
+  reconcileChildren(fiber, children)
+}
 
-  history.getAll().forEach((item, i) => {
-    const div = document.createElement("div")
-    div.textContent = i + " → " + item.action
+function updateHostComponent(fiber) {
+  if (!fiber.dom) {
+    fiber.dom = createDom(fiber)
+  }
 
-    div.onclick = () => {
-      ctx.setEngine(item.state)
-      history.goTo(i)
-
-      render()
-      renderHistory()
-
-      if (i > 0) renderDiff(i - 1, i)
-    }
-
-    el.appendChild(div)
-  })
+  reconcileChildren(fiber, fiber.props.children)
 }
 
 // =====================================================
-// ACTIONS
+// 9. COMMIT PHASE
 // =====================================================
-function runAction(scope) {
-  ctx.invalidate(scope)
-  rebuildEngine(ctx)
 
-  history.save({
-    action: scope,
-    state: ctx.getEngine()
-  })
-
-  render()
-  renderHistory()
-
-  saveSession(ctx, history)
-  if (autoSaveSession) autoSaveSession()
+function commitRoot() {
+  commitWork(wipRoot.child)
+  currentRoot = wipRoot
+  wipRoot = null
 }
 
-function onUserChange() {
-  runAction("user")
-}
+function commitWork(fiber) {
+  if (!fiber) return
 
-function onSettingsChange() {
-  runAction("settings")
-}
+  let parentFiber = fiber.parent
+  while (!parentFiber.dom) {
+    parentFiber = parentFiber.parent
+  }
 
-// =====================================================
-// UNDO / REDO
-// =====================================================
-function undo() {
-  const s = history.undo()
-  if (!s) return
+  const parentDom = parentFiber.dom
 
-  ctx.setEngine(s.state)
-  render()
-  renderHistory()
-}
+  if (fiber.dom) {
+    parentDom.appendChild(fiber.dom)
+  }
 
-function redo() {
-  const s = history.redo()
-  if (!s) return
-
-  ctx.setEngine(s.state)
-  render()
-  renderHistory()
+  commitWork(fiber.child)
+  commitWork(fiber.sibling)
 }
 
 // =====================================================
-// INIT UI
+// 10. PUBLIC RENDER API
 // =====================================================
+
+function render(element, container) {
+  wipRoot = {
+    dom: container,
+    props: { children: [element] },
+    alternate: currentRoot
+  }
+
+  nextUnitOfWork = wipRoot
+}
+
+// =====================================================
+// 11. SAMPLE COMPONENTS
+// =====================================================
+
+function App() {
+  return h(
+    "div",
+    null,
+
+    h("h1", null, "⚛️ Mini React Fiber Runtime"),
+
+    h("button", {
+      onclick: () => alert("clicked")
+    }, "Click Me"),
+
+    h("p", null, "Fiber reconciliation is running"),
+  )
+}
+
+// =====================================================
+// 12. BOOTSTRAP
+// =====================================================
+
 window.addEventListener("load", () => {
-  render()
-  renderHistory()
+  const root = document.getElementById("app")
+  render(h(App, null), root)
+
+  console.log("🚀 FULL Fiber Runtime Ready")
 })
-
-// =====================================================
-// EXPORT
-// =====================================================
-window.onUserChange = onUserChange
-window.onSettingsChange = onSettingsChange
-window.undo = undo
-window.redo = redo
-window.saveSession = () => saveSession(ctx, history)
-
-window.ctx = ctx
-window.history = history

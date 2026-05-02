@@ -1,18 +1,5 @@
-#' GloboXylo Shiny App
-#'
-#' 
-#' @import shiny
-#' @import shinyjs
-#' @import bslib
-#' @importFrom htmltools includeCSS includeScript tags
-#' @return A Shiny app object
-#' @export
-#' @examples
-#' if (interactive()) {
-#'   shiny::runApp(system.file("app", package = "GloboXyloApp"))
-#' }
-#'
 xyloR <- function() {
+  shiny::addResourcePath("www", file.path(getwd(), "www"))
   
   ui <- shiny::fluidPage(
     
@@ -23,16 +10,162 @@ xyloR <- function() {
       primary = "#375A7F"
     ),
     
+    # =====================================================
+    # EXTERNAL LIBS
+    # =====================================================
     htmltools::tags$head(
       htmltools::tags$script(src = "https://unpkg.com/@popperjs/core@2"),
       htmltools::tags$script(src = "https://unpkg.com/tippy.js@6")
     ),
     
-    htmltools::includeCSS("www/custom_styles.css"),
-    htmltools::includeScript("www/custom_scripts.js"),
+    # =====================================================
+    # CSS
+    # =====================================================
+    htmltools::tags$link(rel = "stylesheet", href = "custom_styles.css"),
     
+    # =====================================================
+    # UI CONTROLS (UNDO / REDO / RESET)
+    # =====================================================
+    tags$div(
+      style = "
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 9999;
+      display: flex;
+      gap: 6px;
+    ",
+      
+      tags$button(
+        "Undo",
+        onclick = "AppUI.undo()",
+        class = "btn btn-sm btn-secondary"
+      ),
+      
+      tags$button(
+        "Redo",
+        onclick = "AppUI.redo()",
+        class = "btn btn-sm btn-secondary"
+      ),
+      
+      tags$button(
+        "Reset",
+        onclick = "AppUI.reset()",
+        class = "btn btn-sm btn-danger"
+      )
+    ),
+    
+    # =====================================================
+    # JS LOADER (FIXED PATHS FOR SHINY)
+    # =====================================================
+    tags$script(HTML("
+console.log('🚀 Loading JS modules');
+
+function load(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = res;
+    s.onerror = () => rej(src);
+    document.head.appendChild(s);
+  });
+}
+
+async function boot() {
+
+  const files = [
+    '/www/core/state.js',
+    '/www/core/engine.js',
+    '/www/core/history.js',
+    '/www/core/cmd.js',
+    '/www/core/render.js',
+    '/www/app.js'
+  ];
+
+  for (const f of files) {
+    await load(f);
+  }
+
+  console.log('✅ JS loaded');
+
+  // =========================
+  // SAFE INIT ORDER (FIXED)
+  // =========================
+
+  window.AppState?.init?.();
+  window.AppRender?.init?.();
+
+  // timeline must start AFTER history + state exist
+  window.AppTimeline?.init?.();
+
+  window.AppRender?.render?.();
+
+  // =========================
+  // UI BRIDGE (SAFE + STABLE)
+  // =========================
+  window.AppUI = {
+    undo: () => window.App?.undo?.(),
+    redo: () => window.App?.redo?.(),
+    reset: () => {
+      window.AppHistory?.reset?.(window.AppState?.get?.());
+      console.log('history reset via UI');
+    }
+  };
+
+}
+
+boot();
+")),
+    
+    # =====================================================
+    # SHINY ↔ JS BRIDGE
+    # =====================================================
+    tags$script(HTML("
+    Shiny.addCustomMessageHandler('cmdk-event', function(msg) {
+
+      if (msg.type === 'navigate') {
+        Shiny.setInputValue('js_nav', msg.payload, {priority: 'event'});
+      }
+
+      if (msg.type === 'invalidate') {
+        Shiny.setInputValue('js_invalidate', msg.payload, {priority: 'event'});
+      }
+
+    });
+  ")),
+    
+    # =====================================================
+    # TITLE
+    # =====================================================
     shiny::titlePanel("GloboXylo Data Collector"),
     
+    # =====================================================
+    # ROOT DOM
+    # =====================================================
+    tags$div(id = "main"),
+    tags$div(id = "command-root"),
+    
+    tags$div(
+      id = "timeline-inspector",
+      style = "
+    position: fixed;
+    left: 10px;
+    bottom: 10px;
+    width: 260px;
+    max-height: 300px;
+    overflow: auto;
+    background: rgba(0,0,0,0.75);
+    color: white;
+    padding: 10px;
+    font-size: 12px;
+    border-radius: 6px;
+    z-index: 9999;
+  "
+    ),
+    
+    # =====================================================
+    # TABS
+    # =====================================================
     bslib::navset_card_tab(
       id = "tabs",
       
@@ -60,28 +193,14 @@ xyloR <- function() {
     ctx <- create_app_context()
     
     # =====================================================
-    # 🧠 ENGINE API LAYER (FINAL FORM — CLEAN)
+    # ENGINE API
     # =====================================================
-    
-    ctx$get_engine <- function() {
-      ctx$state$engine
-    }
-    
-    ctx$has_engine <- function() {
-      !is.null(ctx$state$engine)
-    }
-    
-    ctx$set_engine <- function(engine) {
-      ctx$state$engine <- engine
-    }
+    ctx$get_engine <- function() ctx$state$engine
+    ctx$set_engine <- function(engine) ctx$state$engine <- engine
     
     ctx$invalidate_engine <- function(trigger = NULL) {
-      
       ctx$state$engine <- NULL
       ctx$state$engine_tick <- Sys.time()
-      
-      ctx$state$qa_ready <- FALSE
-      ctx$state$export_ready <- FALSE
       
       ctx$debug$last_invalidation <- list(
         time = Sys.time(),
@@ -107,28 +226,51 @@ xyloR <- function() {
     }
     
     # =====================================================
-    # ENGINE AUTO REBUILD OBSERVER
+    # AUTO REBUILD
     # =====================================================
     shiny::observe({
       ctx$rebuild_engine()
     })
     
     # =====================================================
-    # NAVIGATION
+    # NAV SYNC (R → JS optional future use)
     # =====================================================
     shiny::observe({
-      
       req(ctx$state$stage)
       
       bslib::nav_select(
-        id       = "tabs",
+        id = "tabs",
         selected = ctx$state$stage,
-        session  = session
+        session = session
       )
     })
     
     # =====================================================
-    # HISTORY TRACKING
+    # 🔥 JS → R BRIDGE (THIS IS THE KEY FIX)
+    # =====================================================
+    shiny::observeEvent(input$js_nav, {
+      
+      req(input$js_nav)
+      
+      ctx$state$stage <- input$js_nav
+      
+      bslib::nav_select(
+        id = "tabs",
+        selected = input$js_nav,
+        session = session
+      )
+    })
+    
+    shiny::observeEvent(input$js_invalidate, {
+      
+      req(input$js_invalidate)
+      
+      ctx$invalidate_engine(input$js_invalidate)
+      ctx$rebuild_engine()
+    })
+    
+    # =====================================================
+    # HISTORY
     # =====================================================
     ctx$debug$history <- shiny::reactiveVal(data.frame(
       from = character(),
@@ -136,30 +278,6 @@ xyloR <- function() {
       trigger = character(),
       timestamp = as.POSIXct(character())
     ))
-    
-    log_transition <- function(from, to, trigger) {
-      
-      old <- ctx$debug$history()
-      
-      ctx$debug$history(rbind(old, data.frame(
-        from = ifelse(is.null(from), "START", from),
-        to = to,
-        trigger = trigger,
-        timestamp = Sys.time()
-      )))
-    }
-    
-    last_stage <- shiny::reactiveVal(NULL)
-    
-    shiny::observe({
-      
-      req(ctx$state$stage)
-      
-      if (!identical(ctx$state$stage, last_stage())) {
-        log_transition(last_stage(), ctx$state$stage, "stage_change")
-        last_stage(ctx$state$stage)
-      }
-    })
     
     # =====================================================
     # MODULES
@@ -194,7 +312,7 @@ xyloR <- function() {
       
       nodes <- data.frame(
         id = tabs,
-        label = paste("Tab", 1:4),
+        label = tabs,
         color = ifelse(tabs == ctx$state$stage, "#00C853", "#2C3E50"),
         shape = "box"
       )
@@ -205,9 +323,7 @@ xyloR <- function() {
         arrows = "to"
       )
       
-      visNetwork::visNetwork(nodes, edges) |>
-        visNetwork::visNodes(font = list(color = "white")) |>
-        visNetwork::visEdges(color = "#888")
+      visNetwork::visNetwork(nodes, edges)
     })
   }
   
